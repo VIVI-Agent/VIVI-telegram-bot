@@ -1,7 +1,7 @@
-import { ISubScene, GlobalSceneContext, InitUserSceneData } from "../../types";
+import { ISubScene, GlobalSceneContext, InitUserSceneData } from "@types";
+import { INITUSER_TEXTS } from "./messages";
 import { CALLBACKS, createInitUserCallback } from "./callbacks";
 import { createWallet } from "./InitUserServices";
-import { INITUSER_TEXTS } from "./messages";
 
 export class InitUserSubScene implements ISubScene {
   instanceId: string;
@@ -103,6 +103,15 @@ export class InitUserSubScene implements ISubScene {
       )
     );
     await ctx.reply(INITUSER_TEXTS.MESSAGES.WELCOME);
+
+    // InitUser completed - transition to MainMenu
+    console.log(`InitUser completed, transitioning to MainMenu`);
+
+    // Deactivate this scene (cleanup)
+    await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
+
+    // Activate MainMenu scene
+    await ctx.sceneManager.activateScene(ctx, "MainMenu");
 
     return true;
   }
