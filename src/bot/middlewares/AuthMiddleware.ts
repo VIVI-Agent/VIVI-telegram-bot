@@ -1,12 +1,13 @@
 import { GENERIC_ERRORS } from "@texts";
 import { GlobalSceneContext } from "@types";
+import { logger } from "@logger";
 import { MiddlewareFn } from "telegraf";
 
 export const createAuthMiddleware: MiddlewareFn<GlobalSceneContext> = async (
   ctx,
   next
 ) => {
-  console.log("AuthMiddleware");
+  logger.info("AuthMiddleware");
   // User Data From Telegram
   const tgUserId = ctx.from?.id;
   const tgUsername = ctx.from?.username;
@@ -58,7 +59,7 @@ export const createAuthMiddleware: MiddlewareFn<GlobalSceneContext> = async (
         error.code === "P2002" &&
         error.meta?.target?.includes("tgUsername")
       ) {
-        console.log(
+        logger.info(
           `Username ${tgUsername} already exists, fetching existing user`
         );
 
@@ -75,7 +76,7 @@ export const createAuthMiddleware: MiddlewareFn<GlobalSceneContext> = async (
           ctx.user = existingUser;
         }
       } else {
-        console.error("AuthMiddleware error:", error);
+        logger.error("AuthMiddleware error:", error);
         await ctx.reply(GENERIC_ERRORS.USER_NOT_FOUND);
         return;
       }

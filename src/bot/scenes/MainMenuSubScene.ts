@@ -1,3 +1,4 @@
+import { logger } from "@logger";
 import { ISubScene, GlobalSceneContext, MainMenuSceneData } from "../types";
 
 export class MainMenuSubScene implements ISubScene {
@@ -9,7 +10,7 @@ export class MainMenuSubScene implements ISubScene {
   }
 
   async onActivate(ctx: GlobalSceneContext, data?: any): Promise<void> {
-    console.log(`MainMenuSubScene activated: ${this.instanceId}`);
+    logger.info(`MainMenuSubScene activated: ${this.instanceId}`);
 
     // Initialize scene data
     const sceneData: MainMenuSceneData = {
@@ -24,7 +25,7 @@ export class MainMenuSubScene implements ISubScene {
   }
 
   async cleanup(ctx: GlobalSceneContext): Promise<void> {
-    console.log(`MainMenuSubScene cleanup: ${this.instanceId}`);
+    logger.info(`MainMenuSubScene cleanup: ${this.instanceId}`);
 
     // Clean up any temporary messages
     const sceneState = ctx.session.activeSubScenes[this.instanceId];
@@ -33,7 +34,7 @@ export class MainMenuSubScene implements ISubScene {
         try {
           await ctx.deleteMessage(messageId);
         } catch (error) {
-          console.log(`Failed to delete message ${messageId}:`, error);
+          logger.info(`Failed to delete message ${messageId}:`, error);
         }
       }
     }
@@ -44,7 +45,7 @@ export class MainMenuSubScene implements ISubScene {
       try {
         await ctx.deleteMessage(sceneData.menuMessageId);
       } catch (error) {
-        console.log(`Failed to delete menu message:`, error);
+        logger.info(`Failed to delete menu message:`, error);
       }
     }
   }
@@ -53,7 +54,7 @@ export class MainMenuSubScene implements ISubScene {
     ctx: GlobalSceneContext,
     callback: string
   ): Promise<boolean> {
-    console.log(`MainMenuSubScene handling callback: ${callback}`);
+    logger.info(`MainMenuSubScene handling callback: ${callback}`);
 
     // Extract action from callback (format: "instanceId:action")
     let action = callback;
@@ -94,7 +95,7 @@ export class MainMenuSubScene implements ISubScene {
   }
 
   async handleText(ctx: GlobalSceneContext, text: string): Promise<boolean> {
-    console.log(`MainMenuSubScene handling text: ${text}`);
+    logger.info(`MainMenuSubScene handling text: ${text}`);
 
     // Handle text commands
     switch (text.toLowerCase()) {
@@ -154,7 +155,7 @@ Welcome! Choose an option below:
         .data as MainMenuSceneData;
       sceneData.menuMessageId = sentMessage.message_id;
     } catch (error) {
-      console.error("Error showing main menu:", error);
+      logger.error("Error showing main menu:", error);
       await ctx.reply("❌ Error showing menu. Please try again.");
     }
   }
@@ -171,14 +172,14 @@ Welcome! Choose an option below:
         try {
           await ctx.deleteMessage(sceneData.menuMessageId);
         } catch (error) {
-          console.log("Could not delete old menu message:", error);
+          logger.info("Could not delete old menu message:", error);
         }
       }
 
       // Show new menu
       await this.showMainMenu(ctx);
     } catch (error) {
-      console.error("Error refreshing main menu:", error);
+      logger.error("Error refreshing main menu:", error);
       await ctx.answerCbQuery("❌ Error refreshing menu");
     }
   }

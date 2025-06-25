@@ -1,3 +1,4 @@
+import { logger } from "@logger";
 import {
   GlobalSceneManager,
   GlobalSceneContext,
@@ -40,7 +41,7 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
     sceneType: string,
     data?: any
   ): Promise<string> {
-    console.log(`Activating scene: ${sceneType}`);
+    logger.info(`Activating scene: ${sceneType}`);
     const instanceId = `${sceneType}_${Date.now()}_${Math.random()
       .toString(36)
       .substr(2, 9)}`;
@@ -103,17 +104,17 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
     ctx: GlobalSceneContext,
     callback: string
   ): Promise<void> {
-    console.log(`🔄 Routing callback: ${callback}`);
-    console.log(`🔄 Active scenes:`, Object.keys(ctx.session.activeSubScenes));
+    logger.info(`🔄 Routing callback: ${callback}`);
+    logger.info(`🔄 Active scenes:`, Object.keys(ctx.session.activeSubScenes));
 
     // Check if callback contains scene instanceId (format: "sceneId:action")
     if (callback.includes(":")) {
       const [sceneInstanceId, action] = callback.split(":", 2);
-      console.log(`🔄 Extracted sceneId: ${sceneInstanceId}`);
+      logger.info(`🔄 Extracted sceneId: ${sceneInstanceId}`);
 
       // Check if scene exists in current active scenes (within the 5 most recent)
       if (!ctx.session.activeSubScenes[sceneInstanceId]) {
-        console.log(`❌ Scene ${sceneInstanceId} not found in active scenes`);
+        logger.info(`❌ Scene ${sceneInstanceId} not found in active scenes`);
         await ctx.answerCbQuery(
           "⏰ This action has expired. Please refresh and try again."
         );
@@ -126,21 +127,21 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
       ctx.session.activeSubScenes
     )) {
       if (sceneState.active) {
-        console.log(`🔄 Trying scene: ${sceneState.name} (${instanceId})`);
+        logger.info(`🔄 Trying scene: ${sceneState.name} (${instanceId})`);
         // Create scene instance dynamically
         const scene = await this.createSceneInstance(
           sceneState.name,
           instanceId
         );
         const handled = await scene.handleCallback(ctx, callback);
-        console.log(`🔄 Scene ${sceneState.name} handled: ${handled}`);
+        logger.info(`🔄 Scene ${sceneState.name} handled: ${handled}`);
         if (handled) {
           return; // Stop routing once handled
         }
       }
     }
 
-    console.log(`❌ Unhandled callback: ${callback}`);
+    logger.info(`❌ Unhandled callback: ${callback}`);
   }
 
   async routeText(ctx: GlobalSceneContext, text: string): Promise<void> {
@@ -161,7 +162,7 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
       }
     }
 
-    console.log(`Unhandled text: ${text}`);
+    logger.info(`Unhandled text: ${text}`);
   }
 
   // FIFO Scene Management
@@ -176,7 +177,7 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
     while (ctx.session.sceneOrder.length > this.MAX_SCENES_PER_USER) {
       const oldestSceneId = ctx.session.sceneOrder.shift();
       if (oldestSceneId && ctx.session.activeSubScenes[oldestSceneId]) {
-        console.log(`Removing oldest scene completely: ${oldestSceneId}`);
+        logger.info(`Removing oldest scene completely: ${oldestSceneId}`);
 
         // Remove from active map (no more scenes map to clean)
         delete ctx.session.activeSubScenes[oldestSceneId];

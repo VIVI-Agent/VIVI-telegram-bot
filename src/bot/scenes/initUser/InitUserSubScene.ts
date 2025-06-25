@@ -2,6 +2,7 @@ import { ISubScene, GlobalSceneContext, InitUserSceneData } from "@types";
 import { INITUSER_TEXTS } from "./messages";
 import { CALLBACKS, createInitUserCallback } from "./callbacks";
 import { createWallet } from "./InitUserServices";
+import { logger } from "@logger";
 
 export class InitUserSubScene implements ISubScene {
   instanceId: string;
@@ -12,8 +13,8 @@ export class InitUserSubScene implements ISubScene {
   }
 
   async onActivate(ctx: GlobalSceneContext, data?: any): Promise<void> {
-    console.log(`InitUserSubScene activated: ${this.instanceId}`);
-    console.log(`Active scenes:`, Object.keys(ctx.session.activeSubScenes));
+    logger.info(`InitUserSubScene activated: ${this.instanceId}`);
+    logger.info(`Active scenes:`, Object.keys(ctx.session.activeSubScenes));
 
     // Initialize scene data
     const sceneData: InitUserSceneData = {
@@ -25,7 +26,7 @@ export class InitUserSubScene implements ISubScene {
 
     // Start the init user flow
     const wallet = await createWallet(ctx);
-    console.log(`Wallet created: ${wallet.address}`);
+    logger.info(`Wallet created: ${wallet.address}`);
 
     sceneData.step = "wallet_created";
     ctx.session.activeSubScenes[this.instanceId].data = sceneData;
@@ -61,23 +62,23 @@ export class InitUserSubScene implements ISubScene {
     ctx: GlobalSceneContext,
     callback: string
   ): Promise<boolean> {
-    console.log(`InitUserSubScene handling callback: ${callback}`);
-    console.log(`My instanceId: ${this.instanceId}`);
+    logger.info(`InitUserSubScene handling callback: ${callback}`);
+    logger.info(`My instanceId: ${this.instanceId}`);
 
     const [instanceId, action] = callback.split(":");
-    console.log(`Extracted: instanceId=${instanceId}, action=${action}`);
+    logger.info(`Extracted: instanceId=${instanceId}, action=${action}`);
 
     if (instanceId !== this.instanceId) {
-      console.log(`InstanceId mismatch, skipping`);
+      logger.info(`InstanceId mismatch, skipping`);
       return false;
     }
 
     switch (action) {
       case CALLBACKS.CONFIRM_PRIVATE_KEY:
-        console.log(`Handling CONFIRM_PRIVATE_KEY`);
+        logger.info(`Handling CONFIRM_PRIVATE_KEY`);
         return this.handleConfirmPrivateKey(ctx, callback);
       default:
-        console.log(`Unknown action: ${action}`);
+        logger.info(`Unknown action: ${action}`);
         return false;
     }
   }
@@ -86,7 +87,7 @@ export class InitUserSubScene implements ISubScene {
     ctx: GlobalSceneContext,
     callback: string
   ): Promise<boolean> {
-    console.log(`InitUserSubScene handling confirm private key: ${callback}`);
+    logger.info(`InitUserSubScene handling confirm private key: ${callback}`);
 
     // Answer the callback query first
     await ctx.answerCbQuery("✅ Private key confirmed!");
@@ -108,7 +109,7 @@ export class InitUserSubScene implements ISubScene {
     await ctx.reply(INITUSER_TEXTS.MESSAGES.WELCOME);
 
     // InitUser completed - transition to MainMenu
-    console.log(`InitUser completed, transitioning to MainMenu`);
+    logger.info(`InitUser completed, transitioning to MainMenu`);
 
     // Deactivate this scene (cleanup)
     await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
@@ -120,11 +121,11 @@ export class InitUserSubScene implements ISubScene {
   }
 
   async handleText(ctx: GlobalSceneContext, text: string): Promise<boolean> {
-    console.log(`InitUserSubScene handling text: ${text}`);
+    logger.info(`InitUserSubScene handling text: ${text}`);
     return false;
   }
 
   async cleanup(ctx: GlobalSceneContext): Promise<void> {
-    console.log(`InitUserSubScene cleanup: ${this.instanceId}`);
+    logger.info(`InitUserSubScene cleanup: ${this.instanceId}`);
   }
 }
