@@ -100,7 +100,10 @@ export class InitUserSubScene implements ISubScene {
     await ctx.reply(
       INITUSER_TEXTS.FUNCTIONS.getNewWalletKeyMessage(
         sceneData.walletAddress as `0x${string}`
-      )
+      ),
+      {
+        parse_mode: "HTML",
+      }
     );
     await ctx.reply(INITUSER_TEXTS.MESSAGES.WELCOME);
 

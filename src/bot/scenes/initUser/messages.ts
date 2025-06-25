@@ -19,7 +19,7 @@ export const INITUSER_TEXTS = {
     },
 
     getNewWalletKeyMessage(walletAddress: `0x${string}`): string {
-      return `Your new wallet address is: <code>${walletAddress}</code>\n.`;
+      return `Your new wallet address is: <code>${walletAddress}</code>`;
     },
   },
 };
