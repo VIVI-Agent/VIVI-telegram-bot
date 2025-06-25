@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "commonjs",
+    "lib": ["ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "baseUrl": "./src",
+    "skipLibCheck": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "resolveJsonModule": true,
+    "paths": {
+      "@config": ["./config"],
+      "@logger": ["./logger"],
+      "@domain": ["./domain"],
+      "@client": ["./client"],
+      "@services": ["./services"],
+      "@types": ["./bot/types"],
+      "@utils": ["./bot/utils"],
+      "@texts": ["./bot/texts"]
+    }
+  },
+  "include": ["src", "src/domain/initServices.ts"],
+  "exclude": ["node_modules"]
+}

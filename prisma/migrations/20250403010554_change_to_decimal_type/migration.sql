@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "User" ALTER COLUMN "totalVolumeBoughtWei" SET DEFAULT 0,
+ALTER COLUMN "totalVolumeBoughtWei" SET DATA TYPE DECIMAL(78,0),
+ALTER COLUMN "totalVolumeSoldWei" SET DEFAULT 0,
+ALTER COLUMN "totalVolumeSoldWei" SET DATA TYPE DECIMAL(78,0);

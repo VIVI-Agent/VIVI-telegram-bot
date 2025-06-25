@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "BuyEvent" ALTER COLUMN "createdBy" SET DATA TYPE BIGINT;

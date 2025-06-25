@@ -1,0 +1,196 @@
+import {
+  GlobalSceneManager,
+  GlobalSceneContext,
+  ISubScene,
+  SubSceneState,
+} from "../types";
+
+export class GlobalSceneManagerImpl implements GlobalSceneManager {
+  private readonly MAX_SCENES_PER_USER = 5;
+
+  constructor() {
+    // No more scenes map - everything is dynamic from Redis session
+  }
+
+  // Helper method to create scene instances dynamically
+  private async createSceneInstance(
+    sceneType: string,
+    instanceId: string
+  ): Promise<ISubScene> {
+    let scene: ISubScene;
+    switch (sceneType) {
+      case "InitUser":
+        const { InitUserSubScene } = await import(
+          "../scenes/initUser/InitUserSubScene"
+        );
+        scene = new InitUserSubScene(instanceId);
+        break;
+      case "MainMenu":
+        const { MainMenuSubScene } = await import("../scenes/MainMenuSubScene");
+        scene = new MainMenuSubScene(instanceId);
+        break;
+      default:
+        throw new Error(`Unknown scene type: ${sceneType}`);
+    }
+    return scene;
+  }
+
+  async activateScene(
+    ctx: GlobalSceneContext,
+    sceneType: string,
+    data?: any
+  ): Promise<string> {
+    console.log(`Activating scene: ${sceneType}`);
+    const instanceId = `${sceneType}_${Date.now()}_${Math.random()
+      .toString(36)
+      .substr(2, 9)}`;
+
+    // Initialize session if needed
+    if (!ctx.session) {
+      ctx.session = {
+        activeSubScenes: {},
+        sceneOrder: [],
+        version: "1.0.0",
+      };
+    }
+
+    // Initialize sceneOrder if missing (for existing sessions)
+    if (!ctx.session.sceneOrder) {
+      ctx.session.sceneOrder = [];
+    }
+
+    // Create scene instance dynamically
+    const scene = await this.createSceneInstance(sceneType, instanceId);
+
+    // Create scene state
+    const sceneState: SubSceneState = {
+      instanceId,
+      name: sceneType,
+      data: data || {},
+      active: true,
+      tempMessageIds: [],
+    };
+
+    // Add to session and manage FIFO
+    ctx.session.activeSubScenes[instanceId] = sceneState;
+    await this.addSceneToOrder(ctx, instanceId);
+
+    // Activate the scene
+    await scene.onActivate(ctx, data);
+
+    return instanceId;
+  }
+
+  async deactivateScene(
+    ctx: GlobalSceneContext,
+    instanceId: string
+  ): Promise<void> {
+    const sceneState = ctx.session.activeSubScenes[instanceId];
+    if (sceneState) {
+      // Create scene instance dynamically for cleanup
+      const scene = await this.createSceneInstance(sceneState.name, instanceId);
+
+      // Cleanup scene
+      await scene.cleanup(ctx);
+
+      // Remove from session and order
+      delete ctx.session.activeSubScenes[instanceId];
+      this.removeSceneFromOrder(ctx, instanceId);
+    }
+  }
+
+  async routeCallback(
+    ctx: GlobalSceneContext,
+    callback: string
+  ): Promise<void> {
+    console.log(`🔄 Routing callback: ${callback}`);
+    console.log(`🔄 Active scenes:`, Object.keys(ctx.session.activeSubScenes));
+
+    // Check if callback contains scene instanceId (format: "sceneId:action")
+    if (callback.includes(":")) {
+      const [sceneInstanceId, action] = callback.split(":", 2);
+      console.log(`🔄 Extracted sceneId: ${sceneInstanceId}`);
+
+      // Check if scene exists in current active scenes (within the 5 most recent)
+      if (!ctx.session.activeSubScenes[sceneInstanceId]) {
+        console.log(`❌ Scene ${sceneInstanceId} not found in active scenes`);
+        await ctx.answerCbQuery(
+          "⏰ This action has expired. Please refresh and try again."
+        );
+        return;
+      }
+    }
+
+    // Route to all active scenes until one handles it
+    for (const [instanceId, sceneState] of Object.entries(
+      ctx.session.activeSubScenes
+    )) {
+      if (sceneState.active) {
+        console.log(`🔄 Trying scene: ${sceneState.name} (${instanceId})`);
+        // Create scene instance dynamically
+        const scene = await this.createSceneInstance(
+          sceneState.name,
+          instanceId
+        );
+        const handled = await scene.handleCallback(ctx, callback);
+        console.log(`🔄 Scene ${sceneState.name} handled: ${handled}`);
+        if (handled) {
+          return; // Stop routing once handled
+        }
+      }
+    }
+
+    console.log(`❌ Unhandled callback: ${callback}`);
+  }
+
+  async routeText(ctx: GlobalSceneContext, text: string): Promise<void> {
+    // Route to all active scenes until one handles it
+    for (const [instanceId, sceneState] of Object.entries(
+      ctx.session.activeSubScenes
+    )) {
+      if (sceneState.active) {
+        // Create scene instance dynamically
+        const scene = await this.createSceneInstance(
+          sceneState.name,
+          instanceId
+        );
+        const handled = await scene.handleText(ctx, text);
+        if (handled) {
+          return; // Stop routing once handled
+        }
+      }
+    }
+
+    console.log(`Unhandled text: ${text}`);
+  }
+
+  // FIFO Scene Management
+  private async addSceneToOrder(
+    ctx: GlobalSceneContext,
+    instanceId: string
+  ): Promise<void> {
+    // Add to the end of the order
+    ctx.session.sceneOrder.push(instanceId);
+
+    // If we exceed the limit, remove both from active map and scenes map
+    while (ctx.session.sceneOrder.length > this.MAX_SCENES_PER_USER) {
+      const oldestSceneId = ctx.session.sceneOrder.shift();
+      if (oldestSceneId && ctx.session.activeSubScenes[oldestSceneId]) {
+        console.log(`Removing oldest scene completely: ${oldestSceneId}`);
+
+        // Remove from active map (no more scenes map to clean)
+        delete ctx.session.activeSubScenes[oldestSceneId];
+      }
+    }
+  }
+
+  private removeSceneFromOrder(
+    ctx: GlobalSceneContext,
+    instanceId: string
+  ): void {
+    const index = ctx.session.sceneOrder.indexOf(instanceId);
+    if (index > -1) {
+      ctx.session.sceneOrder.splice(index, 1);
+    }
+  }
+}

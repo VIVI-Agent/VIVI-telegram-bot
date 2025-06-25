@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "Holding" ALTER COLUMN "balance" DROP DEFAULT,
+ALTER COLUMN "balance" SET DATA TYPE TEXT;
+
+-- AlterTable
+ALTER TABLE "Trade" ALTER COLUMN "amount" SET DATA TYPE TEXT;

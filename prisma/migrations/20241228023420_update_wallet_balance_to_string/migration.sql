@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Wallet" ALTER COLUMN "balance" DROP DEFAULT,
+ALTER COLUMN "balance" SET DATA TYPE TEXT;
