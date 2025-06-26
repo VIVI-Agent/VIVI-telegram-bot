@@ -32,6 +32,12 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
         );
         scene = new MainMenuSubScene(instanceId);
         break;
+      case "Settings":
+        const { SettingsSubScene } = await import(
+          "../scenes/settings/SettingsSubScene"
+        );
+        scene = new SettingsSubScene(instanceId);
+        break;
       default:
         throw new Error(`Unknown scene type: ${sceneType}`);
     }

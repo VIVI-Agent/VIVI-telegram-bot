@@ -6,7 +6,10 @@ export interface SubSceneState {
   tempMessageIds: number[];
 }
 
-export type SceneData = InitUserSceneData | MainMenuSceneData;
+export type SceneData =
+  | InitUserSceneData
+  | MainMenuSceneData
+  | SettingsSceneData;
 
 // InitUserSceneData: Data for the init user scene,
 export interface InitUserSceneData {
@@ -18,4 +21,16 @@ export interface InitUserSceneData {
 // MainMenuSceneData: Simple data to store
 export interface MainMenuSceneData {
   menuMessageId?: number;
+}
+
+// SettingsSceneData interface
+export interface SettingsSceneData {
+  step: string;
+  userId: number;
+  username: string;
+  user?: any;
+  editField?: {
+    mode: "BUY" | "SELL";
+    fieldName: string;
+  };
 }

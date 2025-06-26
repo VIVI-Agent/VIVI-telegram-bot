@@ -71,6 +71,44 @@ export abstract class BaseSubScene<TSceneData = any> implements ISubScene {
   }
 
   /**
+   * Sets the main message ID for this scene
+   * This is used for single-message navigation patterns
+   */
+  protected setMainMessageId(ctx: GlobalSceneContext, messageId: number): void {
+    this.updateSceneData(ctx, { mainMessageId: messageId } as any);
+    this.log("debug", ctx, `Set main message ID: ${messageId}`);
+  }
+
+  /**
+   * Gets the main message ID for this scene
+   * Returns undefined if no main message is set
+   */
+  protected getMainMessageId(ctx: GlobalSceneContext): number | undefined {
+    const sceneData = this.getSceneData(ctx);
+    return (sceneData as any).mainMessageId;
+  }
+
+  /**
+   * Adds a temporary message ID to track for cleanup
+   */
+  protected addTempMessageId(ctx: GlobalSceneContext, messageId: number): void {
+    const sceneData = this.getSceneData(ctx);
+    const tempIds = (sceneData as any).tempMessageIds || [];
+    tempIds.push(messageId);
+    this.updateSceneData(ctx, { tempMessageIds: tempIds } as any);
+    this.log("debug", ctx, `Added temp message ID: ${messageId}`);
+  }
+
+  /**
+   * Updates the last activity timestamp for this scene
+   */
+  protected updateLastActivity(ctx: GlobalSceneContext): void {
+    this.updateSceneData(ctx, {
+      lastActivity: new Date().toISOString(),
+    } as any);
+  }
+
+  /**
    * Creates a callback with instanceId for proper routing
    */
   protected createCallback(action: string): string {
@@ -96,15 +134,40 @@ export abstract class BaseSubScene<TSceneData = any> implements ISubScene {
    * Standard cleanup for temporary messages
    */
   protected async cleanupTempMessages(ctx: GlobalSceneContext): Promise<void> {
-    const sceneState = ctx.session.activeSubScenes[this.instanceId];
-    if (sceneState?.tempMessageIds) {
-      for (const messageId of sceneState.tempMessageIds) {
+    const sceneData = this.getSceneData(ctx);
+    const tempMessageIds = (sceneData as any).tempMessageIds;
+    if (tempMessageIds) {
+      for (const messageId of tempMessageIds) {
         try {
           await ctx.deleteMessage(messageId);
+          this.log("debug", ctx, `Deleted temp message ${messageId}`);
         } catch (error) {
           this.log("debug", ctx, `Failed to delete temp message ${messageId}`);
         }
       }
+      // Clear the temp message IDs after cleanup
+      this.updateSceneData(ctx, { tempMessageIds: [] } as any);
+    }
+  }
+
+  /**
+   * Cleanup for the main message
+   */
+  protected async cleanupMainMessage(ctx: GlobalSceneContext): Promise<void> {
+    const mainMessageId = this.getMainMessageId(ctx);
+    if (mainMessageId) {
+      try {
+        await ctx.deleteMessage(mainMessageId);
+        this.log("debug", ctx, `Deleted main message ${mainMessageId}`);
+      } catch (error) {
+        this.log(
+          "debug",
+          ctx,
+          `Failed to delete main message ${mainMessageId}`
+        );
+      }
+      // Clear the main message ID after cleanup
+      this.updateSceneData(ctx, { mainMessageId: undefined } as any);
     }
   }
 
@@ -133,6 +196,7 @@ export abstract class BaseSubScene<TSceneData = any> implements ISubScene {
   async cleanup(ctx: GlobalSceneContext): Promise<void> {
     this.log("info", ctx, `Cleaning up ${this.name} scene`);
     await this.cleanupTempMessages(ctx);
+    await this.cleanupMainMessage(ctx);
   }
 
   // Abstract methods that must be implemented by subclasses
