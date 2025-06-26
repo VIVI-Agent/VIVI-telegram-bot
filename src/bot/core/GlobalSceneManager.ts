@@ -27,7 +27,9 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
         scene = new InitUserSubScene(instanceId);
         break;
       case "MainMenu":
-        const { MainMenuSubScene } = await import("../scenes/MainMenuSubScene");
+        const { MainMenuSubScene } = await import(
+          "../scenes/mainMenu/MainMenuSubScene"
+        );
         scene = new MainMenuSubScene(instanceId);
         break;
       default:

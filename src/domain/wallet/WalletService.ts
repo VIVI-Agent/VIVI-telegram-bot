@@ -39,4 +39,18 @@ export class WalletService {
       },
     });
   }
+
+  public async getUserWallets(id: number): Promise<Wallet[]> {
+    return this.prisma.wallet.findMany({
+      where: {
+        isDeleted: false,
+        user: {
+          id,
+        },
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+    });
+  }
 }

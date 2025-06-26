@@ -34,9 +34,10 @@ bot.use(
   })
 );
 
-// Database Services Injected
+// Database Services and Scene Manager Injected
 bot.use((ctx, next) => {
   ctx.services = services;
+  ctx.sceneManager = sceneManager;
   return next();
 });
 

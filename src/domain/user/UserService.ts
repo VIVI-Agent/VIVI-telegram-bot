@@ -1,7 +1,8 @@
 // src/domain/user/UserService.ts
 import winston from "winston";
-import { PrismaClient, User } from "@prisma/client";
+import { Prisma, PrismaClient, User } from "@prisma/client";
 import { UserWithAll } from "./UserTypes";
+import { formatEther } from "viem";
 
 export class UserService {
   constructor(
