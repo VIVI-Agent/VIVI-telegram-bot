@@ -1,131 +1,186 @@
-import { ISubScene, GlobalSceneContext, InitUserSceneData } from "@types";
+import { BaseSubScene, GlobalSceneContext, InitUserSceneData } from "@types";
 import { INITUSER_TEXTS } from "./messages";
 import { CALLBACKS, createInitUserCallback } from "./callbacks";
-import { createWallet } from "./InitUserServices";
-import { logger } from "@logger";
+import { InitUserServices } from "./InitUserServices";
 
-export class InitUserSubScene implements ISubScene {
-  instanceId: string;
-  name: string = "InitUser";
+export class InitUserSubScene extends BaseSubScene<InitUserSceneData> {
+  private services: InitUserServices;
 
   constructor(instanceId: string) {
-    this.instanceId = instanceId;
+    super(instanceId, "InitUser");
+    this.services = new InitUserServices(instanceId);
   }
 
   async onActivate(ctx: GlobalSceneContext, data?: any): Promise<void> {
-    logger.info(`InitUserSubScene activated: ${this.instanceId}`);
-    logger.info(`Active scenes:`, Object.keys(ctx.session.activeSubScenes));
-
-    // Initialize scene data
-    const sceneData: InitUserSceneData = {
-      step: "creating_wallet",
-    };
-
-    // Update session data
-    ctx.session.activeSubScenes[this.instanceId].data = sceneData;
-
-    // Start the init user flow
-    const wallet = await createWallet(ctx);
-    logger.info(`Wallet created: ${wallet.address}`);
-
-    sceneData.step = "wallet_created";
-    ctx.session.activeSubScenes[this.instanceId].data = sceneData;
-
-    const message = await ctx.reply(
-      INITUSER_TEXTS.FUNCTIONS.getPrivateKeyMessage(
-        wallet.address,
-        wallet.privateKey
-      ),
-      {
-        parse_mode: "HTML",
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: INITUSER_TEXTS.MESSAGES.CONFIRM_AND_DELETE_PK,
-                callback_data: createInitUserCallback(
-                  this.instanceId,
-                  CALLBACKS.CONFIRM_PRIVATE_KEY
-                ),
-              },
-            ],
-          ],
-        },
-      }
+    this.log("info", ctx, "Activating InitUser scene");
+    this.log(
+      "debug",
+      ctx,
+      `Active scenes: ${Object.keys(ctx.session.activeSubScenes).join(", ")}`
     );
-    sceneData.pkMessageId = message.message_id;
-    sceneData.walletAddress = wallet.address;
-    ctx.session.activeSubScenes[this.instanceId].data = sceneData;
+
+    try {
+      // Initialize scene data
+      const sceneData: InitUserSceneData = {
+        step: "creating_wallet",
+      };
+
+      // Update session data
+      this.updateSceneData(ctx, sceneData);
+
+      // Start the init user flow
+      const wallet = await this.services.createWallet(ctx);
+      this.log("info", ctx, `Wallet created: ${wallet.address}`);
+
+      // Update step
+      this.updateSceneData(ctx, { step: "wallet_created" });
+
+      // Show private key message
+      const message = await ctx.reply(
+        INITUSER_TEXTS.FUNCTIONS.getPrivateKeyMessage(
+          wallet.address,
+          wallet.privateKey
+        ),
+        {
+          parse_mode: "HTML",
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: INITUSER_TEXTS.MESSAGES.CONFIRM_AND_DELETE_PK,
+                  callback_data: createInitUserCallback(
+                    this.instanceId,
+                    CALLBACKS.CONFIRM_PRIVATE_KEY
+                  ),
+                },
+              ],
+            ],
+          },
+        }
+      );
+
+      // Store message ID and wallet address for later use
+      this.updateSceneData(ctx, {
+        pkMessageId: message.message_id,
+        walletAddress: wallet.address,
+      });
+
+      this.log("info", ctx, "Private key message displayed");
+    } catch (error) {
+      this.log(
+        "error",
+        ctx,
+        `Error during activation: ${
+          error instanceof Error ? error.stack : error
+        }`
+      );
+      await ctx.reply(
+        "❌ An error occurred during initialization. Please try again."
+      );
+    }
+  }
+
+  async cleanup(ctx: GlobalSceneContext): Promise<void> {
+    this.log("info", ctx, "Cleaning up InitUser scene");
+
+    // Call parent cleanup for temp messages
+    await super.cleanup(ctx);
+
+    // Clean up private key message if it exists
+    const sceneData = this.getSceneData(ctx);
+    if (sceneData.pkMessageId) {
+      try {
+        await ctx.deleteMessage(sceneData.pkMessageId);
+      } catch (error) {
+        this.log("debug", ctx, "Failed to delete private key message");
+      }
+    }
   }
 
   async handleCallback(
     ctx: GlobalSceneContext,
     callback: string
   ): Promise<boolean> {
-    logger.info(`InitUserSubScene handling callback: ${callback}`);
-    logger.info(`My instanceId: ${this.instanceId}`);
+    this.log("debug", ctx, `Handling callback: ${callback}`);
 
-    const [instanceId, action] = callback.split(":");
-    logger.info(`Extracted: instanceId=${instanceId}, action=${action}`);
-
-    if (instanceId !== this.instanceId) {
-      logger.info(`InstanceId mismatch, skipping`);
+    // Validate callback belongs to this instance
+    const validation = this.validateCallbackInstanceId(callback);
+    if (!validation) {
+      this.log("debug", ctx, `InstanceId mismatch, skipping`);
       return false;
     }
 
-    switch (action) {
-      case CALLBACKS.CONFIRM_PRIVATE_KEY:
-        logger.info(`Handling CONFIRM_PRIVATE_KEY`);
-        return this.handleConfirmPrivateKey(ctx, callback);
-      default:
-        logger.info(`Unknown action: ${action}`);
-        return false;
+    const { action } = validation;
+    this.log("info", ctx, `Processing action: ${action}`);
+
+    try {
+      switch (action) {
+        case CALLBACKS.CONFIRM_PRIVATE_KEY:
+          return await this.handleConfirmPrivateKey(ctx);
+        default:
+          this.log("warn", ctx, `Unknown action: ${action}`);
+          return false;
+      }
+    } catch (error) {
+      await this.handleCallbackError(ctx, action, error);
+      return true; // We handled it, even if there was an error
     }
   }
 
   private async handleConfirmPrivateKey(
-    ctx: GlobalSceneContext,
-    callback: string
+    ctx: GlobalSceneContext
   ): Promise<boolean> {
-    logger.info(`InitUserSubScene handling confirm private key: ${callback}`);
+    this.log("info", ctx, "Handling private key confirmation");
 
-    // Answer the callback query first
-    await ctx.answerCbQuery("✅ Private key confirmed!");
+    try {
+      // Answer the callback query first
+      await ctx.answerCbQuery("✅ Private key confirmed!");
 
-    const sceneData = ctx.session.activeSubScenes[this.instanceId]
-      .data as InitUserSceneData;
-    await ctx.deleteMessage(sceneData.pkMessageId);
-    sceneData.step = "private_key_confirmed";
-    ctx.session.activeSubScenes[this.instanceId].data = sceneData;
+      const sceneData = this.getSceneData(ctx);
 
-    await ctx.reply(
-      INITUSER_TEXTS.FUNCTIONS.getNewWalletKeyMessage(
-        sceneData.walletAddress as `0x${string}`
-      ),
-      {
-        parse_mode: "HTML",
+      // Delete the private key message
+      if (sceneData.pkMessageId) {
+        await ctx.deleteMessage(sceneData.pkMessageId);
       }
-    );
-    await ctx.reply(INITUSER_TEXTS.MESSAGES.WELCOME);
 
-    // InitUser completed - transition to MainMenu
-    logger.info(`InitUser completed, transitioning to MainMenu`);
+      // Update step
+      this.updateSceneData(ctx, { step: "private_key_confirmed" });
 
-    // Deactivate this scene (cleanup)
-    await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
+      // Show wallet address confirmation
+      await ctx.reply(
+        INITUSER_TEXTS.FUNCTIONS.getNewWalletKeyMessage(
+          sceneData.walletAddress as `0x${string}`
+        ),
+        {
+          parse_mode: "HTML",
+        }
+      );
 
-    // Activate MainMenu scene
-    await ctx.sceneManager.activateScene(ctx, "MainMenu");
+      // Show welcome message
+      await ctx.reply(INITUSER_TEXTS.MESSAGES.WELCOME);
 
-    return true;
+      // Complete InitUser flow using services
+      await this.services.completeInitUser(ctx);
+
+      return true;
+    } catch (error) {
+      this.log(
+        "error",
+        ctx,
+        `Error confirming private key: ${
+          error instanceof Error ? error.stack : error
+        }`
+      );
+      await ctx.answerCbQuery(
+        "❌ Error confirming private key. Please try again."
+      );
+      return true;
+    }
   }
 
   async handleText(ctx: GlobalSceneContext, text: string): Promise<boolean> {
-    logger.info(`InitUserSubScene handling text: ${text}`);
+    this.log("debug", ctx, `Handling text: ${text}`);
+    // InitUser doesn't handle text messages
     return false;
-  }
-
-  async cleanup(ctx: GlobalSceneContext): Promise<void> {
-    logger.info(`InitUserSubScene cleanup: ${this.instanceId}`);
   }
 }

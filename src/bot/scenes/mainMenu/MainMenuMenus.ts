@@ -1,6 +1,5 @@
-import { GlobalSceneContext } from "@types";
+import { BaseMenus, GlobalSceneContext } from "@types";
 import { Markup } from "telegraf";
-import { logger } from "@logger";
 import { CB } from "./callbacks";
 import { getMenuText } from "./messages";
 import { secrets } from "@config";
@@ -8,18 +7,9 @@ import { secrets } from "@config";
 /**
  * MainMenu menus and interface management
  */
-export class MainMenuMenus {
-  private instanceId: string;
-
+export class MainMenuMenus extends BaseMenus {
   constructor(instanceId: string) {
-    this.instanceId = instanceId;
-  }
-
-  /**
-   * Creates a callback with instanceId for proper routing
-   */
-  private createCallback(action: string): string {
-    return `${this.instanceId}:${action}`;
+    super(instanceId, "MainMenuMenus");
   }
 
   /**
@@ -30,22 +20,13 @@ export class MainMenuMenus {
     user: any,
     isFirstTime: boolean = true
   ): Promise<number> {
-    const userId = ctx.from?.id;
-    const username = ctx.from?.username;
-
-    logger.info(
-      `[MainMenuMenus:showMainMenu] Rendering menu for user ${userId}${
-        username ? ` (@${username})` : ""
-      } (first time: ${isFirstTime}) - instanceId: ${this.instanceId}`
-    );
+    this.log("info", ctx, `Rendering menu (first time: ${isFirstTime})`);
 
     try {
       // Get all user wallets (guaranteed to exist by AuthMiddleware)
       const wallets = user.wallets || [];
 
-      logger.debug(
-        `[MainMenuMenus:showMainMenu] Building menu for ${wallets.length} wallets of user ${userId}`
-      );
+      this.log("debug", ctx, `Building menu for ${wallets.length} wallets`);
 
       // Calculate total balance across all wallets
       const totalBalance = wallets.reduce((acc: bigint, wallet: any) => {
@@ -74,17 +55,11 @@ export class MainMenuMenus {
       // Send message
       const sent = await ctx.reply(text, replyOptions);
 
-      logger.info(
-        `[MainMenuMenus:showMainMenu] Menu message ${sent.message_id} sent to user ${userId} with instanceId: ${this.instanceId}`
-      );
+      this.log("info", ctx, `Menu message ${sent.message_id} sent`);
 
       return sent.message_id;
     } catch (error) {
-      logger.error(
-        `[MainMenuMenus:showMainMenu] Error for user ${userId}: ${
-          error instanceof Error ? error.stack : error
-        }`
-      );
+      this.logError(ctx, "showMainMenu", error);
       return 0;
     }
   }
@@ -97,11 +72,7 @@ export class MainMenuMenus {
     user: any,
     messageId: number
   ): Promise<boolean> {
-    const userId = ctx.from?.id;
-
-    logger.info(
-      `[MainMenuMenus:updateMainMenu] Updating menu message ${messageId} for user ${userId} - instanceId: ${this.instanceId}`
-    );
+    this.log("info", ctx, `Updating menu message ${messageId}`);
 
     try {
       // Get all user wallets (guaranteed to exist by AuthMiddleware)
@@ -138,16 +109,10 @@ export class MainMenuMenus {
         }
       );
 
-      logger.info(
-        `[MainMenuMenus:updateMainMenu] Menu message ${messageId} updated for user ${userId} with instanceId: ${this.instanceId}`
-      );
+      this.log("info", ctx, `Menu message ${messageId} updated`);
       return true;
     } catch (error) {
-      logger.error(
-        `[MainMenuMenus:updateMainMenu] Error updating menu for user ${userId}: ${
-          error instanceof Error ? error.stack : error
-        }`
-      );
+      this.logError(ctx, "updateMainMenu", error);
       return false;
     }
   }
@@ -198,17 +163,13 @@ export class MainMenuMenus {
    * Shows a refreshing state message
    */
   public async showRefreshingMessage(ctx: GlobalSceneContext): Promise<number> {
-    const userId = ctx.from?.id;
-
-    logger.info(
-      `[MainMenuMenus:showRefreshingMessage] Showing refreshing message for user ${userId} - instanceId: ${this.instanceId}`
-    );
+    this.log("info", ctx, "Showing refreshing message");
 
     try {
       const sent = await ctx.reply("🔄 Refreshing Balance...");
       return sent.message_id;
     } catch (error) {
-      logger.error(`[MainMenuMenus:showRefreshingMessage] Error: ${error}`);
+      this.logError(ctx, "showRefreshingMessage", error);
       return 0;
     }
   }
@@ -217,16 +178,12 @@ export class MainMenuMenus {
    * Shows a success message after refresh
    */
   public async showRefreshSuccess(ctx: GlobalSceneContext): Promise<void> {
-    const userId = ctx.from?.id;
-
-    logger.info(
-      `[MainMenuMenus:showRefreshSuccess] Showing refresh success for user ${userId} - instanceId: ${this.instanceId}`
-    );
+    this.log("info", ctx, "Showing refresh success");
 
     try {
       await ctx.reply("✅ ETH and Tokens balances refreshed!");
     } catch (error) {
-      logger.error(`[MainMenuMenus:showRefreshSuccess] Error: ${error}`);
+      this.logError(ctx, "showRefreshSuccess", error);
     }
   }
 
@@ -234,16 +191,12 @@ export class MainMenuMenus {
    * Shows an error message after refresh failure
    */
   public async showRefreshError(ctx: GlobalSceneContext): Promise<void> {
-    const userId = ctx.from?.id;
-
-    logger.warn(
-      `[MainMenuMenus:showRefreshError] Showing refresh error for user ${userId} - instanceId: ${this.instanceId}`
-    );
+    this.log("warn", ctx, "Showing refresh error");
 
     try {
       await ctx.reply("❌ Failed to refresh balance. Please try again.");
     } catch (error) {
-      logger.error(`[MainMenuMenus:showRefreshError] Error: ${error}`);
+      this.logError(ctx, "showRefreshError", error);
     }
   }
 }

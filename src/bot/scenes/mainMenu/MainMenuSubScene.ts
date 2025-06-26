@@ -1,74 +1,16 @@
-import { logger } from "@logger";
-import { ISubScene, GlobalSceneContext, MainMenuSceneData } from "@types";
-import { MainMenuMenus } from "./menus";
-import { MainMenuServices } from "./services";
+import { BaseSubScene, GlobalSceneContext, MainMenuSceneData } from "@types";
+import { MainMenuMenus } from "./MainMenuMenus";
+import { MainMenuServices } from "./MainMenuServices";
 import { CB } from "./callbacks";
 
-export class MainMenuSubScene implements ISubScene {
-  instanceId: string;
-  name: string = "MainMenu";
+export class MainMenuSubScene extends BaseSubScene<MainMenuSceneData> {
   private menus: MainMenuMenus;
   private services: MainMenuServices;
 
   constructor(instanceId: string) {
-    this.instanceId = instanceId;
+    super(instanceId, "MainMenu");
     this.menus = new MainMenuMenus(instanceId);
     this.services = new MainMenuServices(instanceId);
-
-    logger.info(
-      `[MainMenuSubScene] Created with instanceId: ${this.instanceId}`
-    );
-  }
-
-  /**
-   * Helper method for consistent logging with user context
-   */
-  private log(
-    level: "info" | "warn" | "error" | "debug",
-    ctx: GlobalSceneContext,
-    message: string
-  ): void {
-    const userId = ctx.from?.id;
-    const username = ctx.from?.username;
-    const logPrefix = `[MainMenuSubScene:${this.instanceId}] User ${userId}${
-      username ? ` (@${username})` : ""
-    }`;
-
-    switch (level) {
-      case "info":
-        logger.info(`${logPrefix} - ${message}`);
-        break;
-      case "warn":
-        logger.warn(`${logPrefix} - ${message}`);
-        break;
-      case "error":
-        logger.error(`${logPrefix} - ${message}`);
-        break;
-      case "debug":
-        logger.debug(`${logPrefix} - ${message}`);
-        break;
-    }
-  }
-
-  /**
-   * Gets scene data from session
-   */
-  private getSceneData(ctx: GlobalSceneContext): MainMenuSceneData {
-    const sceneState = ctx.session.activeSubScenes[this.instanceId];
-    return (sceneState?.data as MainMenuSceneData) || {};
-  }
-
-  /**
-   * Updates scene data in session
-   */
-  private updateSceneData(
-    ctx: GlobalSceneContext,
-    data: Partial<MainMenuSceneData>
-  ): void {
-    const sceneState = ctx.session.activeSubScenes[this.instanceId];
-    if (sceneState) {
-      sceneState.data = { ...this.getSceneData(ctx), ...data };
-    }
   }
 
   async onActivate(ctx: GlobalSceneContext, data?: any): Promise<void> {
@@ -80,7 +22,7 @@ export class MainMenuSubScene implements ISubScene {
     };
 
     // Update session data
-    ctx.session.activeSubScenes[this.instanceId].data = sceneData;
+    this.updateSceneData(ctx, sceneData);
 
     // Load user data and show main menu
     await this.loadUserAndShowMenu(ctx);
@@ -89,17 +31,8 @@ export class MainMenuSubScene implements ISubScene {
   async cleanup(ctx: GlobalSceneContext): Promise<void> {
     this.log("info", ctx, "Cleaning up MainMenu scene");
 
-    // Clean up any temporary messages
-    const sceneState = ctx.session.activeSubScenes[this.instanceId];
-    if (sceneState?.tempMessageIds) {
-      for (const messageId of sceneState.tempMessageIds) {
-        try {
-          await ctx.deleteMessage(messageId);
-        } catch (error) {
-          this.log("debug", ctx, `Failed to delete temp message ${messageId}`);
-        }
-      }
-    }
+    // Call parent cleanup for temp messages
+    await super.cleanup(ctx);
 
     // Clean up main menu message
     const sceneData = this.getSceneData(ctx);
@@ -118,19 +51,14 @@ export class MainMenuSubScene implements ISubScene {
   ): Promise<boolean> {
     this.log("debug", ctx, `Handling callback: ${callback}`);
 
-    // Extract action from callback (format: "instanceId:action")
-    const [instanceId, action] = callback.split(":", 2);
-
-    // Only handle callbacks for this scene instance
-    if (instanceId !== this.instanceId) {
-      this.log(
-        "debug",
-        ctx,
-        `InstanceId mismatch (${instanceId} vs ${this.instanceId}), skipping`
-      );
+    // Validate callback belongs to this instance
+    const validation = this.validateCallbackInstanceId(callback);
+    if (!validation) {
+      this.log("debug", ctx, `InstanceId mismatch, skipping`);
       return false;
     }
 
+    const { action } = validation;
     this.log("info", ctx, `Processing action: ${action}`);
 
     try {
@@ -178,14 +106,7 @@ export class MainMenuSubScene implements ISubScene {
           return false;
       }
     } catch (error) {
-      this.log(
-        "error",
-        ctx,
-        `Error handling callback ${action}: ${
-          error instanceof Error ? error.stack : error
-        }`
-      );
-      await ctx.answerCbQuery("❌ An error occurred. Please try again.");
+      await this.handleCallbackError(ctx, action, error);
       return true; // We handled it, even if there was an error
     }
   }
