@@ -1,12 +1,15 @@
 import { ISubScene } from "./ISubScene";
 import { GlobalSceneContext } from "../session/GlobalSceneContext";
 import { logger } from "@logger";
+import { SceneData } from "../session/SubSceneState";
 
 /**
  * Base abstract class for all SubScenes
  * Provides common functionality like logging, scene data management, and error handling
  */
-export abstract class BaseSubScene<TSceneData = any> implements ISubScene {
+export abstract class BaseSubScene<TSceneData = SceneData>
+  implements ISubScene
+{
   public instanceId: string;
   public name: string;
 

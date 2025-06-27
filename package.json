@@ -1,6 +1,6 @@
 {
-  "name": "vivi-tg-bot",
-  "version": "0.5.6",
+  "name": "vivi-telegram-bot",
+  "version": "1.0.0",
   "main": "index.js",
   "engines": {
     "node": "18.x"
