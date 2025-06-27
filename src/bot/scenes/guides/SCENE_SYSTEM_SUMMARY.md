@@ -70,6 +70,7 @@ Un sistema de gestión de escenas **completamente modular, escalable y mantenibl
 📁 guides/
   📄 README.md                           ← Visión general del sistema
   📄 CREATE_SCENE.md                     ← Guía paso a paso para nuevas escenas
+  📄 BASESUBSCENE_METHODS.md             ← Referencia completa de métodos BaseSubScene
   📄 LOGGING.md                          ← Patrones de logging
   📄 BEST_PRACTICES.md                   ← Mejores prácticas y convenciones
 ```
@@ -254,8 +255,9 @@ El sistema está **listo para producción** y **preparado para escalar** con las
 
 ## 📞 **Para Futuras Referencias**
 
-- 📖 **Documentación:** `src/bot/scenes/README.md`
+- 📖 **Documentación:** `src/bot/scenes/guides/README.md`
 - 🎨 **Crear escena:** `src/bot/scenes/guides/CREATE_SCENE.md`
+- 🔧 **Métodos BaseSubScene:** `src/bot/scenes/guides/BASESUBSCENE_METHODS.md`
 - 📝 **Logging:** `src/bot/scenes/guides/LOGGING.md`
 - 🎯 **Best practices:** `src/bot/scenes/guides/BEST_PRACTICES.md`
 - 🏗️ **Arquitectura:** `src/bot/core/GlobalSceneManager.ts`

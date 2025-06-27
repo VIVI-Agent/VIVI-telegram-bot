@@ -235,8 +235,169 @@ async showConfirmation(ctx: GlobalSceneContext): Promise<void> {
   ]);
 
   const sent = await ctx.reply(message, keyboard);
-  this.updateSceneData(ctx, { confirmationMessageId: sent.message_id });
+  this.setMainMessageId(ctx, sent.message_id);
 }
+```
+
+### **Navegación Single-Message**
+
+```typescript
+// ✅ Patrón para menús que se actualizan en lugar de crear nuevos mensajes
+async updateMainMenu(ctx: GlobalSceneContext): Promise<void> {
+  const mainMessageId = this.getMainMessageId(ctx);
+  const sceneData = this.getSceneData(ctx);
+
+  const newKeyboard = this.buildMenuKeyboard(sceneData.currentStep);
+  const newText = this.getMenuText(sceneData);
+
+  if (mainMessageId) {
+    try {
+      await ctx.editMessageText(newText, newKeyboard);
+      this.log("debug", ctx, "Updated main menu");
+    } catch (error) {
+      // Si falla la edición, crear nuevo mensaje
+      this.log("warn", ctx, "Failed to edit message, creating new one");
+      const sent = await ctx.reply(newText, newKeyboard);
+      this.setMainMessageId(ctx, sent.message_id);
+    }
+  } else {
+    const sent = await ctx.reply(newText, newKeyboard);
+    this.setMainMessageId(ctx, sent.message_id);
+  }
+}
+```
+
+### **Manejo de Mensajes Temporales**
+
+```typescript
+// ✅ Patrón para mensajes de progreso que se limpian automáticamente
+async showProgressMessage(ctx: GlobalSceneContext, message: string): Promise<void> {
+  const progressMsg = await ctx.reply(`⏳ ${message}`);
+  this.addTempMessageId(ctx, progressMsg.message_id);
+
+  // El mensaje se limpiará automáticamente cuando la escena termine
+}
+
+// ✅ Patrón para notificaciones temporales
+async showTemporaryNotification(ctx: GlobalSceneContext, message: string, duration: number = 5000): Promise<void> {
+  const notificationMsg = await ctx.reply(message);
+  this.addTempMessageId(ctx, notificationMsg.message_id);
+
+  // Opcional: limpiar después de un tiempo específico
+  setTimeout(async () => {
+    try {
+      await ctx.deleteMessage(notificationMsg.message_id);
+    } catch (error) {
+      this.log("debug", ctx, `Failed to delete notification: ${error}`);
+    }
+  }, duration);
+}
+```
+
+### **Manejo Robusto de Errores**
+
+```typescript
+// ✅ Patrón completo de manejo de errores en callbacks
+async handleCallback(ctx: GlobalSceneContext, callback: string): Promise<boolean> {
+  const validation = this.validateCallbackInstanceId(callback);
+  if (!validation) {
+    this.log("debug", ctx, `InstanceId mismatch for callback: ${callback}`);
+    return false;
+  }
+
+  const { action } = validation;
+  this.updateLastActivity(ctx);
+
+  try {
+    switch (action) {
+      case CALLBACKS.PROCESS_PAYMENT:
+        return await this.handlePaymentProcess(ctx);
+
+      case CALLBACKS.CANCEL_OPERATION:
+        return await this.handleCancel(ctx);
+
+      default:
+        this.log("warn", ctx, `Unknown callback action: ${action}`);
+        await ctx.answerCbQuery("❌ Acción no reconocida");
+        return false;
+    }
+  } catch (error) {
+    await this.handleCallbackError(
+      ctx,
+      action,
+      error,
+      "❌ Error procesando la acción. Intenta nuevamente."
+    );
+    return true;
+  }
+}
+
+// ✅ Manejo específico para operaciones críticas
+async handlePaymentProcess(ctx: GlobalSceneContext): Promise<boolean> {
+  // Respuesta inmediata al usuario
+  await ctx.answerCbQuery("⏳ Procesando pago...");
+
+  // Mostrar mensaje de progreso
+  await this.showProgressMessage(ctx, "Procesando transacción...");
+
+  try {
+    const sceneData = this.getSceneData(ctx);
+    const result = await this.services.processPayment(ctx, sceneData);
+
+    // Actualizar estado y mostrar éxito
+    this.updateSceneData(ctx, {
+      step: "completed",
+      transactionHash: result.hash
+    });
+
+    await this.showSuccessMessage(ctx, result);
+    return true;
+
+  } catch (error) {
+    this.log("error", ctx, `Payment processing failed: ${error}`);
+
+    // Mensaje específico al usuario
+    const errorMessage = error.message.includes("insufficient funds")
+      ? "❌ Fondos insuficientes"
+      : "❌ Error procesando el pago. Intenta nuevamente.";
+
+    await ctx.reply(errorMessage);
+    return true;
+  }
+}
+```
+
+### **Cleanup Personalizado**
+
+```typescript
+// ✅ Override cleanup para operaciones específicas
+async cleanup(ctx: GlobalSceneContext): Promise<void> {
+  this.log("info", ctx, "Starting custom cleanup");
+
+  try {
+    // Cancelar operaciones pendientes
+    await this.cancelPendingTransactions(ctx);
+
+    // Limpiar recursos específicos
+    await this.releaseTemporaryLocks(ctx);
+
+    // Notificar servicios externos si es necesario
+    const sceneData = this.getSceneData(ctx);
+    if (sceneData.shouldNotifyExternal) {
+      await this.notifyExternalService(ctx, "scene_cleanup");
+    }
+
+  } catch (error) {
+    this.log("error", ctx, `Error during custom cleanup: ${error}`);
+  }
+
+  // Ejecutar cleanup estándar
+  await super.cleanup(ctx);
+
+  this.log("info", ctx, "Custom cleanup completed");
+}
+```
+
 ```
 
 ## 🚀 Optimizaciones
@@ -248,3 +409,4 @@ async showConfirmation(ctx: GlobalSceneContext): Promise<void> {
 - ✅ **Validar early** antes de operaciones costosas
 - ✅ **Cleanup agresivo** de mensajes temporales
 - ✅ **Log apropiado** para debugging y monitoring
+```

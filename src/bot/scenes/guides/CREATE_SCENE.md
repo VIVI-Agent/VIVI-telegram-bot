@@ -267,10 +267,125 @@ await ctx.sceneManager.activateScene(ctx, "MyScene", { someData: "value" });
 - [ ] Probar activación y navegación
 - [ ] Verificar cleanup y transiciones
 
+## 🔧 Métodos Disponibles de BaseSubScene
+
+### **Logging y Debugging**
+
+```typescript
+// Logging consistente con contexto de usuario
+protected log(level: "info" | "warn" | "error" | "debug", ctx: GlobalSceneContext, message: string): void
+
+// Ejemplo de uso
+this.log("info", ctx, "Processing user request");
+this.log("error", ctx, `Failed to load data: ${error.message}`);
+```
+
+### **Manejo de Scene Data**
+
+```typescript
+// Obtener datos tipados de la escena
+protected getSceneData(ctx: GlobalSceneContext): TSceneData
+
+// Actualizar datos de la escena parcialmente
+protected updateSceneData(ctx: GlobalSceneContext, data: Partial<TSceneData>): void
+
+// Ejemplo de uso
+const sceneData = this.getSceneData(ctx);
+this.updateSceneData(ctx, { step: "completed", result: data });
+```
+
+### **Gestión de Mensajes**
+
+```typescript
+// Establecer el mensaje principal de la escena (para navegación single-message)
+protected setMainMessageId(ctx: GlobalSceneContext, messageId: number): void
+
+// Obtener el ID del mensaje principal
+protected getMainMessageId(ctx: GlobalSceneContext): number | undefined
+
+// Agregar mensaje temporal para cleanup automático
+protected addTempMessageId(ctx: GlobalSceneContext, messageId: number): void
+
+// Ejemplo de uso
+const mainMsg = await ctx.reply("Menu principal", keyboard);
+this.setMainMessageId(ctx, mainMsg.message_id);
+
+const tempMsg = await ctx.reply("Loading...");
+this.addTempMessageId(ctx, tempMsg.message_id);
+```
+
+### **Callbacks y Validación**
+
+```typescript
+// Crear callback con instanceId para routing correcto
+protected createCallback(action: string): string
+
+// Validar que el callback pertenece a esta instancia
+protected validateCallbackInstanceId(callback: string): { instanceId: string; action: string } | null
+
+// Ejemplo de uso
+const keyboard = Markup.inlineKeyboard([
+  Markup.button.callback("Confirmar", this.createCallback("confirm"))
+]);
+
+// En handleCallback
+const validation = this.validateCallbackInstanceId(callback);
+if (!validation) return false;
+const { action } = validation;
+```
+
+### **Manejo de Errores**
+
+```typescript
+// Manejo consistente de errores en callbacks
+protected async handleCallbackError(
+  ctx: GlobalSceneContext,
+  action: string,
+  error: unknown,
+  userMessage?: string
+): Promise<void>
+
+// Ejemplo de uso
+try {
+  await this.processAction(ctx);
+} catch (error) {
+  await this.handleCallbackError(ctx, action, error, "❌ No se pudo procesar la acción");
+  return true;
+}
+```
+
+### **Actividad y Cleanup**
+
+```typescript
+// Actualizar timestamp de última actividad
+protected updateLastActivity(ctx: GlobalSceneContext): void
+
+// Limpiar mensajes temporales automáticamente
+protected async cleanupTempMessages(ctx: GlobalSceneContext): Promise<void>
+
+// Limpiar mensaje principal
+protected async cleanupMainMessage(ctx: GlobalSceneContext): Promise<void>
+
+// Override del cleanup general (opcional)
+async cleanup(ctx: GlobalSceneContext): Promise<void>
+
+// Ejemplo de uso personalizado
+async cleanup(ctx: GlobalSceneContext): Promise<void> {
+  // Cleanup personalizado primero
+  await this.cancelPendingOperations(ctx);
+
+  // Luego el cleanup estándar
+  await super.cleanup(ctx);
+}
+```
+
 ## 💡 Tips
 
-1. **Siempre usar this.log()** para logging consistente
-2. **Validar callbacks** con validateCallbackInstanceId()
-3. **Manejar errores** con try-catch y handleCallbackError()
-4. **Actualizar scene data** con updateSceneData()
-5. **Cleanup automático** se maneja por BaseSubScene, solo override si necesitas algo específico
+1. **Siempre usar this.log()** para logging consistente con contexto de usuario
+2. **Validar callbacks** con validateCallbackInstanceId() antes de procesarlos
+3. **Manejar errores** con try-catch y handleCallbackError() para UX consistente
+4. **Actualizar scene data** con updateSceneData() para mantener estado tipado
+5. **Usar setMainMessageId()** para patrones de navegación single-message
+6. **Agregar temp messages** con addTempMessageId() para cleanup automático
+7. **Cleanup automático** se maneja por BaseSubScene, solo override si necesitas lógica específica
+8. **Actualizar actividad** con updateLastActivity() en operaciones importantes

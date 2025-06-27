@@ -24,9 +24,12 @@ El sistema de escenas de VIVI utiliza una arquitectura modular y basada en heren
 - **Propósito:** Clase base para todas las escenas principales
 - **Características:**
   - Logging consistente con contexto de usuario
-  - Helpers para manejo de scene data
-  - Validación automática de callbacks
-  - Cleanup estándar
+  - Helpers para manejo de scene data tipados
+  - Validación automática de callbacks con instanceId
+  - Gestión de mensajes principales y temporales
+  - Manejo robusto de errores en callbacks
+  - Sistema de cleanup automático
+  - Tracking de actividad de usuario
 
 #### **BaseService**
 
@@ -67,9 +70,10 @@ El sistema de escenas de VIVI utiliza una arquitectura modular y basada en heren
 
 ## 📖 Guías Específicas
 
-- **[Crear Nueva Escena](./guides/CREATE_SCENE.md)** - Template paso a paso
-- **[Patrones de Logging](./guides/LOGGING.md)** - Cómo usar el sistema de logs
-- **[Mejores Prácticas](./guides/BEST_PRACTICES.md)** - Convenciones y tips
+- **[Crear Nueva Escena](./CREATE_SCENE.md)** - Template paso a paso
+- **[Referencia BaseSubScene](./BASESUBSCENE_METHODS.md)** - Documentación completa de métodos
+- **[Patrones de Logging](./LOGGING.md)** - Cómo usar el sistema de logs
+- **[Mejores Prácticas](./BEST_PRACTICES.md)** - Convenciones y tips
 
 ## 🎯 Escenas Implementadas
 
