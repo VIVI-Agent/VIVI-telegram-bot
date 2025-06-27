@@ -141,9 +141,7 @@ export class MainMenuServices extends BaseService {
     this.log("info", ctx, "Navigating to Settings");
 
     try {
-      await ctx.answerCbQuery("⚙️ Settings feature coming soon!");
-      // TODO: Activate Settings scene when implemented
-      // await ctx.sceneManager.activateScene(ctx, "Settings");
+      await ctx.sceneManager.activateScene(ctx, "Settings");
     } catch (error) {
       this.logError(ctx, "navigateToSettings", error);
       await ctx.answerCbQuery("❌ Error navigating to Settings");

@@ -1,14 +1,17 @@
 import { BaseSubScene, GlobalSceneContext, InitUserSceneData } from "@types";
 import { INITUSER_TEXTS } from "./messages";
-import { CALLBACKS, createInitUserCallback } from "./callbacks";
+import { CALLBACKS } from "./callbacks";
 import { InitUserServices } from "./InitUserServices";
+import { InitUserMenus } from "./InitUserMenu";
 
 export class InitUserSubScene extends BaseSubScene<InitUserSceneData> {
   private services: InitUserServices;
+  private menus: InitUserMenus;
 
   constructor(instanceId: string) {
     super(instanceId, "InitUser");
     this.services = new InitUserServices(instanceId);
+    this.menus = new InitUserMenus(instanceId);
   }
 
   async onActivate(ctx: GlobalSceneContext, data?: any): Promise<void> {
@@ -35,33 +38,10 @@ export class InitUserSubScene extends BaseSubScene<InitUserSceneData> {
       // Update step
       this.updateSceneData(ctx, { step: "wallet_created" });
 
-      // Show private key message
-      const message = await ctx.reply(
-        INITUSER_TEXTS.FUNCTIONS.getPrivateKeyMessage(
-          wallet.address,
-          wallet.privateKey
-        ),
-        {
-          parse_mode: "HTML",
-          reply_markup: {
-            inline_keyboard: [
-              [
-                {
-                  text: INITUSER_TEXTS.MESSAGES.CONFIRM_AND_DELETE_PK,
-                  callback_data: createInitUserCallback(
-                    this.instanceId,
-                    CALLBACKS.CONFIRM_PRIVATE_KEY
-                  ),
-                },
-              ],
-            ],
-          },
-        }
-      );
-
+      const messageId = await this.menus.showInitUserMenu(ctx, wallet);
       // Store message ID and wallet address for later use
       this.updateSceneData(ctx, {
-        pkMessageId: message.message_id,
+        pkMessageId: messageId,
         walletAddress: wallet.address,
       });
 
