@@ -71,22 +71,6 @@ export class MainMenuServices extends BaseService {
   }
 
   /**
-   * Handles navigation to Sell scene
-   */
-  public async navigateToSell(ctx: GlobalSceneContext): Promise<void> {
-    this.log("info", ctx, "Navigating to Sell");
-
-    try {
-      await ctx.answerCbQuery("💰 Sell feature coming soon!");
-      // TODO: Activate Sell scene when implemented
-      // await ctx.sceneManager.activateScene(ctx, "Sell");
-    } catch (error) {
-      this.logError(ctx, "navigateToSell", error);
-      await ctx.answerCbQuery("❌ Error navigating to Sell");
-    }
-  }
-
-  /**
    * Handles navigation to Wallets scene
    */
   public async navigateToWallets(ctx: GlobalSceneContext): Promise<void> {
@@ -119,28 +103,13 @@ export class MainMenuServices extends BaseService {
   }
 
   /**
-   * Handles navigation to Withdraw scene
-   */
-  public async navigateToWithdraw(ctx: GlobalSceneContext): Promise<void> {
-    this.log("info", ctx, "Navigating to Withdraw");
-
-    try {
-      await ctx.answerCbQuery("📤 Withdraw feature coming soon!");
-      // TODO: Activate Withdraw scene when implemented
-      // await ctx.sceneManager.activateScene(ctx, "Withdraw");
-    } catch (error) {
-      this.logError(ctx, "navigateToWithdraw", error);
-      await ctx.answerCbQuery("❌ Error navigating to Withdraw");
-    }
-  }
-
-  /**
    * Handles navigation to Settings scene
    */
   public async navigateToSettings(ctx: GlobalSceneContext): Promise<void> {
     this.log("info", ctx, "Navigating to Settings");
 
     try {
+      await ctx.answerCbQuery("Navigating to Settings");
       await ctx.sceneManager.activateScene(ctx, "Settings");
     } catch (error) {
       this.logError(ctx, "navigateToSettings", error);
@@ -200,6 +169,36 @@ export class MainMenuServices extends BaseService {
       this.logError(ctx, "handleRefresh", error);
       await ctx.answerCbQuery("❌ Failed to refresh. Please try again.");
       return false;
+    }
+  }
+
+  /**
+   * Handles navigation to Limit Order scene
+   */
+  public async navigateToLimitOrder(ctx: GlobalSceneContext): Promise<void> {
+    this.log("info", ctx, "Navigating to Limit Order");
+    try {
+      await ctx.answerCbQuery("Limit Orders feature coming soon!");
+      // TODO: Activate Holdings scene when implemented
+      // await ctx.sceneManager.activateScene(ctx, "Holdings");
+    } catch (error) {
+      this.logError(ctx, "navigateToLimitOrders", error);
+      await ctx.answerCbQuery("❌ Error navigating to Limit Orders");
+    }
+  }
+
+  /**
+   * Handles navigation to Snipe scene
+   */
+  public async navigateToSnipe(ctx: GlobalSceneContext): Promise<void> {
+    this.log("info", ctx, "Navigating to Snipe");
+    try {
+      await ctx.answerCbQuery("Snipe feature coming soon!");
+      // TODO: Activate Snipe scene when implemented
+      // await ctx.sceneManager.activateScene(ctx, "Snipe");
+    } catch (error) {
+      this.logError(ctx, "navigateToSnipe", error);
+      await ctx.answerCbQuery("❌ Error navigating to Snipe");
     }
   }
 

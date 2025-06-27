@@ -63,40 +63,40 @@ export class MainMenuSubScene extends BaseSubScene<MainMenuSceneData> {
 
     try {
       switch (action) {
+        case CB.LOGIN:
+          await this.services.handleLogin(ctx);
+          return true;
+
+        case CB.SNIPE:
+          await this.services.navigateToSnipe(ctx);
+          return true;
+
         case CB.BUY:
           await this.services.navigateToBuy(ctx);
-          return true;
-
-        case CB.SELL:
-          await this.services.navigateToSell(ctx);
-          return true;
-
-        case CB.WALLETS:
-          await this.services.navigateToWallets(ctx);
           return true;
 
         case CB.HOLDINGS:
           await this.services.navigateToHoldings(ctx);
           return true;
 
-        case CB.WITHDRAW:
-          await this.services.navigateToWithdraw(ctx);
+        case CB.REFRESH:
+          return await this.handleRefresh(ctx);
+
+        case CB.LIMIT_ORDER:
+          await this.services.navigateToLimitOrder(ctx);
           return true;
 
-        case CB.SETTINGS:
-          await this.services.navigateToSettings(ctx);
+        case CB.WALLETS:
+          await this.services.navigateToWallets(ctx);
           return true;
 
         case CB.REF_LINK:
           await this.services.handleReferralLink(ctx);
           return true;
 
-        case CB.LOGIN:
-          await this.services.handleLogin(ctx);
+        case CB.SETTINGS:
+          await this.services.navigateToSettings(ctx);
           return true;
-
-        case CB.REFRESH:
-          return await this.handleRefresh(ctx);
 
         case CB.DISMISS:
           return await this.handleDismiss(ctx);

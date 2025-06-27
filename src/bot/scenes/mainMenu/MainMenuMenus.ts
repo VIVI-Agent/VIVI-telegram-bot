@@ -1,7 +1,7 @@
 import { BaseMenus, GlobalSceneContext } from "@types";
 import { Markup } from "telegraf";
 import { CB } from "./callbacks";
-import { getMenuText } from "./messages";
+import { MAIN_MENU_TEXTS } from "./messages";
 import { secrets } from "@config";
 
 /**
@@ -34,7 +34,7 @@ export class MainMenuMenus extends BaseMenus {
       }, BigInt(0));
 
       // Get menu text (simplified - no referral count for now)
-      const text = getMenuText(
+      const text = MAIN_MENU_TEXTS.FUNCTIONS.getMenuText(
         totalBalance,
         user.points || 0,
         user.referralPoints || 0,
@@ -84,7 +84,7 @@ export class MainMenuMenus extends BaseMenus {
       }, BigInt(0));
 
       // Get updated text (simplified - no referral count for now)
-      const text = getMenuText(
+      const text = MAIN_MENU_TEXTS.FUNCTIONS.getMenuText(
         totalBalance,
         user.points || 0,
         user.referralPoints || 0,
@@ -127,31 +127,49 @@ export class MainMenuMenus extends BaseMenus {
       [Markup.button.url("👥 Add me to Group", link)],
       [
         Markup.button.callback(
-          "🔗 Access Dashboard",
+          MAIN_MENU_TEXTS.BUTTONS.LOGIN,
           this.createCallback(CB.LOGIN)
         ),
       ],
       [
-        Markup.button.callback("🛒 Buy", this.createCallback(CB.BUY)),
-        Markup.button.callback("💸 Sell", this.createCallback(CB.SELL)),
+        Markup.button.callback(
+          MAIN_MENU_TEXTS.BUTTONS.SNIPE,
+          this.createCallback(CB.SNIPE)
+        ),
+        Markup.button.callback(
+          MAIN_MENU_TEXTS.BUTTONS.BUY,
+          this.createCallback(CB.BUY)
+        ),
       ],
       [
-        Markup.button.callback("🤝 Referral", this.createCallback(CB.REF_LINK)),
         Markup.button.callback(
-          "🔄 Refresh Balance",
+          MAIN_MENU_TEXTS.BUTTONS.HOLDINGS,
+          this.createCallback(CB.HOLDINGS)
+        ),
+        Markup.button.callback(
+          MAIN_MENU_TEXTS.BUTTONS.REFRESH,
           this.createCallback(CB.REFRESH)
         ),
       ],
       [
         Markup.button.callback(
-          "💰 Positions",
-          this.createCallback(CB.HOLDINGS)
+          MAIN_MENU_TEXTS.BUTTONS.LIMIT_ORDER,
+          this.createCallback(CB.LIMIT_ORDER)
         ),
-        Markup.button.callback("💼 Wallets", this.createCallback(CB.WALLETS)),
+        Markup.button.callback(
+          MAIN_MENU_TEXTS.BUTTONS.WALLETS,
+          this.createCallback(CB.WALLETS)
+        ),
       ],
       [
-        Markup.button.callback("📤 Withdraw", this.createCallback(CB.WITHDRAW)),
-        Markup.button.callback("⚙️ Settings", this.createCallback(CB.SETTINGS)),
+        Markup.button.callback(
+          MAIN_MENU_TEXTS.BUTTONS.REF_LINK,
+          this.createCallback(CB.REF_LINK)
+        ),
+        Markup.button.callback(
+          MAIN_MENU_TEXTS.BUTTONS.SETTINGS,
+          this.createCallback(CB.SETTINGS)
+        ),
       ],
       [Markup.button.callback("x Dismiss", this.createCallback(CB.DISMISS))],
     ];

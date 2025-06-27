@@ -73,6 +73,11 @@ bot.on("callback_query", async (ctx) => {
   }
 });
 
+// Handle settings command
+bot.command("settings", async (ctx) => {
+  await sceneManager.activateScene(ctx, "Settings");
+});
+
 // Handle text messages
 bot.on(message("text"), async (ctx) => {
   const text = ctx.message.text;
