@@ -109,13 +109,6 @@ export abstract class BaseSubScene<TSceneData = any> implements ISubScene {
   }
 
   /**
-   * Creates a callback with instanceId for proper routing
-   */
-  protected createCallback(action: string): string {
-    return `${this.instanceId}:${action}`;
-  }
-
-  /**
    * Validates that a callback belongs to this scene instance
    */
   protected validateCallbackInstanceId(

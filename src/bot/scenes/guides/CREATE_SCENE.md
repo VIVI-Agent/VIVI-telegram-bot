@@ -317,8 +317,6 @@ this.addTempMessageId(ctx, tempMsg.message_id);
 ### **Callbacks y Validación**
 
 ```typescript
-// Crear callback con instanceId para routing correcto
-protected createCallback(action: string): string
 
 // Validar que el callback pertenece a esta instancia
 protected validateCallbackInstanceId(callback: string): { instanceId: string; action: string } | null
