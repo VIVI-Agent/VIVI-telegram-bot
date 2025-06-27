@@ -17,7 +17,6 @@ export const MAIN_MENU_TEXTS = {
     LIMIT_ORDER: "Limit Orders (Soon)",
     WALLETS: "💼 Wallets",
     REF_LINK: "🤝 Referral",
-    DISMISS: "x Dismiss",
   },
   FUNCTIONS: {
     getMenuText(

@@ -3,6 +3,7 @@ import { Markup } from "telegraf";
 import { CB } from "./callbacks";
 import { MAIN_MENU_TEXTS } from "./messages";
 import { secrets } from "@config";
+import { GENERIC_BUTTONS } from "@texts";
 
 /**
  * MainMenu menus and interface management
@@ -171,50 +172,14 @@ export class MainMenuMenus extends BaseMenus {
           this.createCallback(CB.SETTINGS)
         ),
       ],
-      [Markup.button.callback("x Dismiss", this.createCallback(CB.DISMISS))],
+      [
+        Markup.button.callback(
+          GENERIC_BUTTONS.DISMISS,
+          this.createCallback(CB.DISMISS)
+        ),
+      ],
     ];
 
     return Markup.inlineKeyboard(rows);
-  }
-
-  /**
-   * Shows a refreshing state message
-   */
-  public async showRefreshingMessage(ctx: GlobalSceneContext): Promise<number> {
-    this.log("info", ctx, "Showing refreshing message");
-
-    try {
-      const sent = await ctx.reply("🔄 Refreshing Balance...");
-      return sent.message_id;
-    } catch (error) {
-      this.logError(ctx, "showRefreshingMessage", error);
-      return 0;
-    }
-  }
-
-  /**
-   * Shows a success message after refresh
-   */
-  public async showRefreshSuccess(ctx: GlobalSceneContext): Promise<void> {
-    this.log("info", ctx, "Showing refresh success");
-
-    try {
-      await ctx.reply("✅ ETH and Tokens balances refreshed!");
-    } catch (error) {
-      this.logError(ctx, "showRefreshSuccess", error);
-    }
-  }
-
-  /**
-   * Shows an error message after refresh failure
-   */
-  public async showRefreshError(ctx: GlobalSceneContext): Promise<void> {
-    this.log("warn", ctx, "Showing refresh error");
-
-    try {
-      await ctx.reply("❌ Failed to refresh balance. Please try again.");
-    } catch (error) {
-      this.logError(ctx, "showRefreshError", error);
-    }
   }
 }
