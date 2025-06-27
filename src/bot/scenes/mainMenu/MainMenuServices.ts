@@ -12,7 +12,7 @@ export class MainMenuServices extends BaseService {
    * Loads user data with wallets for the main menu
    */
   public async loadUserData(ctx: GlobalSceneContext): Promise<any | null> {
-    const userId = ctx.from?.id;
+    const userId = ctx.from?.id.toString();
 
     if (!userId) {
       this.logWithoutContext("warn", "Missing user ID");

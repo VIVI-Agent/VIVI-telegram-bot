@@ -1,7 +1,7 @@
 // src/domain/user/UserService.ts
 import winston from "winston";
 import { Prisma, PrismaClient, User } from "@prisma/client";
-import { UserWithAll } from "./UserTypes";
+import { UserWithAll, UserWithSettings } from "./UserTypes";
 import { formatEther } from "viem";
 
 export class UserService {
@@ -17,7 +17,7 @@ export class UserService {
    * @returns The updated user or null if the user was not found
    */
   public async updateTgUsername(
-    tgUserId: number,
+    tgUserId: string,
     tgUsername: string
   ): Promise<User | null> {
     const user = await this.getUserByTgId(tgUserId);
@@ -38,11 +38,11 @@ export class UserService {
    */
   public async updateTgUserId(
     id: number,
-    tgUserId: number
+    tgUserId: string
   ): Promise<User | null> {
     return this.prisma.user.update({
       where: { id },
-      data: { tgUserId: BigInt(tgUserId) },
+      data: { tgUserId: tgUserId.toString() },
     });
   }
 
@@ -51,9 +51,9 @@ export class UserService {
    * @param tgUserId - The Telegram user ID
    * @returns The user or null if not found
    */
-  public async getUserByTgId(tgUserId: number): Promise<User | null> {
+  public async getUserByTgId(tgUserId: string): Promise<User | null> {
     return this.prisma.user.findFirst({
-      where: { tgUserId: BigInt(tgUserId) },
+      where: { tgUserId: tgUserId.toString() },
     });
   }
 
@@ -87,7 +87,7 @@ export class UserService {
    * @returns The created user
    */
   public async createUserWithSettings(data: {
-    tgUserId?: number;
+    tgUserId?: string;
     tgUsername: string;
     referredById?: number;
   }): Promise<UserWithAll> {
@@ -152,5 +152,22 @@ export class UserService {
       );
       throw error;
     }
+  }
+
+  /**
+   * Get a user with their settings
+   * @param tgUserId - The Telegram user ID
+   * @returns The user with their settings or null if not found
+   */
+  public async getUserWithSettings(
+    userId: number
+  ): Promise<UserWithSettings | null> {
+    return this.prisma.user.findFirst({
+      where: { id: userId },
+      include: {
+        buySettings: true,
+        sellSettings: true,
+      },
+    });
   }
 }

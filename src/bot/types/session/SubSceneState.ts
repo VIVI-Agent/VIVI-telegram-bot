@@ -1,3 +1,5 @@
+import { UserWithSettings } from "@domain";
+
 export interface SubSceneState {
   instanceId: string;
   name: string;
@@ -28,9 +30,10 @@ export interface SettingsSceneData {
   step: string;
   userId: number;
   username: string;
-  user?: any;
+  user?: UserWithSettings;
   editField?: {
     mode: "BUY" | "SELL";
     fieldName: string;
   };
+  menuMessageId?: number;
 }

@@ -1,11 +1,19 @@
 import { BaseSubScene, GlobalSceneContext, SettingsSceneData } from "@types";
+import { SettingsMenus } from "./SettingsMenus";
+import { SettingsService } from "./SettingsService";
 
 /**
  * Settings sub-scene for managing user trading configuration.
  */
 export class SettingsSubScene extends BaseSubScene<SettingsSceneData> {
+  menus: SettingsMenus;
+
+  private services: SettingsService;
+
   constructor(instanceId: string) {
     super(instanceId, "Settings");
+    this.menus = new SettingsMenus(instanceId);
+    this.services = new SettingsService(instanceId);
   }
 
   async onActivate(ctx: GlobalSceneContext, data?: any): Promise<void> {
@@ -16,12 +24,22 @@ export class SettingsSubScene extends BaseSubScene<SettingsSceneData> {
       step: "main_settings",
       userId: ctx.from?.id || 0,
       username: ctx.from?.username || "",
+      menuMessageId: undefined,
     };
 
-    // Update session data
-    this.updateSceneData(ctx, sceneData);
+    const user = await this.services.loadUserData(ctx);
 
-    await ctx.reply("⚙️ Settings scene activated");
+    if (user) {
+      sceneData.user = user;
+
+      this.updateSceneData(ctx, sceneData);
+      const menuMessageId = await this.menus.showSettingsMenu(ctx);
+
+      if (menuMessageId) {
+        sceneData.menuMessageId = menuMessageId;
+        this.updateSceneData(ctx, sceneData);
+      }
+    }
   }
 
   async cleanup(ctx: GlobalSceneContext): Promise<void> {
@@ -50,10 +68,12 @@ export class SettingsSubScene extends BaseSubScene<SettingsSceneData> {
     try {
       switch (action) {
         case "back_to_main_menu":
-          await ctx.reply("🏠 Navigating to main menu...");
+          await ctx.sceneManager.activateScene(ctx, "MainMenu");
           return true;
         case "dismiss_settings":
+          await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
           await ctx.answerCbQuery();
+          await this.cleanup(ctx);
           return true;
         default:
           this.log("warn", ctx, `Unknown action: ${action}`);

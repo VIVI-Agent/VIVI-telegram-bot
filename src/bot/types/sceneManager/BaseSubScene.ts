@@ -88,7 +88,7 @@ export abstract class BaseSubScene<TSceneData = SceneData>
    */
   protected getMainMessageId(ctx: GlobalSceneContext): number | undefined {
     const sceneData = this.getSceneData(ctx);
-    return (sceneData as any).mainMessageId;
+    return (sceneData as any).menuMessageId;
   }
 
   /**

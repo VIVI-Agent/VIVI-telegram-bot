@@ -9,7 +9,7 @@ export const createAuthMiddleware: MiddlewareFn<GlobalSceneContext> = async (
 ) => {
   logger.info("AuthMiddleware");
   // User Data From Telegram
-  const tgUserId = ctx.from?.id;
+  const tgUserId = ctx.from?.id.toString();
   const tgUsername = ctx.from?.username;
 
   // 1 - Check if username is set on telegram and stop ANY flow if not

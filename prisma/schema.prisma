@@ -44,7 +44,7 @@ model AdminUser {
 
 model User {
     id           Int            @id @default(autoincrement())
-    tgUserId     BigInt?
+    tgUserId     String?        @unique
     tgUsername   String?        @unique
     isPending    Boolean        @default(false)
     createdAt    DateTime       @default(now())

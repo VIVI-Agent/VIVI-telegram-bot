@@ -123,8 +123,8 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
       // Check if scene exists in current active scenes (within the 5 most recent)
       if (!ctx.session.activeSubScenes[sceneInstanceId]) {
         logger.info(`❌ Scene ${sceneInstanceId} not found in active scenes`);
-        await ctx.answerCbQuery(
-          "⏰ This action has expired. Please refresh and try again."
+        await ctx.reply(
+          "👒 You are using an old version of the bot! Type in or tap /start to use the new version."
         );
         return;
       }
