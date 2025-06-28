@@ -116,16 +116,21 @@ export abstract class BaseSubScene<TSceneData = SceneData>
    */
   protected validateCallbackInstanceId(
     callback: string
-  ): { instanceId: string; action: string } | null {
-    const [instanceId, action] = callback.split(":", 2);
+  ): { instanceId: string; action: string; params: string[] } | null {
+    const parts = callback.split(":");
+
+    if (parts.length < 2) {
+      return null;
+    }
+
+    const [instanceId, action, ...params] = parts;
 
     if (instanceId !== this.instanceId) {
       return null;
     }
 
-    return { instanceId, action };
+    return { instanceId, action, params };
   }
-
   /**
    * Standard cleanup for temporary messages
    */

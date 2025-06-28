@@ -65,15 +65,15 @@ export class SettingsMenus extends BaseMenus {
       [
         Markup.button.callback(
           SETTINGS_TEXTS.FUNCTIONS.speedMenuBtn("🚀", "AUTO", user.speed),
-          this.createCallback(CB.SET_SPEED)
+          this.createCallback(CB.SET_SPEED, "AUTO")
         ),
         Markup.button.callback(
           SETTINGS_TEXTS.FUNCTIONS.speedMenuBtn("⚡", "FAST", user.speed),
-          this.createCallback(CB.SET_SPEED)
+          this.createCallback(CB.SET_SPEED, "FAST")
         ),
         Markup.button.callback(
           SETTINGS_TEXTS.FUNCTIONS.speedMenuBtn("💨", "TURBO", user.speed),
-          this.createCallback(CB.SET_SPEED)
+          this.createCallback(CB.SET_SPEED, "TURBO")
         ),
       ],
       [

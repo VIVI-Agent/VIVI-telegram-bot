@@ -1,4 +1,5 @@
 import { UserWithSettings } from "@domain";
+import { SpeedEnum } from "@prisma/client";
 import { BaseService, GlobalSceneContext } from "@types";
 
 export class SettingsService extends BaseService {
@@ -24,5 +25,17 @@ export class SettingsService extends BaseService {
     }
 
     return null;
+  }
+
+  public async updateUserSpeedSettings(
+    ctx: GlobalSceneContext,
+    speed: SpeedEnum
+  ): Promise<void> {
+    try {
+      await ctx.services.userService.updateUserSpeed(ctx.user.id, speed);
+      this.log("info", ctx, `Updated user speed to ${speed}`);
+    } catch (error) {
+      this.logError(ctx, "updateUserSpeedSettings", error);
+    }
   }
 }

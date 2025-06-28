@@ -76,10 +76,10 @@ export abstract class BaseMenus {
   /**
    * Creates a callback with instanceId for proper routing
    */
-  protected createCallback(action: string): string {
-    return `${this.instanceId}:${action}`;
+  protected createCallback(action: string, ...params: string[]): string {
+    const parts = [this.instanceId, action, ...params];
+    return parts.join(":");
   }
-
   /**
    * Helper to handle errors consistently
    */
@@ -117,7 +117,7 @@ export abstract class BaseMenus {
     inlineKeyboard: any[][],
     parseMode: "Markdown" | "HTML" = "HTML",
     messageId?: number
-  ): Promise<number> {
+  ): Promise<number | undefined> {
     try {
       // Try to edit existing message if messageId is provided
       if (messageId && messageId > 0) {
@@ -146,6 +146,7 @@ export abstract class BaseMenus {
           error instanceof Error ? error.message : error
         }. Sending new message.`
       );
+      return;
     }
 
     // Send new message if no messageId provided or editing failed

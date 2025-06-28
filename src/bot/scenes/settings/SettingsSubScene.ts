@@ -2,6 +2,7 @@ import { BaseSubScene, GlobalSceneContext, SettingsSceneData } from "@types";
 import { SettingsMenus } from "./SettingsMenus";
 import { SettingsService } from "./SettingsService";
 import { CB } from "./callbacks";
+import { SpeedEnum } from "@prisma/client";
 
 /**
  * Settings sub-scene for managing user trading configuration.
@@ -87,6 +88,31 @@ export class SettingsSubScene extends BaseSubScene<SettingsSceneData> {
         case CB.BACK_TO_SETTINGS_ROOT:
           await ctx.answerCbQuery();
           await this.menus.showSettingsMenu(ctx, sceneData.menuMessageId);
+          return true;
+        // Speed settings
+        case CB.SET_SPEED:
+          await ctx.answerCbQuery();
+
+          // Extraer el parámetro de speed seleccionado
+          const speedValue = validation.params[0] as SpeedEnum;
+          if (!speedValue) {
+            this.log("warn", ctx, "No speed parameter provided");
+            return true;
+          }
+
+          await this.services.updateUserSpeedSettings(ctx, speedValue);
+          const updatedUserSpeed = await this.services.loadUserData(ctx);
+
+          if (updatedUserSpeed) {
+            sceneData.user = updatedUserSpeed;
+            this.updateSceneData(ctx, sceneData);
+            this.log("info", ctx, `Updated user speed to ${speedValue}`);
+            await this.menus.showSpeedMenu(
+              ctx,
+              sceneData.user!,
+              sceneData.menuMessageId!
+            );
+          }
           return true;
         default:
           this.log("warn", ctx, `Unknown action: ${action}`);
