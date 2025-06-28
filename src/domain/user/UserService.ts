@@ -1,7 +1,7 @@
 // src/domain/user/UserService.ts
 import winston from "winston";
 import { Prisma, PrismaClient, SpeedEnum, User } from "@prisma/client";
-import { UserWithAll, UserWithSettings } from "./UserTypes";
+import { UserWithAll, UserWithSettings, UserWithWallets } from "./UserTypes";
 import { formatEther } from "viem";
 
 export class UserService {
@@ -181,6 +181,18 @@ export class UserService {
     return this.prisma.user.update({
       where: { id },
       data: { speed: newSpeed },
+    });
+  }
+
+  public async getUserWithWallets(id: number): Promise<UserWithWallets | null> {
+    return this.prisma.user.findUnique({
+      where: { id },
+      include: {
+        wallets: {
+          where: { isDeleted: false },
+          orderBy: { createdAt: "asc" },
+        },
+      },
     });
   }
 }

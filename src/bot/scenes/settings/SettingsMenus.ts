@@ -18,7 +18,7 @@ export class SettingsMenus extends BaseMenus {
 
   public async showSettingsMenu(
     ctx: GlobalSceneContext,
-    messageId: number | undefined
+    messageId?: number
   ): Promise<number | undefined> {
     this.log("info", ctx, "Showing Settings menu");
     try {

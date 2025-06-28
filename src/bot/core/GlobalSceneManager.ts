@@ -38,6 +38,12 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
         );
         scene = new SettingsSubScene(instanceId);
         break;
+      case "Wallets":
+        const { WalletsSubScene } = await import(
+          "../scenes/wallets/WalletsSubScene"
+        );
+        scene = new WalletsSubScene(instanceId);
+        break;
       default:
         throw new Error(`Unknown scene type: ${sceneType}`);
     }

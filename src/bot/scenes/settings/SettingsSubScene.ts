@@ -44,7 +44,7 @@ export class SettingsSubScene extends BaseSubScene<SettingsSceneData> {
       sceneData.user = user;
 
       this.updateSceneData(ctx, sceneData);
-      const menuMessageId = await this.menus.showSettingsMenu(ctx, undefined);
+      const menuMessageId = await this.menus.showSettingsMenu(ctx);
 
       if (menuMessageId) {
         sceneData.menuMessageId = menuMessageId;

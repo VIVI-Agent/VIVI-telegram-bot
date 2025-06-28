@@ -1,4 +1,4 @@
-import { UserWithSettings } from "@domain";
+import { UserWithSettings, UserWithWallets } from "@domain";
 import { BuySettings } from "@prisma/client";
 
 export interface SubSceneState {
@@ -12,7 +12,8 @@ export interface SubSceneState {
 export type SceneData =
   | InitUserSceneData
   | MainMenuSceneData
-  | SettingsSceneData;
+  | SettingsSceneData
+  | WalletsSceneData;
 
 // InitUserSceneData: Data for the init user scene,
 export interface InitUserSceneData {
@@ -38,6 +39,24 @@ export interface SettingsSceneData {
   };
 
   menuMessageId?: number;
+}
+
+// WalletsSceneData interface
+export interface WalletsSceneData {
+  userId: number;
+  username: string;
+  user?: UserWithWallets;
+  menuMessageId?: number;
+  selectedWalletAddress?: `0x${string}`;
+
+  // Bot Showing Private Key
+  privateKeyMessageId?: number;
+  // User Importing Private Key
+  importingPrivateKey?: boolean;
+  userPrivateKeyMessageId?: number;
+
+  // User Importing Token on  Wallet
+  importingToken?: boolean;
 }
 
 export enum SettingEditMode {

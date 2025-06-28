@@ -77,9 +77,8 @@ export class MainMenuServices extends BaseService {
     this.log("info", ctx, "Navigating to Wallets");
 
     try {
-      await ctx.answerCbQuery("💼 Wallets feature coming soon!");
-      // TODO: Activate Wallets scene when implemented
-      // await ctx.sceneManager.activateScene(ctx, "Wallets");
+      await ctx.answerCbQuery("💼 Opening Wallets...");
+      await ctx.sceneManager.activateScene(ctx, "Wallets");
     } catch (error) {
       this.logError(ctx, "navigateToWallets", error);
       await ctx.answerCbQuery("❌ Error navigating to Wallets");
