@@ -1,4 +1,5 @@
 import { UserWithSettings } from "@domain";
+import { BuySettings } from "@prisma/client";
 
 export interface SubSceneState {
   instanceId: string;
@@ -32,8 +33,24 @@ export interface SettingsSceneData {
   username: string;
   user?: UserWithSettings;
   editField?: {
-    mode: "BUY" | "SELL";
-    fieldName: string;
+    mode: SettingEditMode;
+    fieldName: BuySettingsFieldName | SellSettingsFieldName;
   };
+
   menuMessageId?: number;
 }
+
+export enum SettingEditMode {
+  BUY = "BUY",
+  SELL = "SELL",
+}
+
+export type BuySettingsFieldName = keyof Pick<
+  BuySettings,
+  "amount1" | "amount2" | "amount3" | "amount4" | "amount5" | "slippage"
+>;
+
+export type SellSettingsFieldName = keyof Pick<
+  BuySettings,
+  "amount1" | "amount2" | "amount3" | "slippage"
+>;

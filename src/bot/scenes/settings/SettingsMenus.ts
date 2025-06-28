@@ -1,5 +1,10 @@
 import { GENERIC_BUTTONS, GENERIC_ERRORS } from "@texts";
-import { BaseMenus, GlobalSceneContext } from "@types";
+import {
+  BaseMenus,
+  BuySettingsFieldName,
+  GlobalSceneContext,
+  SettingEditMode,
+} from "@types";
 import { UserWithSettings } from "@domain";
 import { CB } from "./callbacks";
 import { Markup } from "telegraf";
@@ -58,6 +63,87 @@ export class SettingsMenus extends BaseMenus {
       "HTML",
       messageId
     );
+  }
+
+  public async showBuySettingsMenu(
+    ctx: GlobalSceneContext,
+    user: UserWithSettings,
+    messageId: number
+  ): Promise<number | undefined> {
+    this.log("info", ctx, "Showing Buy Settings menu");
+    return await super.sendOrUpdateMenu(
+      ctx,
+      SETTINGS_TEXTS.MESSAGES.BUY_SETTINGS_MSG_TEXT,
+      this.buildBuySettingsMenuKeyboard(user),
+      "HTML",
+      messageId
+    );
+  }
+
+  async askBuyFieldValue(
+    ctx: GlobalSceneContext,
+    fieldName: BuySettingsFieldName
+  ): Promise<number> {
+    if (fieldName === "slippage") {
+      const sent = await ctx.reply(SETTINGS_TEXTS.PROMPTS.ENTER_BUY_SLIPPAGE, {
+        parse_mode: "Markdown",
+        reply_markup: {
+          force_reply: true,
+        },
+      });
+      return sent.message_id;
+    }
+
+    const sent = await ctx.reply(SETTINGS_TEXTS.PROMPTS.ENTER_BUY_AMOUNT, {
+      parse_mode: "Markdown",
+      reply_markup: {
+        force_reply: true,
+      },
+    });
+    return sent.message_id;
+  }
+
+  private buildBuySettingsMenuKeyboard(user: UserWithSettings) {
+    return [
+      [
+        Markup.button.callback(
+          `${user.buySettings!.amount1} Ξ ✏️`,
+          this.createCallback(CB.EDIT_BUY_FIELD, "amount1")
+        ),
+        Markup.button.callback(
+          `${user.buySettings!.amount2} Ξ ✏️`,
+          this.createCallback(CB.EDIT_BUY_FIELD, "amount2")
+        ),
+        Markup.button.callback(
+          `${user.buySettings!.amount3} Ξ ✏️`,
+          this.createCallback(CB.EDIT_BUY_FIELD, "amount3")
+        ),
+      ],
+      [
+        Markup.button.callback(
+          `${user.buySettings!.amount4} Ξ ✏️`,
+          this.createCallback(CB.EDIT_BUY_FIELD, "amount4")
+        ),
+        Markup.button.callback(
+          `${user.buySettings!.amount5} Ξ ✏️`,
+          this.createCallback(CB.EDIT_BUY_FIELD, "amount5")
+        ),
+      ],
+      [
+        Markup.button.callback(
+          GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
+          this.createCallback(CB.MAIN_MENU)
+        ),
+        Markup.button.callback(
+          GENERIC_BUTTONS.BACK,
+          this.createCallback(CB.SETTINGS_ROOT)
+        ),
+        Markup.button.callback(
+          GENERIC_BUTTONS.DISMISS,
+          this.createCallback(CB.DISMISS_SETTINGS)
+        ),
+      ],
+    ];
   }
 
   private buildSpeedMenuKeyboard(user: UserWithSettings) {

@@ -57,7 +57,26 @@ export abstract class BaseSubScene<TSceneData = SceneData>
    */
   protected getSceneData(ctx: GlobalSceneContext): TSceneData {
     const sceneState = ctx.session.activeSubScenes[this.instanceId];
-    return (sceneState?.data as TSceneData) || ({} as TSceneData);
+    const data = (sceneState?.data as TSceneData) || ({} as TSceneData);
+
+    // Debug logs
+    logger.debug(
+      `[BaseSubScene:${
+        this.instanceId
+      }] GetSceneData - Scene state exists: ${!!sceneState}`
+    );
+    logger.debug(
+      `[BaseSubScene:${
+        this.instanceId
+      }] GetSceneData - Raw data: ${JSON.stringify(sceneState?.data)}`
+    );
+    logger.debug(
+      `[BaseSubScene:${
+        this.instanceId
+      }] GetSceneData - Returned data: ${JSON.stringify(data)}`
+    );
+
+    return data;
   }
 
   /**
@@ -69,7 +88,35 @@ export abstract class BaseSubScene<TSceneData = SceneData>
   ): void {
     const sceneState = ctx.session.activeSubScenes[this.instanceId];
     if (sceneState) {
-      sceneState.data = { ...this.getSceneData(ctx), ...data };
+      const beforeData = sceneState.data;
+      const currentData = this.getSceneData(ctx);
+      sceneState.data = { ...currentData, ...data };
+
+      // Debug logs
+      logger.debug(
+        `[BaseSubScene:${
+          this.instanceId
+        }] UpdateSceneData - Before: ${JSON.stringify(beforeData)}`
+      );
+      logger.debug(
+        `[BaseSubScene:${
+          this.instanceId
+        }] UpdateSceneData - Current: ${JSON.stringify(currentData)}`
+      );
+      logger.debug(
+        `[BaseSubScene:${
+          this.instanceId
+        }] UpdateSceneData - New data: ${JSON.stringify(data)}`
+      );
+      logger.debug(
+        `[BaseSubScene:${
+          this.instanceId
+        }] UpdateSceneData - After: ${JSON.stringify(sceneState.data)}`
+      );
+    } else {
+      logger.warn(
+        `[BaseSubScene:${this.instanceId}] UpdateSceneData - No scene state found!`
+      );
     }
   }
 

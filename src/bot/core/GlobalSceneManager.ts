@@ -128,13 +128,33 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
         );
         return;
       }
+
+      // Route directly to the specific scene
+      const sceneState = ctx.session.activeSubScenes[sceneInstanceId];
+      if (sceneState && sceneState.active) {
+        logger.info(
+          `🔄 Routing directly to scene: ${sceneState.name} (${sceneInstanceId})`
+        );
+        const scene = await this.createSceneInstance(
+          sceneState.name,
+          sceneInstanceId
+        );
+        const handled = await scene.handleCallback(ctx, callback);
+        logger.info(`🔄 Scene ${sceneState.name} handled: ${handled}`);
+        if (!handled) {
+          logger.info(
+            `❌ Scene ${sceneInstanceId} couldn't handle its own callback: ${callback}`
+          );
+        }
+        return;
+      }
     }
 
-    // Route to all active scenes until one handles it
-    for (const [instanceId, sceneState] of Object.entries(
-      ctx.session.activeSubScenes
-    )) {
-      if (sceneState.active) {
+    // Fallback: Route to active scenes in FIFO order for callbacks without instanceId
+    const reversedOrder = [...ctx.session.sceneOrder].reverse();
+    for (const instanceId of reversedOrder) {
+      const sceneState = ctx.session.activeSubScenes[instanceId];
+      if (sceneState && sceneState.active) {
         logger.info(`🔄 Trying scene: ${sceneState.name} (${instanceId})`);
         // Create scene instance dynamically
         const scene = await this.createSceneInstance(
@@ -153,24 +173,71 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
   }
 
   async routeText(ctx: GlobalSceneContext, text: string): Promise<void> {
-    // Route to all active scenes until one handles it
+    logger.info(`🔄 Routing text: "${text}"`);
+    logger.info(
+      `🔄 Active scenes count: ${
+        Object.keys(ctx.session.activeSubScenes).length
+      }`
+    );
+
+    // First priority: Find scenes that are waiting for text input (have editField)
     for (const [instanceId, sceneState] of Object.entries(
       ctx.session.activeSubScenes
     )) {
-      if (sceneState.active) {
+      if (
+        sceneState &&
+        sceneState.active &&
+        (sceneState.data as any)?.editField
+      ) {
+        logger.info(
+          `🎯 Found scene waiting for text input: ${
+            sceneState.name
+          } (${instanceId}) - editField: ${JSON.stringify(
+            (sceneState.data as any).editField
+          )}`
+        );
+
         // Create scene instance dynamically
         const scene = await this.createSceneInstance(
           sceneState.name,
           instanceId
         );
         const handled = await scene.handleText(ctx, text);
+        logger.info(`🔄 Scene ${sceneState.name} handled text: ${handled}`);
         if (handled) {
           return; // Stop routing once handled
         }
       }
     }
 
-    logger.info(`Unhandled text: ${text}`);
+    // Fallback: Route to active scenes in FIFO order (most recent first)
+    const reversedOrder = [...ctx.session.sceneOrder].reverse();
+    for (const instanceId of reversedOrder) {
+      const sceneState = ctx.session.activeSubScenes[instanceId];
+      if (
+        sceneState &&
+        sceneState.active &&
+        !(sceneState.data as any)?.editField
+      ) {
+        logger.info(
+          `🔄 Trying text route to scene: ${sceneState.name} (${instanceId})`
+        );
+        logger.info(`🔄 Scene state data: ${JSON.stringify(sceneState.data)}`);
+
+        // Create scene instance dynamically
+        const scene = await this.createSceneInstance(
+          sceneState.name,
+          instanceId
+        );
+        const handled = await scene.handleText(ctx, text);
+        logger.info(`🔄 Scene ${sceneState.name} handled text: ${handled}`);
+        if (handled) {
+          return; // Stop routing once handled
+        }
+      }
+    }
+
+    logger.info(`❌ Unhandled text: ${text}`);
   }
 
   // FIFO Scene Management
