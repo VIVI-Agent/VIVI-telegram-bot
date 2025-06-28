@@ -8,5 +8,5 @@ export const CB = {
   EDIT_SELL_FIELD: "edit_sell_field",
   SET_SPEED: "set_speed",
   DISMISS_SETTINGS: "dismiss_settings",
-  BACK_TO_MAIN_MENU: "back_to_main_menu",
+  BACK_TO_SETTINGS_ROOT: "back_to_settings_root",
 };

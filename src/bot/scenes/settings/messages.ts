@@ -23,9 +23,9 @@ export const SETTINGS_TEXTS = {
     EDIT_SPEED_SETTINGS: "✏️ Gas Settings",
     SETTINGS_ROOT:
       "<b>⚙️ Settings</b> \n\nSelect an option below to configure:",
-    BUY_SETTINGS_MSG_TEXT: `*⚙️ Settings > Buy Buttons:* \n\nTap below to set your buy buttons values.`,
-    SELL_SETTINGS_MSG_TEXT: `*⚙️ Settings > Sell Buttons:* \n\nTap below to set your sell buttons values.`,
-    SLIPPAGE_SETTINGS_MSG_TEXT: `*⚙️ Settings > Gas Settings:* \n\nTap below to set your gas settings.`,
+    BUY_SETTINGS_MSG_TEXT: `<b>⚙️ Settings > Buy Buttons:</b> \n\nTap below to set your buy buttons values.`,
+    SELL_SETTINGS_MSG_TEXT: `<b>⚙️ Settings > Sell Buttons:</b> \n\nTap below to set your sell buttons values.`,
+    SPEED_SETTINGS_MSG_TEXT: `<b>⚙️ Settings > Speed Settings:</b> \n\nTap below to set your speed settings.`,
   },
 
   FUNCTIONS: {

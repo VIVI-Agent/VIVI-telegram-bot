@@ -1,6 +1,7 @@
 import { BaseSubScene, GlobalSceneContext, SettingsSceneData } from "@types";
 import { SettingsMenus } from "./SettingsMenus";
 import { SettingsService } from "./SettingsService";
+import { CB } from "./callbacks";
 
 /**
  * Settings sub-scene for managing user trading configuration.
@@ -33,7 +34,7 @@ export class SettingsSubScene extends BaseSubScene<SettingsSceneData> {
       sceneData.user = user;
 
       this.updateSceneData(ctx, sceneData);
-      const menuMessageId = await this.menus.showSettingsMenu(ctx);
+      const menuMessageId = await this.menus.showSettingsMenu(ctx, undefined);
 
       if (menuMessageId) {
         sceneData.menuMessageId = menuMessageId;
@@ -65,15 +66,27 @@ export class SettingsSubScene extends BaseSubScene<SettingsSceneData> {
     const { action } = validation;
     this.log("info", ctx, `Processing action: ${action}`);
 
+    const sceneData = this.getSceneData(ctx);
+
     try {
       switch (action) {
-        case "back_to_main_menu":
+        case CB.EDIT_SPEED_SETTINGS:
+          await ctx.answerCbQuery();
+          const user = sceneData.user!;
+          await this.menus.showSpeedMenu(ctx, user, sceneData.menuMessageId!);
+          return true;
+        case CB.MAIN_MENU:
+          await ctx.answerCbQuery();
+          await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
           await ctx.sceneManager.activateScene(ctx, "MainMenu");
           return true;
-        case "dismiss_settings":
-          await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
+        case CB.DISMISS_SETTINGS:
           await ctx.answerCbQuery();
-          await this.cleanup(ctx);
+          await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
+          return true;
+        case CB.BACK_TO_SETTINGS_ROOT:
+          await ctx.answerCbQuery();
+          await this.menus.showSettingsMenu(ctx, sceneData.menuMessageId);
           return true;
         default:
           this.log("warn", ctx, `Unknown action: ${action}`);

@@ -11,23 +11,87 @@ export class SettingsMenus extends BaseMenus {
   }
 
   public async showSettingsMenu(
-    ctx: GlobalSceneContext
+    ctx: GlobalSceneContext,
+    messageId: number | undefined
   ): Promise<number | undefined> {
     this.log("info", ctx, "Showing Settings menu");
     try {
       const inline_keyboard = this.buildSettingsMenuKeyboard();
 
-      const messageId = await super.sendOrUpdateMenu(
+      const message_id = await super.sendOrUpdateMenu(
         ctx,
         SETTINGS_TEXTS.MESSAGES.SETTINGS_ROOT,
         inline_keyboard,
-        "HTML"
+        "HTML",
+        messageId
       );
 
-      return messageId;
+      return message_id;
     } catch (error) {
       this.logError(ctx, "showSettingsMenu", error);
     }
+  }
+
+  public async showSpeedMenu(
+    ctx: GlobalSceneContext,
+    user: UserWithSettings,
+    messageId: number
+  ): Promise<number | undefined> {
+    this.log("info", ctx, "Showing Speed menu");
+    try {
+      const inline_keyboard = this.buildSpeedMenuKeyboard(user);
+      return await this.sendSpeedMenu(ctx, inline_keyboard, messageId);
+    } catch (error) {
+      this.logError(ctx, "showSpeedMenu", error);
+    }
+  }
+
+  private async sendSpeedMenu(
+    ctx: GlobalSceneContext,
+    inline_keyboard: any[][],
+    messageId: number
+  ): Promise<number | undefined> {
+    return await super.sendOrUpdateMenu(
+      ctx,
+      SETTINGS_TEXTS.MESSAGES.SPEED_SETTINGS_MSG_TEXT,
+      inline_keyboard,
+      "HTML",
+      messageId
+    );
+  }
+
+  private buildSpeedMenuKeyboard(user: UserWithSettings) {
+    const inlineKeyboard = [
+      [
+        Markup.button.callback(
+          SETTINGS_TEXTS.FUNCTIONS.speedMenuBtn("🚀", "AUTO", user.speed),
+          this.createCallback(CB.SET_SPEED)
+        ),
+        Markup.button.callback(
+          SETTINGS_TEXTS.FUNCTIONS.speedMenuBtn("⚡", "FAST", user.speed),
+          this.createCallback(CB.SET_SPEED)
+        ),
+        Markup.button.callback(
+          SETTINGS_TEXTS.FUNCTIONS.speedMenuBtn("💨", "TURBO", user.speed),
+          this.createCallback(CB.SET_SPEED)
+        ),
+      ],
+      [
+        Markup.button.callback(
+          GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
+          this.createCallback(CB.MAIN_MENU)
+        ),
+        Markup.button.callback(
+          GENERIC_BUTTONS.BACK,
+          this.createCallback(CB.SETTINGS_ROOT)
+        ),
+        Markup.button.callback(
+          GENERIC_BUTTONS.DISMISS,
+          this.createCallback(CB.DISMISS_SETTINGS)
+        ),
+      ],
+    ];
+    return inlineKeyboard;
   }
 
   private buildSettingsMenuKeyboard() {
