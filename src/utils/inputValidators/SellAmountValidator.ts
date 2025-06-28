@@ -17,7 +17,7 @@ export class SellAmountValidator {
     if (!input || input.trim() === "") {
       return {
         isValid: false,
-        error: "Please enter a value",
+        error: "Please enter Slippage (Min 0, Max 50)",
       };
     }
 
@@ -31,7 +31,7 @@ export class SellAmountValidator {
     if (isNaN(numValue)) {
       return {
         isValid: false,
-        error: "Please enter a valid percentage",
+        error: "Please enter a valid Slippage (Min 0, Max 50)",
       };
     }
 
@@ -39,14 +39,14 @@ export class SellAmountValidator {
     if (numValue <= 0) {
       return {
         isValid: false,
-        error: "Percentage must be greater than 0",
+        error: "Slippage must be greater than 0",
       };
     }
 
     if (numValue > 100) {
       return {
         isValid: false,
-        error: "Percentage must be less than 100",
+        error: "Slippage must be less than 50",
       };
     }
 

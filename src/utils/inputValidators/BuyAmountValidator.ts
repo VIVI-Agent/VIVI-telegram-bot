@@ -17,7 +17,7 @@ export class BuyAmountValidator {
     if (!input || input.trim() === "") {
       return {
         isValid: false,
-        error: "Please enter a value",
+        error: "Please enter ETH amount (eg: 0.001)",
       };
     }
 
@@ -31,7 +31,7 @@ export class BuyAmountValidator {
     if (isNaN(numValue)) {
       return {
         isValid: false,
-        error: "Please enter a valid number",
+        error: "Please enter a valid ETH amount  (eg: 0.001)",
       };
     }
 
@@ -39,7 +39,7 @@ export class BuyAmountValidator {
     if (numValue <= 0) {
       return {
         isValid: false,
-        error: "Amount must be greater than 0",
+        error: "ETH amount must be greater than 0 (eg: 0.001)",
       };
     }
 

@@ -153,9 +153,15 @@ export class SettingsMenus extends BaseMenus {
           `${user.sellSettings!.amount2} Ξ ✏️`,
           this.createCallback(CB.EDIT_SELL_FIELD, "amount2")
         ),
+      ],
+      [
         Markup.button.callback(
           `${user.sellSettings!.amount3} Ξ ✏️`,
           this.createCallback(CB.EDIT_SELL_FIELD, "amount3")
+        ),
+        Markup.button.callback(
+          `Slippage: ${user.sellSettings!.slippage} % ✏️`,
+          this.createCallback(CB.EDIT_SELL_FIELD, "slippage")
         ),
       ],
       [
@@ -199,6 +205,10 @@ export class SettingsMenus extends BaseMenus {
         Markup.button.callback(
           `${user.buySettings!.amount5} Ξ ✏️`,
           this.createCallback(CB.EDIT_BUY_FIELD, "amount5")
+        ),
+        Markup.button.callback(
+          `Slippage: ${user.buySettings!.slippage} % ✏️`,
+          this.createCallback(CB.EDIT_BUY_FIELD, "slippage")
         ),
       ],
       [
