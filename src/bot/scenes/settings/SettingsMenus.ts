@@ -3,6 +3,7 @@ import {
   BaseMenus,
   BuySettingsFieldName,
   GlobalSceneContext,
+  SellSettingsFieldName,
   SettingEditMode,
 } from "@types";
 import { UserWithSettings } from "@domain";
@@ -80,6 +81,21 @@ export class SettingsMenus extends BaseMenus {
     );
   }
 
+  public async showSellSettingsMenu(
+    ctx: GlobalSceneContext,
+    user: UserWithSettings,
+    messageId: number
+  ): Promise<number | undefined> {
+    this.log("info", ctx, "Showing Sell Settings menu");
+    return await super.sendOrUpdateMenu(
+      ctx,
+      SETTINGS_TEXTS.MESSAGES.SELL_SETTINGS_MSG_TEXT,
+      this.buildSellSettingsMenuKeyboard(user),
+      "HTML",
+      messageId
+    );
+  }
+
   async askBuyFieldValue(
     ctx: GlobalSceneContext,
     fieldName: BuySettingsFieldName
@@ -101,6 +117,62 @@ export class SettingsMenus extends BaseMenus {
       },
     });
     return sent.message_id;
+  }
+
+  async askSellFieldValue(
+    ctx: GlobalSceneContext,
+    fieldName: SellSettingsFieldName
+  ): Promise<number> {
+    if (fieldName === "slippage") {
+      const sent = await ctx.reply(SETTINGS_TEXTS.PROMPTS.ENTER_SELL_SLIPPAGE, {
+        parse_mode: "Markdown",
+        reply_markup: {
+          force_reply: true,
+        },
+      });
+      return sent.message_id;
+    }
+
+    const sent = await ctx.reply(SETTINGS_TEXTS.PROMPTS.ENTER_SELL_PERCENT, {
+      parse_mode: "Markdown",
+      reply_markup: {
+        force_reply: true,
+      },
+    });
+    return sent.message_id;
+  }
+
+  private buildSellSettingsMenuKeyboard(user: UserWithSettings) {
+    return [
+      [
+        Markup.button.callback(
+          `${user.sellSettings!.amount1} Ξ ✏️`,
+          this.createCallback(CB.EDIT_SELL_FIELD, "amount1")
+        ),
+        Markup.button.callback(
+          `${user.sellSettings!.amount2} Ξ ✏️`,
+          this.createCallback(CB.EDIT_SELL_FIELD, "amount2")
+        ),
+        Markup.button.callback(
+          `${user.sellSettings!.amount3} Ξ ✏️`,
+          this.createCallback(CB.EDIT_SELL_FIELD, "amount3")
+        ),
+      ],
+      [
+        Markup.button.callback(
+          GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
+          this.createCallback(CB.MAIN_MENU)
+        ),
+        Markup.button.callback(
+          GENERIC_BUTTONS.BACK,
+          this.createCallback(CB.SETTINGS_ROOT)
+        ),
+        Markup.button.callback(
+          GENERIC_BUTTONS.DISMISS,
+          this.createCallback(CB.DISMISS_SETTINGS)
+        ),
+      ],
+    ];
   }
 
   private buildBuySettingsMenuKeyboard(user: UserWithSettings) {

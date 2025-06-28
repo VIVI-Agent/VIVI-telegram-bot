@@ -1,6 +1,11 @@
 import { UserWithSettings } from "@domain";
 import { SpeedEnum } from "@prisma/client";
-import { BaseService, BuySettingsFieldName, GlobalSceneContext } from "@types";
+import {
+  BaseService,
+  BuySettingsFieldName,
+  GlobalSceneContext,
+  SellSettingsFieldName,
+} from "@types";
 
 export class SettingsService extends BaseService {
   constructor(instanceId: string) {
@@ -52,6 +57,22 @@ export class SettingsService extends BaseService {
       );
     } catch (error) {
       this.logError(ctx, "updateUserBuySettings", error);
+    }
+  }
+
+  public async updateUserSellSettings(
+    ctx: GlobalSceneContext,
+    fieldName: SellSettingsFieldName,
+    value: string
+  ): Promise<void> {
+    try {
+      await ctx.services.sellSettingsService.updateSellSettings(
+        ctx.user.id,
+        fieldName,
+        Number(value)
+      );
+    } catch (error) {
+      this.logError(ctx, "updateUserSellSettings", error);
     }
   }
 }
