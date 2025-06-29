@@ -6,6 +6,7 @@ import { WALLET_TEXTS } from "./messages";
 import { GENERIC_BUTTONS } from "@texts";
 import { UserWithWallets } from "@domain";
 import { formatEthBalanceWithSymbol } from "@utils";
+import { Wallet } from "@prisma/client";
 
 export class WalletsMenus extends BaseMenus {
   constructor(instanceId: string) {
@@ -150,6 +151,83 @@ export class WalletsMenus extends BaseMenus {
     );
 
     return this.sendOrUpdateMenu(ctx, menuText, keyboard, "HTML", messageId);
+  }
+
+  async showExportWalletMenu(
+    ctx: GlobalSceneContext,
+    sceneData: WalletsSceneData,
+    messageId?: number
+  ): Promise<number | undefined> {
+    this.log("info", ctx, "Showing Export Wallet menu");
+
+    const keyboard = this.buildExportWalletKeyboard(sceneData.user!);
+    const menuText = WALLET_TEXTS.MESSAGES.EXPORT_WALLET_TITLE;
+
+    return this.sendOrUpdateMenu(ctx, menuText, keyboard, "HTML", messageId);
+  }
+
+  async showExportWalletDataMenu(
+    ctx: GlobalSceneContext,
+    address: string,
+    privateKey: string,
+    messageId?: number
+  ): Promise<number | undefined> {
+    this.log("info", ctx, "Showing Export Wallet Data menu");
+
+    const keyboard = this.buildExportWalletDataKeyboard();
+    const menuText = WALLET_TEXTS.FUNCTIONS.getExportWalletDataMsg(
+      address,
+      privateKey
+    );
+
+    return this.sendOrUpdateMenu(ctx, menuText, keyboard, "HTML", messageId);
+  }
+
+  private buildExportWalletDataKeyboard() {
+    return [
+      [
+        {
+          text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
+          callback_data: this.createCallback(CB.MAIN_MENU),
+        },
+        {
+          text: GENERIC_BUTTONS.BACK,
+          callback_data: this.createCallback(CB.EXPORT_WALLET),
+        },
+        {
+          text: GENERIC_BUTTONS.DISMISS,
+          callback_data: this.createCallback(CB.DISMISS_WALLETS),
+        },
+      ],
+    ];
+  }
+
+  private buildExportWalletKeyboard(user: UserWithWallets) {
+    const inline_keyboard = user.wallets.map((w) => [
+      {
+        text: `${w.address} ${formatEthBalanceWithSymbol(w.balance)}`,
+        callback_data: this.createCallback(
+          CB.EXPORT_WALLET_SELECT,
+          w.id.toString()
+        ),
+      },
+    ]);
+
+    inline_keyboard.push([
+      {
+        text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
+        callback_data: this.createCallback(CB.MAIN_MENU),
+      },
+      {
+        text: GENERIC_BUTTONS.BACK,
+        callback_data: this.createCallback(CB.WALLETS_ROOT),
+      },
+      {
+        text: GENERIC_BUTTONS.DISMISS,
+        callback_data: this.createCallback(CB.DISMISS_WALLETS),
+      },
+    ]);
+    return inline_keyboard;
   }
 
   private buildRemoveConfirmationKeyboard(walletIdToConfirm: number) {

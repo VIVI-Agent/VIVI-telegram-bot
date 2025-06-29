@@ -13,7 +13,11 @@ export const WALLET_TEXTS = {
     LIST_WALLETS_TITLE: "<b>Wallets > 📜 List Wallets</b> \n",
     CREATE_WALLET_TITLE: "<b>Wallets > ➕ Create Wallet</b>",
     IMPORT_WALLET_TITLE: "<b>Wallets > 📥 Import Wallet</b>",
-    EXPORT_WALLET_TITLE: "<b>Wallets > 📤 Export Wallet</b>",
+    EXPORT_WALLET_TITLE: `<b>Wallets > 📤 Export Wallet</b>
+
+💡 Exporting a wallet will reveal your private key. Make sure you have securely saved it before proceeding.
+
+To export your wallet, select the wallet you want to export:`,
     REMOVE_WALLET_TITLE: `<b>Wallets > 🗑️ Remove Wallet</b>\n
 ⚠️ WARNING: Removing a wallet will delete it from the bot. If you have not backed up the private key, you will permanently lose access to any funds in this wallet.
 
@@ -42,6 +46,22 @@ Select the wallet you want to remove:`,
   },
 
   FUNCTIONS: {
+    getExportWalletDataMsg(address: string, privateKey: string): string {
+      return `
+<b>Wallets > 📤 Export Wallet</b>
+
+<b>👛 Wallet:</b>
+<code>${address}</code>
+
+<b>🔑 PRIVATE KEY</b> 
+<code>${privateKey}</code>
+
+👒 <b>IMPORTANT</b>: 
+- Save this key in a secure place
+- Never share it with anyone
+
+`;
+    },
     getRemoveWalletConfirmationMsg(address: string, balance: string): string {
       return `
 <b>Wallets > ⚠️ Confirm Remove Wallet</b>

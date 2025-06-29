@@ -1,3 +1,4 @@
+import { decryptPrivateKey } from "@services";
 import { BaseSubScene, GlobalSceneContext } from "../../types";
 import { WalletsSceneData } from "../../types/session/SubSceneState";
 import { WalletsMenus } from "./WalletsMenus";
@@ -183,6 +184,39 @@ export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
             await this.menus.showRemoveWalletMenu(ctx, sceneData, messageId);
           }
 
+          return true;
+
+        // Export Wallet
+        case CB.EXPORT_WALLET:
+          await ctx.answerCbQuery();
+          await this.menus.showExportWalletMenu(ctx, sceneData, messageId);
+          return true;
+
+        // Export Wallet Select
+        case CB.EXPORT_WALLET_SELECT:
+          await ctx.answerCbQuery();
+          const walletIdToExport = params[0];
+          const walletToExport = await this.service.getWalletById(
+            ctx,
+            Number(walletIdToExport)
+          );
+
+          if (!walletToExport) {
+            this.log("error", ctx, "Wallet not found");
+            ctx.reply(WALLET_TEXTS.ERRORS.WALLET_NOT_FOUND);
+            return false;
+          }
+
+          const privateKeyToExport = decryptPrivateKey(
+            walletToExport.encryptedPrivKey
+          );
+
+          await this.menus.showExportWalletDataMenu(
+            ctx,
+            walletToExport.address,
+            privateKeyToExport,
+            messageId
+          );
           return true;
 
         default:

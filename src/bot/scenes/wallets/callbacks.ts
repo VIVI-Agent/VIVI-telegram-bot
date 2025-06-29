@@ -17,4 +17,6 @@ export const CB = {
   // Remove Wallet Buttons
   REMOVE_WALLET_SELECT: "remove_wallet_select",
   REMOVE_WALLET_CONFIRM: "remove_wallet_confirm",
+  // Export Wallet Buttons
+  EXPORT_WALLET_SELECT: "export_wallet_select",
 };
