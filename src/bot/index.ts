@@ -78,6 +78,10 @@ bot.command("settings", async (ctx) => {
   await sceneManager.activateScene(ctx, "Settings");
 });
 
+bot.command("wallets", async (ctx) => {
+  await sceneManager.activateScene(ctx, "Wallets");
+});
+
 // Handle text messages
 bot.on(message("text"), async (ctx) => {
   const text = ctx.message.text;

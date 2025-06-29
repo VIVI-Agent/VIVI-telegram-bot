@@ -95,4 +95,23 @@ export class WalletService {
       where: { id: walletId },
     });
   }
+
+  public async getWalletByAddressIncludingDeleted(
+    address: string
+  ): Promise<Wallet | null> {
+    return this.prisma.wallet.findFirst({
+      where: { address, isDeleted: true },
+    });
+  }
+
+  public async getWalletByAddress(address: string): Promise<Wallet | null> {
+    return this.prisma.wallet.findFirst({
+      where: {
+        address: {
+          equals: address,
+          mode: "insensitive",
+        },
+      },
+    });
+  }
 }

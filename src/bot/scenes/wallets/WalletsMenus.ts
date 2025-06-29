@@ -183,6 +183,61 @@ export class WalletsMenus extends BaseMenus {
     return this.sendOrUpdateMenu(ctx, menuText, keyboard, "HTML", messageId);
   }
 
+  async showImportWalletMenu(
+    ctx: GlobalSceneContext,
+    messageId?: number
+  ): Promise<number | undefined> {
+    this.log("info", ctx, "Showing Import Wallet menu");
+
+    const keyboard = this.buildImportWalletKeyboard();
+    const menuText = WALLET_TEXTS.MESSAGES.ENTER_PRIVATE_KEY_PROMPT;
+
+    return this.sendOrUpdateMenu(ctx, menuText, keyboard, "HTML", messageId);
+  }
+
+  async showInvalidPrivateKeyMenu(
+    ctx: GlobalSceneContext,
+    message: string,
+    messageId?: number
+  ): Promise<void> {
+    const keyboard = [
+      [
+        {
+          text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
+          callback_data: this.createCallback(CB.MAIN_MENU),
+        },
+        {
+          text: GENERIC_BUTTONS.BACK,
+          callback_data: this.createCallback(CB.WALLETS_ROOT),
+        },
+        {
+          text: GENERIC_BUTTONS.DISMISS,
+          callback_data: this.createCallback(CB.DISMISS_WALLETS),
+        },
+      ],
+    ];
+
+    await this.sendOrUpdateMenu(ctx, message, keyboard, "HTML", messageId);
+  }
+
+  private buildImportWalletKeyboard() {
+    return [
+      [
+        {
+          text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
+          callback_data: this.createCallback(CB.MAIN_MENU),
+        },
+        {
+          text: GENERIC_BUTTONS.BACK,
+          callback_data: this.createCallback(CB.WALLETS_ROOT),
+        },
+        {
+          text: GENERIC_BUTTONS.DISMISS,
+          callback_data: this.createCallback(CB.DISMISS_WALLETS),
+        },
+      ],
+    ];
+  }
   private buildExportWalletDataKeyboard() {
     return [
       [

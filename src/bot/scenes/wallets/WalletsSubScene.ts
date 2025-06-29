@@ -5,6 +5,7 @@ import { WalletsMenus } from "./WalletsMenus";
 import { WalletsService } from "./WalletsService";
 import { CB } from "./callbacks";
 import { WALLET_TEXTS } from "./messages";
+import { Address, privateKeyToAccount } from "viem/accounts";
 
 export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
   private menus: WalletsMenus;
@@ -63,17 +64,20 @@ export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
         // Main Menu
         case CB.MAIN_MENU:
           await ctx.answerCbQuery();
+          this.resetImportingPrivateKey(ctx);
           await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
           await ctx.sceneManager.activateScene(ctx, "MainMenu");
           return true;
         // Wallets Root
         case CB.WALLETS_ROOT:
           await ctx.answerCbQuery();
+          this.resetImportingPrivateKey(ctx);
           await this.menus.showWalletsMenu(ctx, sceneData, messageId);
           return true;
         // Dismiss settingsaaasd
         case CB.DISMISS_WALLETS:
           await ctx.answerCbQuery();
+          this.resetImportingPrivateKey(ctx);
           await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
           return true;
 
@@ -103,12 +107,15 @@ export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
           await ctx.answerCbQuery();
           let reloadedUser = await this.service.loadUserData(ctx, ctx.user.id);
 
-          if (reloadedUser) {
-            sceneData.user = reloadedUser;
-            this.updateSceneData(ctx, sceneData);
+          if (!reloadedUser) {
+            this.log("error", ctx, "User not found");
+            return false;
           }
 
-          const reachedMaxWallets = reloadedUser?.wallets.length === 7;
+          sceneData.user = reloadedUser;
+          this.updateSceneData(ctx, sceneData);
+          const reachedMaxWallets =
+            reloadedUser?.wallets?.length && reloadedUser.wallets.length >= 5;
           if (reachedMaxWallets) {
             await this.menus.showMaxWalletsReached(ctx);
             return true;
@@ -219,6 +226,21 @@ export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
           );
           return true;
 
+        // Import Wallet
+        case CB.IMPORT_WALLET:
+          await ctx.answerCbQuery();
+          const wallets = sceneData.user?.wallets;
+          if (wallets && wallets.length >= 5) {
+            await this.menus.showMaxWalletsReached(ctx);
+            return true;
+          }
+
+          sceneData.importingPrivateKey = true;
+          this.updateSceneData(ctx, sceneData);
+
+          await this.menus.showImportWalletMenu(ctx, messageId);
+          return true;
+
         default:
           this.log("warn", ctx, `Unknown action: ${action}`);
           return false;
@@ -237,7 +259,89 @@ export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
 
   async handleText(ctx: GlobalSceneContext, text: string): Promise<boolean> {
     this.log("debug", ctx, `Handling text: ${text}`);
-    // Basic implementation
+    const sceneData = this.getSceneData(ctx);
+    const messageId = sceneData.menuMessageId;
+
+    if (sceneData.importingPrivateKey) {
+      sceneData.privateKeyMessageId = ctx.message?.message_id;
+      this.updateSceneData(ctx, sceneData);
+
+      // Validate private key format
+      let formattedPK = text.trim();
+      if (!formattedPK.startsWith("0x")) {
+        formattedPK = `0x${formattedPK}`;
+      }
+
+      // Validate private key
+      let address: Address;
+      try {
+        const account = privateKeyToAccount(formattedPK as `0x${string}`);
+        address = account.address;
+
+        const result = await this.service.importWallet(
+          ctx,
+          sceneData,
+          address,
+          formattedPK
+        );
+
+        await ctx.deleteMessage(sceneData.privateKeyMessageId);
+
+        if (result?.wallet) {
+          this.resetImportingPrivateKey(ctx);
+
+          await ctx.reply(
+            WALLET_TEXTS.FUNCTIONS.getSuccessImportWalletMsg(address),
+            { parse_mode: "HTML" }
+          );
+
+          await this.menus.showWalletsMenu(ctx, sceneData, messageId);
+        } else if (result?.deleted) {
+          await this.menus.showInvalidPrivateKeyMenu(
+            ctx,
+            WALLET_TEXTS.ERRORS.CANT_IMPORT_DELETED_WALLET,
+            messageId
+          );
+        } else if (result?.existing) {
+          await this.menus.showInvalidPrivateKeyMenu(
+            ctx,
+            WALLET_TEXTS.ERRORS.CANT_IMPORT_EXISTING_WALLET,
+            messageId
+          );
+        } else if (result?.invalid) {
+          await this.menus.showInvalidPrivateKeyMenu(
+            ctx,
+            WALLET_TEXTS.ERRORS.INVALID_PRIVATE_KEY,
+            messageId
+          );
+        } else {
+          await this.menus.showInvalidPrivateKeyMenu(
+            ctx,
+            WALLET_TEXTS.ERRORS.INVALID_PRIVATE_KEY,
+            messageId
+          );
+        }
+        return true;
+      } catch (error) {
+        this.log("error", ctx, `Invalid private key format: ${error}`);
+        sceneData.importingPrivateKey = false;
+        this.updateSceneData(ctx, sceneData);
+        await ctx.deleteMessage(sceneData.privateKeyMessageId);
+        await this.menus.showInvalidPrivateKeyMenu(
+          ctx,
+          WALLET_TEXTS.ERRORS.INVALID_PRIVATE_KEY,
+          messageId
+        );
+        return true;
+      }
+    }
+
     return false;
+  }
+
+  private resetImportingPrivateKey(ctx: GlobalSceneContext): void {
+    const sceneData = this.getSceneData(ctx);
+    sceneData.importingPrivateKey = false;
+    this.updateSceneData(ctx, sceneData);
   }
 }

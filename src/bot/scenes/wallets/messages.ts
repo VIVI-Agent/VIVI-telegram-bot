@@ -5,15 +5,30 @@ export const WALLET_TEXTS = {
   ERRORS: {
     WALLET_NOT_FOUND: "Wallet not found or already deleted.",
     NO_WALLETS_TO_REMOVE: "No wallets to remove.",
+    INVALID_PRIVATE_KEY: `<b>👛 Wallets > 📥 Import Wallet</b>
+
+⚠️ <b>Invalid private key format.</b> Please enter a valid 64-character hexadecimal string (with or without 0x prefix).
+
+<b>Go Back and try again.</b>`,
+    CANT_IMPORT_DELETED_WALLET: `<b>👛 Wallets > 📥 Import Wallet</b>
+
+⚠️ <b>This wallet has been deleted.</b> Please import a different wallet.
+
+<b>Go Back and try again.</b>`,
+    CANT_IMPORT_EXISTING_WALLET: `<b>👛 Wallets > 📥 Import Wallet</b>
+
+⚠️ <b>This wallet has already been imported.</b> Please import a different wallet.
+
+<b>Go Back and try again.</b>`,
   },
 
   PROMPTS: {},
 
   MESSAGES: {
-    LIST_WALLETS_TITLE: "<b>Wallets > 📜 List Wallets</b> \n",
-    CREATE_WALLET_TITLE: "<b>Wallets > ➕ Create Wallet</b>",
-    IMPORT_WALLET_TITLE: "<b>Wallets > 📥 Import Wallet</b>",
-    EXPORT_WALLET_TITLE: `<b>Wallets > 📤 Export Wallet</b>
+    LIST_WALLETS_TITLE: "<b>👛 Wallets > 📜 List Wallets</b> \n",
+    CREATE_WALLET_TITLE: "<b>👛 Wallets > ➕ Create Wallet</b>",
+    IMPORT_WALLET_TITLE: "<b>👛 Wallets > 📥 Import Wallet</b>",
+    EXPORT_WALLET_TITLE: `<b>👛 Wallets > 📤 Export Wallet</b>
 
 💡 Exporting a wallet will reveal your private key. Make sure you have securely saved it before proceeding.
 
@@ -43,12 +58,25 @@ Select the wallet you want to remove:`,
       "Are you sure you want to remove this wallet?",
     CONFIRM_REMOVE_WALLET: "✅ I'm 101% sure, Remove it",
     CANCEL_REMOVE_WALLET: "⚠️ Cancel, I'm not sure",
+    // Import Wallet messages
+    ENTER_PRIVATE_KEY_PROMPT: `
+<b>👛 Wallets > 📥 Import Wallet</b>
+
+💡 <i>Expected format: 64-character hexadecimal string (with or without 0x prefix)</i>
+
+🔒 <i>Your private key will be encrypted and stored securely.</i>
+
+Please enter your Ethereum private key:
+`,
   },
 
   FUNCTIONS: {
+    getSuccessImportWalletMsg(address: string): string {
+      return `✅ <b>Wallet imported successfully!</b>\n\n<code>${address}</code>\n\nThe private key has been securely encrypted.`;
+    },
     getExportWalletDataMsg(address: string, privateKey: string): string {
       return `
-<b>Wallets > 📤 Export Wallet</b>
+<b>👛 Wallets > 📤 Export Wallet</b>
 
 <b>👛 Wallet:</b>
 <code>${address}</code>
@@ -124,7 +152,7 @@ ${walletInfo}
       balanceStr: string
     ): string {
       return `
-<b>Wallets</b>\n
+<b>👛 Wallets</b>\n
 <b>✅ Public Wallet</b>
 <a href="${explorerUrl}/address/${currentWalletAddress}">
 ${currentWalletAddress}</a>

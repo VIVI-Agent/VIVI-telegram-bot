@@ -1,12 +1,11 @@
 import { UserWithWallets } from "@domain";
-import {
-  BaseService,
-  GlobalSceneContext,
-  SceneData,
-  WalletsSceneData,
-} from "../../types";
+import { BaseService, GlobalSceneContext, WalletsSceneData } from "../../types";
 import { Wallet } from "@prisma/client";
-import { createBaseWallet } from "@services";
+import {
+  createBaseWallet,
+  decryptPrivateKey,
+  encryptExistingPrivateKey,
+} from "@services";
 
 export class WalletsService extends BaseService {
   constructor(instanceId: string) {
@@ -90,6 +89,52 @@ export class WalletsService extends BaseService {
       return await ctx.services.walletService.getWalletById(walletId);
     } catch (error) {
       this.logError(ctx, "getWalletById", error);
+      throw error;
+    }
+  }
+
+  async importWallet(
+    ctx: GlobalSceneContext,
+    sceneData: WalletsSceneData,
+    address: string,
+    privateKey: string
+  ): Promise<{
+    wallet?: Wallet;
+    deleted?: boolean;
+    existing?: boolean;
+    invalid?: boolean;
+  } | null> {
+    try {
+      const deletedWallet =
+        await ctx.services.walletService.getWalletByAddressIncludingDeleted(
+          address
+        );
+      if (deletedWallet) {
+        return { deleted: true };
+      }
+
+      const existingWallet =
+        await ctx.services.walletService.getWalletByAddress(address);
+      if (existingWallet) {
+        return { existing: true };
+      }
+
+      const encryptedPrivKey = encryptExistingPrivateKey(privateKey);
+      const decryptedPrivKey = decryptPrivateKey(encryptedPrivKey);
+
+      if (decryptedPrivKey.toLowerCase() !== privateKey.toLowerCase()) {
+        return { invalid: true };
+      }
+
+      const newWallet = await ctx.services.walletService.createUserWallet(
+        sceneData.user!.id!,
+        address as `0x${string}`,
+        encryptedPrivKey,
+        false
+      );
+      return { wallet: newWallet };
+    } catch (error) {
+      this.logError(ctx, "importWallet", error);
       throw error;
     }
   }
