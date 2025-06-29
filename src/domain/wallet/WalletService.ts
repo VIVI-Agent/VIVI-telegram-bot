@@ -53,4 +53,16 @@ export class WalletService {
       },
     });
   }
+
+  public async selectWallet(userId: number, walletId: number): Promise<Wallet> {
+    await this.prisma.wallet.updateMany({
+      where: { userId, isSelected: true },
+      data: { isSelected: false },
+    });
+
+    return this.prisma.wallet.update({
+      where: { id: walletId },
+      data: { isSelected: true },
+    });
+  }
 }

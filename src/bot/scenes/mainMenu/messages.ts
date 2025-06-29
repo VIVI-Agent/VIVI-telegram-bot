@@ -1,7 +1,7 @@
 // src/messages/mainMenu.ts
 
 import { Prisma } from "@prisma/client";
-import { formatEthBalance } from "@utils";
+import { formatEthBalanceWithSymbol } from "@utils";
 
 export const MAIN_MENU_TEXTS = {
   MESSAGES: {},
@@ -28,12 +28,12 @@ export const MAIN_MENU_TEXTS = {
       userRefCount: number
     ) {
       // Calculate total balance across all wallets
-      const totalBalanceETH = formatEthBalance(totalBalanceBigInt);
+      const totalBalanceETH = formatEthBalanceWithSymbol(totalBalanceBigInt);
 
       // Calculate other metrics (same as original)
       const totalVol = totalVolumeBoughtWei.add(totalVolumeSoldWei);
       const volBougth = BigInt(totalVol.toString());
-      const totalVolumeETH = formatEthBalance(volBougth);
+      const totalVolumeETH = formatEthBalanceWithSymbol(volBougth);
       const totalPoints = points.add(referralPoints);
       const pointsMulRef = (
         totalPoints.toNumber() +
@@ -49,8 +49,8 @@ export const MAIN_MENU_TEXTS = {
 <a href="https://x.com/vividotwin">🐦 Twitter</a>
 <a href="https://t.me/viviaccess">🥃 TG group</a>
 ────────────────────────
-<b>Balance:</b> ${totalBalanceETH} ETH
-<b>Traded Volume:</b> ${totalVolumeETH} ETH
+<b>Balance:</b> ${totalBalanceETH} 
+<b>Traded Volume:</b> ${totalVolumeETH}
 <b>Total Points:</b> ${parseFloat(pointsMulRef).toFixed(2)}`;
     },
   },

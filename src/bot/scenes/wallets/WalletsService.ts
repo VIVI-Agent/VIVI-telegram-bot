@@ -1,6 +1,12 @@
 import { UserWithWallets } from "@domain";
-import { BaseService, GlobalSceneContext } from "../../types";
+import {
+  BaseService,
+  GlobalSceneContext,
+  SceneData,
+  WalletsSceneData,
+} from "../../types";
 import { Wallet } from "@prisma/client";
+import { createBaseWallet } from "@services";
 
 export class WalletsService extends BaseService {
   constructor(instanceId: string) {
@@ -15,10 +21,7 @@ export class WalletsService extends BaseService {
 
     try {
       if (ctx.user.id) {
-        const wallets = await ctx.services.userService.getUserWithWallets(
-          userId
-        );
-        return wallets;
+        return await ctx.services.userService.getUserWithWallets(userId);
       }
     } catch (error) {
       this.logError(ctx, "loadUserData", error);
@@ -27,10 +30,43 @@ export class WalletsService extends BaseService {
     return null;
   }
 
-  async navigateToMainMenu(ctx: GlobalSceneContext): Promise<void> {
-    this.log("info", ctx, "Navigating to Main Menu");
+  async selectWallet(
+    ctx: GlobalSceneContext,
+    walletId: string
+  ): Promise<Wallet> {
+    this.log("info", ctx, "Selecting wallet");
+    try {
+      return await ctx.services.walletService.selectWallet(
+        ctx.user.id,
+        Number(walletId)
+      );
+    } catch (error) {
+      this.logError(ctx, "selectWallet", error);
+      throw error;
+    }
+  }
 
-    // This will be handled by the SubScene to activate MainMenu
-    // The service just logs the action
+  async createWallet(
+    ctx: GlobalSceneContext,
+    sceneData: WalletsSceneData
+  ): Promise<{ address: string; privateKey: string }> {
+    try {
+      const { address, encryptedPrivKey, privateKey } =
+        await createBaseWallet();
+
+      await ctx.services.walletService.createUserWallet(
+        sceneData.user!.id!,
+        address,
+        encryptedPrivKey,
+        false
+      );
+      return {
+        address,
+        privateKey,
+      };
+    } catch (error) {
+      this.logError(ctx, "createWallet", error);
+      throw error;
+    }
   }
 }

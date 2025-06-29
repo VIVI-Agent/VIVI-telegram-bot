@@ -2,8 +2,10 @@ import { Markup } from "telegraf";
 import { BaseMenus, GlobalSceneContext } from "../../types";
 import { WalletsSceneData } from "../../types/session/SubSceneState";
 import { CB } from "./callbacks";
-import { WALLET_TEXTS, WALLETS_TEXTS } from "./messages";
+import { WALLET_TEXTS } from "./messages";
 import { GENERIC_BUTTONS } from "@texts";
+import { UserWithWallets } from "@domain";
+import { formatEthBalanceWithSymbol } from "@utils";
 
 export class WalletsMenus extends BaseMenus {
   constructor(instanceId: string) {
@@ -22,13 +24,14 @@ export class WalletsMenus extends BaseMenus {
         (wallet) => wallet.isSelected
       )[0];
 
-      const walletInfo = selectedWallet
-        ? WALLET_TEXTS.FUNCTIONS.buildActiveWalletSnippet(
-            selectedWallet.isSelected,
-            selectedWallet.address,
-            selectedWallet.balance
-          )
-        : WALLET_TEXTS.MESSAGES.NO_ACTIVE_WALLET;
+      if (!selectedWallet) {
+        throw new Error("No active wallet");
+      }
+
+      const walletInfo = WALLET_TEXTS.FUNCTIONS.buildActiveWalletSnippet(
+        selectedWallet.address,
+        selectedWallet.balance
+      );
 
       const menuText = WALLET_TEXTS.FUNCTIONS.buildMenuText(walletInfo);
       const keyboard = this.buildWalletsKeyboard();
@@ -44,9 +47,114 @@ export class WalletsMenus extends BaseMenus {
       return message_id;
     } catch (error) {
       this.logError(ctx, "showWalletsMenu", error);
-      await ctx.reply(WALLETS_TEXTS.ERRORS.WALLET_MENU_ERROR);
-      return undefined;
+      throw new Error("No active wallet");
     }
+  }
+
+  async showListWalletsMenu(
+    ctx: GlobalSceneContext,
+    sceneData: WalletsSceneData,
+    messageId?: number
+  ): Promise<number | undefined> {
+    this.log("info", ctx, "Showing List Wallets menu");
+
+    const selectedWallet = sceneData.user?.wallets.filter(
+      (wallet) => wallet.isSelected
+    )[0];
+
+    const user = sceneData.user;
+
+    if (!selectedWallet || !user) {
+      throw new Error("No active wallet");
+    }
+
+    const keyboard = this.buildListWalletsKeyboard(user!);
+    let menuText = WALLET_TEXTS.MESSAGES.LIST_WALLETS_TITLE;
+
+    user.wallets.forEach((w) => {
+      const balanceBN = BigInt(w.balance || "0");
+      const ethStr = formatEthBalanceWithSymbol(balanceBN);
+      menuText += WALLET_TEXTS.FUNCTIONS.buildWalletBalanceLine(
+        w.isSelected,
+        w.address,
+        ethStr
+      );
+    });
+
+    const message_id = await this.sendOrUpdateMenu(
+      ctx,
+      menuText,
+      keyboard,
+      "HTML",
+      messageId
+    );
+
+    return message_id;
+  }
+
+  async showMaxWalletsReached(ctx: GlobalSceneContext): Promise<void> {
+    ctx.reply(WALLET_TEXTS.MESSAGES.MAX_WALLETS_REACHED);
+  }
+
+  async showCreateWalletMenu(
+    ctx: GlobalSceneContext,
+    sceneData: WalletsSceneData,
+    address: string,
+    privateKey: string,
+    messageId?: number
+  ): Promise<number | undefined> {
+    this.log("info", ctx, "Showing Create Wallet menu");
+
+    const keyboard = this.buildCreateWalletKeyboard();
+    const menuText = WALLET_TEXTS.FUNCTIONS.getNewWalletCreatedMsg(
+      address,
+      privateKey
+    );
+
+    const message_id = await this.sendOrUpdateMenu(
+      ctx,
+      menuText,
+      keyboard,
+      "HTML",
+      messageId
+    );
+
+    return message_id;
+  }
+
+  private buildCreateWalletKeyboard() {
+    return [
+      [
+        Markup.button.callback(
+          WALLET_TEXTS.MESSAGES.SAVED_PRIVATE_KEY_BUTTON,
+          this.createCallback(CB.SAVED_PRIVATE_KEY)
+        ),
+      ],
+    ];
+  }
+
+  private buildListWalletsKeyboard(user: UserWithWallets) {
+    const inline_keyboard = user.wallets.map((w) => [
+      {
+        text: w.isSelected ? `✅ ${w.address}` : w.address,
+        callback_data: this.createCallback(CB.SELECT_WALLET, w.id.toString()),
+      },
+    ]);
+    inline_keyboard.push([
+      {
+        text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
+        callback_data: this.createCallback(CB.MAIN_MENU),
+      },
+      {
+        text: GENERIC_BUTTONS.BACK,
+        callback_data: this.createCallback(CB.WALLETS_ROOT),
+      },
+      {
+        text: GENERIC_BUTTONS.DISMISS,
+        callback_data: this.createCallback(CB.DISMISS_WALLETS),
+      },
+    ]);
+    return inline_keyboard;
   }
 
   private buildWalletsKeyboard() {

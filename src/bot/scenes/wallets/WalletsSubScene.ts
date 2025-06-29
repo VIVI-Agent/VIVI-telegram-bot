@@ -1,10 +1,8 @@
-import { logger } from "@logger";
 import { BaseSubScene, GlobalSceneContext } from "../../types";
 import { WalletsSceneData } from "../../types/session/SubSceneState";
 import { WalletsMenus } from "./WalletsMenus";
 import { WalletsService } from "./WalletsService";
 import { CB } from "./callbacks";
-import { WALLETS_TEXTS } from "./messages";
 
 export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
   private menus: WalletsMenus;
@@ -53,13 +51,92 @@ export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
       return false;
     }
 
-    const { action } = validationResult;
+    const { action, params } = validationResult;
     this.log("info", ctx, `Processing action: ${action}`);
 
+    const sceneData = this.getSceneData(ctx);
+    const messageId = sceneData.menuMessageId;
     try {
       switch (action) {
+        // Main Menu
         case CB.MAIN_MENU:
+          await ctx.answerCbQuery();
+          await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
           await ctx.sceneManager.activateScene(ctx, "MainMenu");
+          return true;
+        // Wallets Root
+        case CB.WALLETS_ROOT:
+          await ctx.answerCbQuery();
+          await this.menus.showWalletsMenu(ctx, sceneData, messageId);
+          return true;
+        // Dismiss settingsaaasd
+        case CB.DISMISS_WALLETS:
+          await ctx.answerCbQuery();
+          await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
+          return true;
+
+        // List Wallets
+        case CB.LIST_WALLETS:
+          await ctx.answerCbQuery();
+          await this.menus.showListWalletsMenu(ctx, sceneData, messageId);
+          return true;
+
+        // Select Wallet
+        case CB.SELECT_WALLET:
+          await ctx.answerCbQuery();
+          const walletId = params[0];
+
+          await this.service.selectWallet(ctx, walletId);
+          const user = await this.service.loadUserData(ctx, ctx.user.id);
+
+          if (user) {
+            sceneData.user = user;
+            this.updateSceneData(ctx, sceneData);
+            await this.menus.showListWalletsMenu(ctx, sceneData, messageId);
+          }
+          return true;
+
+        // Create Wallet
+        case CB.CREATE_WALLET:
+          await ctx.answerCbQuery();
+          let reloadedUser = await this.service.loadUserData(ctx, ctx.user.id);
+
+          if (reloadedUser) {
+            sceneData.user = reloadedUser;
+            this.updateSceneData(ctx, sceneData);
+          }
+
+          const reachedMaxWallets = reloadedUser?.wallets.length === 7;
+          if (reachedMaxWallets) {
+            await this.menus.showMaxWalletsReached(ctx);
+            return true;
+          }
+
+          const { address, privateKey } = await this.service.createWallet(
+            ctx,
+            sceneData
+          );
+
+          reloadedUser = await this.service.loadUserData(ctx, ctx.user.id);
+
+          if (reloadedUser) {
+            sceneData.user = reloadedUser;
+            this.updateSceneData(ctx, sceneData);
+            await this.menus.showCreateWalletMenu(
+              ctx,
+              sceneData,
+              address,
+              privateKey,
+              messageId
+            );
+          }
+
+          return true;
+
+        // Saved Private Key
+        case CB.SAVED_PRIVATE_KEY:
+          await ctx.answerCbQuery();
+          await this.menus.showWalletsMenu(ctx, sceneData, messageId);
           return true;
 
         default:
