@@ -1,8 +1,11 @@
 import { explorerUrl } from "@client";
-import { formatEthBalance } from "@utils";
+import { formatEthBalance, formatEthBalanceWithSymbol } from "@utils";
 
 export const WALLET_TEXTS = {
-  ERRORS: {},
+  ERRORS: {
+    WALLET_NOT_FOUND: "Wallet not found or already deleted.",
+    NO_WALLETS_TO_REMOVE: "No wallets to remove.",
+  },
 
   PROMPTS: {},
 
@@ -11,7 +14,11 @@ export const WALLET_TEXTS = {
     CREATE_WALLET_TITLE: "<b>Wallets > ➕ Create Wallet</b>",
     IMPORT_WALLET_TITLE: "<b>Wallets > 📥 Import Wallet</b>",
     EXPORT_WALLET_TITLE: "<b>Wallets > 📤 Export Wallet</b>",
-    REMOVE_WALLET_TITLE: "<b>Wallets > 🗑️ Remove Wallet</b>",
+    REMOVE_WALLET_TITLE: `<b>Wallets > 🗑️ Remove Wallet</b>\n
+⚠️ WARNING: Removing a wallet will delete it from the bot. If you have not backed up the private key, you will permanently lose access to any funds in this wallet.
+
+⚠️ To remove you public wallet select another using the <b>List Wallets Menu</b>\n
+Select the wallet you want to remove:`,
     TRANSFERS_TITLE: "<b>Wallets > 💸 Transfers</b>",
     SAVED_PRIVATE_KEY_BUTTON: "I have securely saved my private key",
     // Main Menu  Buttons
@@ -27,9 +34,27 @@ export const WALLET_TEXTS = {
     EMPTY_WALLET: "This wallet has no tokens or ETH balance.",
     TRANSFER_SUCCESS_ANSWER: "Transfer successful!",
     TRANSFER_CANCELED: "Transfer canceled.",
+    // Remove Wallet messages
+    REMOVE_WALLET_CONFIRMATION_TITLE:
+      "Are you sure you want to remove this wallet?",
+    CONFIRM_REMOVE_WALLET: "✅ I'm 101% sure, Remove it",
+    CANCEL_REMOVE_WALLET: "⚠️ Cancel, I'm not sure",
   },
 
   FUNCTIONS: {
+    getRemoveWalletConfirmationMsg(address: string, balance: string): string {
+      return `
+<b>Wallets > ⚠️ Confirm Remove Wallet</b>
+
+Address: <code>${address}</code>
+Balance: ${formatEthBalanceWithSymbol(balance)}
+
+⚠️ <b>Warning:</b> This action cannot be undone. Make sure you have your private key saved securely.
+
+Are you sure you want to remove this wallet?
+
+`;
+    },
     buildWalletBalanceLine(
       isSelected: boolean,
       address: string,
@@ -79,6 +104,7 @@ ${walletInfo}
       balanceStr: string
     ): string {
       return `
+<b>Wallets</b>\n
 <b>✅ Public Wallet</b>
 <a href="${explorerUrl}/address/${currentWalletAddress}">
 ${currentWalletAddress}</a>

@@ -3,6 +3,7 @@ import { WalletsSceneData } from "../../types/session/SubSceneState";
 import { WalletsMenus } from "./WalletsMenus";
 import { WalletsService } from "./WalletsService";
 import { CB } from "./callbacks";
+import { WALLET_TEXTS } from "./messages";
 
 export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
   private menus: WalletsMenus;
@@ -124,7 +125,6 @@ export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
             this.updateSceneData(ctx, sceneData);
             await this.menus.showCreateWalletMenu(
               ctx,
-              sceneData,
               address,
               privateKey,
               messageId
@@ -137,6 +137,52 @@ export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
         case CB.SAVED_PRIVATE_KEY:
           await ctx.answerCbQuery();
           await this.menus.showWalletsMenu(ctx, sceneData, messageId);
+          return true;
+
+        // Remove Wallet List
+        case CB.REMOVE_WALLET:
+          await ctx.answerCbQuery();
+          await this.menus.showRemoveWalletMenu(ctx, sceneData, messageId);
+          return true;
+
+        // Remove Wallet Confirm
+        case CB.REMOVE_WALLET_CONFIRM:
+          await ctx.answerCbQuery();
+          const walletIdToConfirm = params[0];
+
+          const walletToConfirm = await this.service.getWalletById(
+            ctx,
+            Number(walletIdToConfirm)
+          );
+
+          if (!walletToConfirm) {
+            this.log("error", ctx, "Wallet not found");
+            ctx.reply(WALLET_TEXTS.ERRORS.WALLET_NOT_FOUND);
+            return false;
+          }
+
+          await this.menus.showRemoveConfirmationMenu(
+            ctx,
+            Number(walletIdToConfirm),
+            walletToConfirm.address,
+            walletToConfirm.balance,
+            messageId
+          );
+          return true;
+
+        // Remove Wallet Select
+        case CB.REMOVE_WALLET_SELECT:
+          await ctx.answerCbQuery();
+          const walletIdToRemove = params[0];
+          await this.service.softDeleteWallet(ctx, walletIdToRemove);
+
+          const updatedUser = await this.service.loadUserData(ctx, ctx.user.id);
+          if (updatedUser) {
+            sceneData.user = updatedUser;
+            this.updateSceneData(ctx, sceneData);
+            await this.menus.showRemoveWalletMenu(ctx, sceneData, messageId);
+          }
+
           return true;
 
         default:

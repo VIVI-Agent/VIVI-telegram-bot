@@ -98,7 +98,6 @@ export class WalletsMenus extends BaseMenus {
 
   async showCreateWalletMenu(
     ctx: GlobalSceneContext,
-    sceneData: WalletsSceneData,
     address: string,
     privateKey: string,
     messageId?: number
@@ -122,6 +121,57 @@ export class WalletsMenus extends BaseMenus {
     return message_id;
   }
 
+  async showRemoveWalletMenu(
+    ctx: GlobalSceneContext,
+    sceneData: WalletsSceneData,
+    messageId?: number
+  ): Promise<number | undefined> {
+    this.log("info", ctx, "Showing Remove Wallet menu");
+
+    const keyboard = this.buildRemoveWalletKeyboard(sceneData.user!);
+    const menuText = WALLET_TEXTS.MESSAGES.REMOVE_WALLET_TITLE;
+
+    return this.sendOrUpdateMenu(ctx, menuText, keyboard, "HTML", messageId);
+  }
+
+  async showRemoveConfirmationMenu(
+    ctx: GlobalSceneContext,
+    walletIdToConfirm: number,
+    address: string,
+    balance: string,
+    messageId?: number
+  ): Promise<number | undefined> {
+    this.log("info", ctx, "Showing Remove Confirmation menu");
+
+    const keyboard = this.buildRemoveConfirmationKeyboard(walletIdToConfirm);
+    const menuText = WALLET_TEXTS.FUNCTIONS.getRemoveWalletConfirmationMsg(
+      address,
+      balance
+    );
+
+    return this.sendOrUpdateMenu(ctx, menuText, keyboard, "HTML", messageId);
+  }
+
+  private buildRemoveConfirmationKeyboard(walletIdToConfirm: number) {
+    return [
+      [
+        Markup.button.callback(
+          WALLET_TEXTS.MESSAGES.CANCEL_REMOVE_WALLET,
+          this.createCallback(CB.REMOVE_WALLET)
+        ),
+      ],
+      [
+        Markup.button.callback(
+          WALLET_TEXTS.MESSAGES.CONFIRM_REMOVE_WALLET,
+          this.createCallback(
+            CB.REMOVE_WALLET_SELECT,
+            walletIdToConfirm.toString()
+          )
+        ),
+      ],
+    ];
+  }
+
   private buildCreateWalletKeyboard() {
     return [
       [
@@ -133,6 +183,59 @@ export class WalletsMenus extends BaseMenus {
     ];
   }
 
+  private buildRemoveWalletKeyboard(user: UserWithWallets) {
+    const unSelectedWallets = user.wallets.filter((w) => !w.isSelected);
+    if (unSelectedWallets.length === 0) {
+      return [
+        // No wallets to remove
+        [
+          {
+            text: WALLET_TEXTS.ERRORS.NO_WALLETS_TO_REMOVE,
+            callback_data: this.createCallback(CB.WALLETS_ROOT),
+          },
+        ],
+        [
+          {
+            text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
+            callback_data: this.createCallback(CB.MAIN_MENU),
+          },
+          {
+            text: GENERIC_BUTTONS.BACK,
+            callback_data: this.createCallback(CB.WALLETS_ROOT),
+          },
+          {
+            text: GENERIC_BUTTONS.DISMISS,
+            callback_data: this.createCallback(CB.DISMISS_WALLETS),
+          },
+        ],
+      ];
+    }
+
+    const inline_keyboard = unSelectedWallets.map((w) => [
+      {
+        text: `${w.address} ${formatEthBalanceWithSymbol(w.balance)}`,
+        callback_data: this.createCallback(
+          CB.REMOVE_WALLET_CONFIRM,
+          w.id.toString()
+        ),
+      },
+    ]);
+    inline_keyboard.push([
+      {
+        text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
+        callback_data: this.createCallback(CB.MAIN_MENU),
+      },
+      {
+        text: GENERIC_BUTTONS.BACK,
+        callback_data: this.createCallback(CB.WALLETS_ROOT),
+      },
+      {
+        text: GENERIC_BUTTONS.DISMISS,
+        callback_data: this.createCallback(CB.DISMISS_WALLETS),
+      },
+    ]);
+    return inline_keyboard;
+  }
   private buildListWalletsKeyboard(user: UserWithWallets) {
     const inline_keyboard = user.wallets.map((w) => [
       {

@@ -14,4 +14,7 @@ export const CB = {
   // List Wallets Buttons
   SELECT_WALLET: "select_wallet",
   SAVED_PRIVATE_KEY: "saved_private_key",
+  // Remove Wallet Buttons
+  REMOVE_WALLET_SELECT: "remove_wallet_select",
+  REMOVE_WALLET_CONFIRM: "remove_wallet_confirm",
 };

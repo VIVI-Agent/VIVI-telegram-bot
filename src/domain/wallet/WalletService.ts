@@ -65,4 +65,34 @@ export class WalletService {
       data: { isSelected: true },
     });
   }
+
+  public async softDeleteWallet(walletId: number): Promise<any> {
+    const wallet = await this.prisma.wallet.findUnique({
+      where: { id: walletId },
+    });
+
+    if (!wallet) {
+      throw new Error("Wallet not found");
+    }
+
+    if (wallet.isSelected) {
+      throw new Error(
+        "Cannot delete a wallet that is currently selected. Please select another wallet first."
+      );
+    }
+
+    return this.prisma.wallet.update({
+      where: { id: walletId },
+      data: {
+        isDeleted: true,
+        deletedAt: new Date(),
+      },
+    });
+  }
+
+  public async getWalletById(walletId: number): Promise<Wallet | null> {
+    return this.prisma.wallet.findUnique({
+      where: { id: walletId },
+    });
+  }
 }

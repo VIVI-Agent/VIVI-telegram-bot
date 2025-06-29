@@ -69,4 +69,28 @@ export class WalletsService extends BaseService {
       throw error;
     }
   }
+
+  async softDeleteWallet(
+    ctx: GlobalSceneContext,
+    walletId: string
+  ): Promise<void> {
+    try {
+      await ctx.services.walletService.softDeleteWallet(Number(walletId));
+    } catch (error) {
+      this.logError(ctx, "softDeleteWallet", error);
+      throw error;
+    }
+  }
+
+  async getWalletById(
+    ctx: GlobalSceneContext,
+    walletId: number
+  ): Promise<Wallet | null> {
+    try {
+      return await ctx.services.walletService.getWalletById(walletId);
+    } catch (error) {
+      this.logError(ctx, "getWalletById", error);
+      throw error;
+    }
+  }
 }
