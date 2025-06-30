@@ -4,7 +4,7 @@ import {
   UserWithWallets,
   WalletWithHoldings,
 } from "@domain";
-import { BuySettings } from "@prisma/client";
+import { BuySettings, Token } from "@prisma/client";
 
 export interface SubSceneState {
   instanceId: string;
@@ -20,7 +20,8 @@ export type SceneData =
   | SettingsSceneData
   | WalletsSceneData
   | ReferralSceneData
-  | PositionsSceneData;
+  | PositionsSceneData
+  | TradeSceneData;
 
 // InitUserSceneData: Data for the init user scene,
 export interface InitUserSceneData {
@@ -37,8 +38,6 @@ export interface MainMenuSceneData {
 // SettingsSceneData interface
 export interface SettingsSceneData {
   step: string;
-  userId: number;
-  username: string;
   user?: UserWithSettings;
   editField?: {
     mode: SettingEditMode;
@@ -50,8 +49,6 @@ export interface SettingsSceneData {
 
 // WalletsSceneData interface
 export interface WalletsSceneData {
-  userId: number;
-  username: string;
   user?: UserWithWallets;
   menuMessageId?: number;
   selectedWalletAddress?: `0x${string}`;
@@ -106,4 +103,21 @@ export interface PositionsSceneData {
   menuMessageId?: number;
   state: "loading_cache" | "loading_from_chain" | "loaded";
   positions?: any[];
+}
+
+export interface TradeSceneData {
+  menuMessageId?: number;
+  tradeMode?: "buy" | "sell";
+  token?: Token;
+  wallets?: any[];
+
+  selectedWallets?: any[];
+
+  selectedAmount?: string;
+  selectedSlippage?: string;
+
+  editMode?: {
+    customAmount?: boolean;
+    customSlippage?: boolean;
+  };
 }

@@ -34,8 +34,6 @@ export class SettingsSubScene extends BaseSubScene<SettingsSceneData> {
     // Initialize scene data
     const sceneData: SettingsSceneData = {
       step: "main_settings",
-      userId: ctx.from?.id || 0,
-      username: ctx.from?.username || "",
       menuMessageId: undefined,
     };
 

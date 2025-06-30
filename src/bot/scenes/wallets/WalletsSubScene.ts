@@ -24,8 +24,6 @@ export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
 
     // Initialize scene data
     const sceneData: WalletsSceneData = {
-      userId: ctx.from?.id || 0,
-      username: ctx.from?.username || "",
       menuMessageId: undefined,
     };
 
