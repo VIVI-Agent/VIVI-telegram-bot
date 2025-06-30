@@ -57,6 +57,10 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
         );
         scene = new PositionsSubScene(instanceId);
         break;
+      case "Trade":
+        const { TradeSubScene } = await import("../scenes/trade/TradeSubScene");
+        scene = new TradeSubScene(instanceId);
+        break;
       default:
         logger.error(`Unknown scene type: ${sceneType}`);
         throw new Error(`Unknown scene type: ${sceneType}`);

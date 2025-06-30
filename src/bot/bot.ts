@@ -107,6 +107,13 @@ bot.command("positions", async (ctx) => {
   }
 });
 
+// Handle trade command
+bot.command("trade", async (ctx) => {
+  if (ctx.chat?.type === "private") {
+    await sceneManager.activateScene(ctx, "Trade");
+  }
+});
+
 // Handle text messages
 bot.on(message("text"), async (ctx) => {
   if (ctx.chat?.type === "private") {

@@ -6,4 +6,5 @@ export * from "./sellSettings/SellSettingsService";
 export * from "./token/TokenService";
 export * from "./holdings/HoldingService";
 export * from "./pnlCache/PnlCacheService";
+export * from "./allowance/AllowanceService";
 export * from "./initServices";

@@ -66,9 +66,8 @@ export class MainMenuServices extends BaseService {
     this.log("info", ctx, "Navigating to Buy");
 
     try {
-      await ctx.answerCbQuery("🚀 Buy feature coming soon!");
-      // TODO: Activate Buy scene when implemented
-      // await ctx.sceneManager.activateScene(ctx, "Buy");
+      await ctx.sceneManager.activateScene(ctx, "Trade");
+      await ctx.answerCbQuery();
     } catch (error) {
       this.logError(ctx, "navigateToBuy", error);
       ctx.reply(GENERIC_ERRORS.OLD_VERSION);
