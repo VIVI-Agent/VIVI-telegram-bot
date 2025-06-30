@@ -17,3 +17,7 @@ export function formatEthBalanceWithSymbol(
 ): string {
   return `${formatEthBalance(balanceWei)} Ξ`;
 }
+
+export function formatPoints(points: number): string {
+  return points.toFixed(0);
+}

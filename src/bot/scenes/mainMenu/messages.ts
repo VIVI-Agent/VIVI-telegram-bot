@@ -1,7 +1,7 @@
 // src/messages/mainMenu.ts
 
 import { Prisma } from "@prisma/client";
-import { formatEthBalanceWithSymbol } from "@utils";
+import { formatEthBalanceWithSymbol, formatPoints } from "@utils";
 
 export const MAIN_MENU_TEXTS = {
   MESSAGES: {},
@@ -51,7 +51,7 @@ export const MAIN_MENU_TEXTS = {
 ────────────────────────
 <b>Balance:</b> ${totalBalanceETH} 
 <b>Traded Volume:</b> ${totalVolumeETH}
-<b>Total Points:</b> ${parseFloat(pointsMulRef).toFixed(2)}`;
+<b>Total Points:</b> ${formatPoints(parseFloat(pointsMulRef))}`;
     },
   },
 };

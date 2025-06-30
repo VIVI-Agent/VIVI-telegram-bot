@@ -3,6 +3,7 @@ import winston from "winston";
 import { Prisma, PrismaClient, SpeedEnum, User } from "@prisma/client";
 import { UserWithAll, UserWithSettings, UserWithWallets } from "./UserTypes";
 import { formatEther } from "viem";
+import { formatEthBalanceWithSymbol, formatPoints } from "@utils";
 
 export class UserService {
   constructor(
@@ -228,7 +229,9 @@ export class UserService {
     }
     const totalReferralVolumeWei = referralVolumeBought.add(referralVolumeSold);
     const totalReferralVolumeBigInt = BigInt(totalReferralVolumeWei.toString());
-    const referralVolumeEthString = formatEther(totalReferralVolumeBigInt);
+    const referralVolumeEthString = formatEthBalanceWithSymbol(
+      totalReferralVolumeBigInt
+    );
 
     this.logger.info(
       `[getUserWithReferralInfo] total referral volume: ${referralVolumeEthString} ETH`
@@ -253,7 +256,7 @@ export class UserService {
       id: user.id,
       tgUsername: user.tgUsername,
       points: formattedPoints,
-      referralPoints: formattedReferralPoints,
+      referralPoints: formatPoints(formattedReferralPoints),
       totalVolumeBoughtWei: user.totalVolumeBoughtWei,
       totalVolumeSoldWei: user.totalVolumeSoldWei,
       totalReferralVolume: referralVolumeEthString,

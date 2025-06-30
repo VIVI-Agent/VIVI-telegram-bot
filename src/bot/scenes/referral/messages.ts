@@ -3,7 +3,6 @@ export const REFERRAL_TEXTS = {
     getReferralMessage: (
       referralLink: string,
       totalReferrals: number,
-      activeReferrals: number,
       totalReferralVolume: string,
       referralPoints: string
     ) =>
@@ -12,8 +11,7 @@ export const REFERRAL_TEXTS = {
       `<code>${referralLink}</code>\n\n` +
       `📊 <b>Your Referral Stats:</b>\n` +
       `👥 <b>Total Referred:</b> ${totalReferrals}\n` +
-      `✅ <b>Active Users:</b> ${activeReferrals}\n` +
-      `💰 <b>Referral Volume:</b> ${totalReferralVolume} Ξ\n` +
+      `💰 <b>Referral Volume:</b> ${totalReferralVolume}\n` +
       `🎯 <b>Referral Points:</b> ${referralPoints}\n\n` +
       `💡 <i>Tip: Share your link with friends to earn bonus points!</i>`,
   },

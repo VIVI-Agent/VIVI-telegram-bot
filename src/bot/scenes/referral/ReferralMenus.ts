@@ -26,9 +26,8 @@ export class ReferralMenus extends BaseMenus {
       const text = REFERRAL_TEXTS.FUNCTIONS.getReferralMessage(
         referralLink,
         sceneData.user.referrals.length,
-        sceneData.user.referralPoints,
-        sceneData.user.totalVolumeBoughtWei,
-        sceneData.user.totalVolumeSoldWei
+        sceneData.user.totalReferralVolume,
+        sceneData.user.referralPoints
       );
 
       const keyboard = [

@@ -76,14 +76,16 @@ export const createAuthMiddleware: MiddlewareFn<GlobalSceneContext> = async (
           }
         } else {
           logger.error("AuthMiddleware error:", error);
-          await ctx.reply(GENERIC_ERRORS.USER_NOT_FOUND);
+          await ctx.reply(GENERIC_ERRORS.OLD_VERSION);
           return;
         }
       }
 
       // Final validation
       if (!ctx.user) {
-        await ctx.reply(GENERIC_ERRORS.USER_NOT_FOUND);
+        logger.error("AuthMiddleware error:", "User not found");
+
+        await ctx.reply(GENERIC_ERRORS.OLD_VERSION);
         return;
       }
 
