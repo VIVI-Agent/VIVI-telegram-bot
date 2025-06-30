@@ -18,7 +18,9 @@
       "@utils": ["./utils"],
       "@services": ["./services"],
       "@types": ["./bot/types"],
-      "@texts": ["./bot/texts"]
+      "@texts": ["./bot/texts"],
+      "@abis": ["./abis"],
+      "@blockchain": ["./blockchain"]
     }
   },
   "include": ["src", "src/domain/initServices.ts"],

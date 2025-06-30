@@ -1,4 +1,9 @@
-import { UserWithSettings, UserWithWallets } from "@domain";
+import {
+  UserWithSettings,
+  UserWithWalletAndHoldings,
+  UserWithWallets,
+  WalletWithHoldings,
+} from "@domain";
 import { BuySettings } from "@prisma/client";
 
 export interface SubSceneState {
@@ -14,7 +19,8 @@ export type SceneData =
   | MainMenuSceneData
   | SettingsSceneData
   | WalletsSceneData
-  | ReferralSceneData;
+  | ReferralSceneData
+  | PositionsSceneData;
 
 // InitUserSceneData: Data for the init user scene,
 export interface InitUserSceneData {
@@ -93,4 +99,11 @@ export type SellSettingsFieldName = keyof Pick<
 export interface ReferralSceneData {
   menuMessageId?: number;
   user?: any; // TODO: Define proper user type
+}
+
+export interface PositionsSceneData {
+  wallets?: WalletWithHoldings[];
+  menuMessageId?: number;
+  state: "loading_cache" | "loading_from_chain" | "loaded";
+  positions?: any[];
 }

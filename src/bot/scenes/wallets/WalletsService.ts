@@ -7,7 +7,7 @@ import {
   encryptExistingPrivateKey,
 } from "@services";
 import { formatEthBalanceWithSymbol } from "@utils";
-import { transferETH } from "transactions/transferETH";
+import { transferETH } from "blockchain/transactions/transferETH";
 import { getAddress, parseEther, TransactionReceipt } from "viem";
 
 export class WalletsService extends BaseService {

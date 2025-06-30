@@ -51,6 +51,12 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
         );
         scene = new ReferralSubScene(instanceId);
         break;
+      case "Positions":
+        const { PositionsSubScene } = await import(
+          "../scenes/positions/PositionsSubScene"
+        );
+        scene = new PositionsSubScene(instanceId);
+        break;
       default:
         logger.error(`Unknown scene type: ${sceneType}`);
         throw new Error(`Unknown scene type: ${sceneType}`);

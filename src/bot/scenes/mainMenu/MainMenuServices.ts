@@ -1,7 +1,7 @@
 import { WalletWithHoldings } from "@domain";
 import { getWalletBalance } from "@services";
 import { BaseService, GlobalSceneContext } from "@types";
-import { getTokenBalance } from "transactions/balanceToken";
+import { getTokenBalance } from "blockchain/transactions/balanceToken";
 import { Address } from "viem";
 
 /**
@@ -81,7 +81,6 @@ export class MainMenuServices extends BaseService {
     this.log("info", ctx, "Navigating to Wallets");
 
     try {
-      await ctx.answerCbQuery("💼 Opening Wallets...");
       await ctx.sceneManager.activateScene(ctx, "Wallets");
     } catch (error) {
       this.logError(ctx, "navigateToWallets", error);
@@ -96,9 +95,7 @@ export class MainMenuServices extends BaseService {
     this.log("info", ctx, "Navigating to Holdings");
 
     try {
-      await ctx.answerCbQuery("💰 Holdings feature coming soon!");
-      // TODO: Activate Holdings scene when implemented
-      // await ctx.sceneManager.activateScene(ctx, "Holdings");
+      await ctx.sceneManager.activateScene(ctx, "Positions");
     } catch (error) {
       this.logError(ctx, "navigateToHoldings", error);
       await ctx.answerCbQuery("❌ Error navigating to Holdings");
@@ -112,7 +109,6 @@ export class MainMenuServices extends BaseService {
     this.log("info", ctx, "Navigating to Settings");
 
     try {
-      await ctx.answerCbQuery("Navigating to Settings");
       await ctx.sceneManager.activateScene(ctx, "Settings");
     } catch (error) {
       this.logError(ctx, "navigateToSettings", error);
@@ -127,7 +123,6 @@ export class MainMenuServices extends BaseService {
     this.log("info", ctx, "Generating referral link");
 
     try {
-      await ctx.answerCbQuery("Navigating to Referral");
       await ctx.sceneManager.activateScene(ctx, "Referral");
     } catch (error) {
       this.logError(ctx, "handleReferralLink", error);

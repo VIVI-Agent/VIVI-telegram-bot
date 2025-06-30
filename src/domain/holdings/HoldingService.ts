@@ -1,5 +1,6 @@
-import { Holding, PrismaClient } from "@prisma/client";
+import { Holding, PrismaClient, Token } from "@prisma/client";
 
+export type HoldingWithToken = Holding & { token: Token };
 export class HoldingService {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -39,5 +40,37 @@ export class HoldingService {
         data: { balance: balanceStr },
       });
     }
+  }
+
+  async getHoldingsByUserId(userId: number): Promise<HoldingWithToken[]> {
+    return await this.prisma.holding.findMany({
+      where: {
+        userId,
+        balance: { not: "0" },
+        wallet: { isDeleted: false },
+      },
+      include: { token: true },
+    });
+  }
+
+  async getHoldingById(holdingId: number): Promise<HoldingWithToken | null> {
+    return await this.prisma.holding.findUnique({
+      where: { id: holdingId },
+      include: { token: true },
+    });
+  }
+
+  async getHoldingByTokenId(
+    userId: number,
+    tokenId: number
+  ): Promise<Holding | null> {
+    return await this.prisma.holding.findFirst({
+      where: {
+        userId,
+        tokenId,
+        balance: { not: "0" },
+        wallet: { isDeleted: false },
+      },
+    });
   }
 }

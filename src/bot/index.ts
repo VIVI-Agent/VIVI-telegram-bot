@@ -88,6 +88,11 @@ bot.command("referral", async (ctx) => {
   await sceneManager.activateScene(ctx, "Referral");
 });
 
+// Handle positions command
+bot.command("positions", async (ctx) => {
+  await sceneManager.activateScene(ctx, "Positions");
+});
+
 // Handle text messages
 bot.on(message("text"), async (ctx) => {
   const text = ctx.message.text;
