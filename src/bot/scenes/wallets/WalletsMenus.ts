@@ -4,9 +4,9 @@ import { WalletsSceneData } from "../../types/session/SubSceneState";
 import { CB } from "./callbacks";
 import { WALLET_TEXTS } from "./messages";
 import { GENERIC_BUTTONS } from "@texts";
-import { UserWithWallets } from "@domain";
+import { UserWithWallets, WalletWithHoldings } from "@domain";
 import { formatEthBalanceWithSymbol } from "@utils";
-import { Wallet } from "@prisma/client";
+import { Token } from "@prisma/client";
 
 export class WalletsMenus extends BaseMenus {
   constructor(instanceId: string) {
@@ -193,6 +193,269 @@ export class WalletsMenus extends BaseMenus {
     const menuText = WALLET_TEXTS.MESSAGES.ENTER_PRIVATE_KEY_PROMPT;
 
     return this.sendOrUpdateMenu(ctx, menuText, keyboard, "HTML", messageId);
+  }
+
+  async showTransfersMenu(
+    ctx: GlobalSceneContext,
+    sceneData: WalletsSceneData,
+    messageId?: number
+  ): Promise<number | undefined> {
+    this.log("info", ctx, "Showing Transfers menu");
+
+    const keyboard = this.buildTransfersKeyboard(sceneData.user!);
+    const menuText = WALLET_TEXTS.MESSAGES.TRANSFERS_TITLE;
+
+    return this.sendOrUpdateMenu(ctx, menuText, keyboard, "HTML", messageId);
+  }
+
+  private buildTransfersKeyboard(user: UserWithWallets) {
+    const inline_keyboard = user.wallets.map((w) => [
+      {
+        text: `${w.address} ${formatEthBalanceWithSymbol(w.balance)}`,
+        callback_data: this.createCallback(
+          CB.TRANSFERS_SELECT_WALLET,
+          w.id.toString()
+        ),
+      },
+    ]);
+
+    inline_keyboard.push([
+      {
+        text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
+        callback_data: this.createCallback(CB.MAIN_MENU),
+      },
+      {
+        text: GENERIC_BUTTONS.BACK,
+        callback_data: this.createCallback(CB.WALLETS_ROOT),
+      },
+      {
+        text: GENERIC_BUTTONS.DISMISS,
+        callback_data: this.createCallback(CB.DISMISS_WALLETS),
+      },
+    ]);
+
+    return inline_keyboard;
+  }
+
+  async showWalletTransferMenu(
+    ctx: GlobalSceneContext,
+    wallet: WalletWithHoldings,
+    messageId?: number
+  ): Promise<number | undefined> {
+    const keyboard = this.buildWalletTransferKeyboard(wallet);
+    const menuText = WALLET_TEXTS.MESSAGES.TRANFER_SELECT_TOKEN;
+
+    return this.sendOrUpdateMenu(ctx, menuText, keyboard, "HTML", messageId);
+  }
+
+  async showTransferAmountMenu(
+    ctx: GlobalSceneContext,
+    token: Token,
+    wallet: WalletWithHoldings,
+    messageId?: number
+  ): Promise<number | undefined> {
+    const keyboard = this.buildTransferAmountKeyboard();
+    const menuText = WALLET_TEXTS.FUNCTIONS.getTokenTransferMessage(
+      wallet,
+      token
+    );
+
+    return this.sendOrUpdateMenu(ctx, menuText, keyboard, "HTML", messageId);
+  }
+
+  async showTransferETHAmountMenu(
+    ctx: GlobalSceneContext,
+    wallet: WalletWithHoldings,
+    messageId?: number
+  ): Promise<number | undefined> {
+    const keyboard = this.buildTransferAmountKeyboard();
+    const menuText = WALLET_TEXTS.FUNCTIONS.getETHTransferMessage(wallet);
+
+    return this.sendOrUpdateMenu(ctx, menuText, keyboard, "HTML", messageId);
+  }
+
+  async showTransferRecipientMenu(
+    ctx: GlobalSceneContext,
+    sceneData: WalletsSceneData,
+    messageId?: number
+  ): Promise<number | undefined> {
+    const keyboard = this.buildTransferRecipientKeyboard();
+    const menuText = WALLET_TEXTS.FUNCTIONS.getTransferRecipientMessage();
+
+    return this.sendOrUpdateMenu(ctx, menuText, keyboard, "HTML", messageId);
+  }
+
+  async showTransferCustomAmountMenu(
+    ctx: GlobalSceneContext,
+    wallet: WalletWithHoldings,
+    messageId?: number
+  ): Promise<number | undefined> {
+    const keyboard = this.buildTransferAmountKeyboard();
+    const menuText = WALLET_TEXTS.FUNCTIONS.getTransferCustomAmountMessage();
+
+    return this.sendOrUpdateMenu(ctx, menuText, keyboard, "HTML", messageId);
+  }
+
+  async showInvalidAddressMenu(
+    ctx: GlobalSceneContext,
+    address: string,
+    messageId?: number
+  ): Promise<void> {
+    const keyboard = this.buildTransferRecipientKeyboard();
+    const menuText = WALLET_TEXTS.FUNCTIONS.getInvalidAddressMessage(address);
+
+    await this.sendOrUpdateMenu(ctx, menuText, keyboard, "HTML", messageId);
+  }
+
+  async showInvalidAmountMenu(
+    ctx: GlobalSceneContext,
+    amount: string,
+    messageId?: number
+  ): Promise<void> {
+    const keyboard = this.buildTransferAmountKeyboard();
+    const menuText = WALLET_TEXTS.FUNCTIONS.getInvalidAmountMessage(amount);
+
+    await this.sendOrUpdateMenu(ctx, menuText, keyboard, "HTML", messageId);
+  }
+
+  async showTransferConfirmationMenu(
+    ctx: GlobalSceneContext,
+    sceneData: WalletsSceneData,
+    messageId?: number
+  ): Promise<void> {
+    const keyboard = this.buildTransferConfirmationKeyboard();
+    const menuText =
+      WALLET_TEXTS.FUNCTIONS.getTransferConfirmationMessage(sceneData);
+
+    await this.sendOrUpdateMenu(ctx, menuText, keyboard, "HTML", messageId);
+  }
+
+  private buildTransferConfirmationKeyboard() {
+    return [
+      [
+        {
+          text: WALLET_TEXTS.MESSAGES.CANCEL_TRANSFER_CONFIRMATION,
+          callback_data: this.createCallback(CB.TRANSFER_CANCEL_CONFIRMATION),
+        },
+        {
+          text: WALLET_TEXTS.MESSAGES.CONFIRM_TRANSFER_CONFIRMATION,
+          callback_data: this.createCallback(CB.TRANSFER_CONFIRM_CONFIRMATION),
+        },
+      ],
+      [
+        {
+          text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
+          callback_data: this.createCallback(CB.MAIN_MENU),
+        },
+        {
+          text: GENERIC_BUTTONS.BACK,
+          callback_data: this.createCallback(CB.TRANSFERS),
+        },
+        {
+          text: GENERIC_BUTTONS.DISMISS,
+          callback_data: this.createCallback(CB.DISMISS_WALLETS),
+        },
+      ],
+    ];
+  }
+  private buildTransferRecipientKeyboard() {
+    return [
+      [
+        {
+          text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
+          callback_data: this.createCallback(CB.MAIN_MENU),
+        },
+        {
+          text: GENERIC_BUTTONS.BACK,
+          callback_data: this.createCallback(CB.TRANSFERS),
+        },
+        {
+          text: GENERIC_BUTTONS.DISMISS,
+          callback_data: this.createCallback(CB.DISMISS_WALLETS),
+        },
+      ],
+    ];
+  }
+
+  private buildTransferAmountKeyboard() {
+    return [
+      [
+        {
+          text: "10%",
+          callback_data: this.createCallback(CB.TRANSFERS_SELECT_AMOUNT, "10"),
+        },
+        {
+          text: "25%",
+          callback_data: this.createCallback(CB.TRANSFERS_SELECT_AMOUNT, "25"),
+        },
+        {
+          text: "50%",
+          callback_data: this.createCallback(CB.TRANSFERS_SELECT_AMOUNT, "50"),
+        },
+      ],
+      [
+        {
+          text: "100%",
+          callback_data: this.createCallback(CB.TRANSFERS_SELECT_AMOUNT, "100"),
+        },
+        {
+          text: "Custom",
+          callback_data: this.createCallback(CB.TRANSFERS_ENTER_AMOUNT),
+        },
+      ],
+      [
+        {
+          text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
+          callback_data: this.createCallback(CB.MAIN_MENU),
+        },
+        {
+          text: GENERIC_BUTTONS.BACK,
+          callback_data: this.createCallback(CB.TRANSFERS),
+        },
+        {
+          text: GENERIC_BUTTONS.DISMISS,
+          callback_data: this.createCallback(CB.DISMISS_WALLETS),
+        },
+      ],
+    ];
+  }
+  private buildWalletTransferKeyboard(wallet: WalletWithHoldings) {
+    let inline_keyboard: any[][] = [];
+
+    if (wallet.holdings.length > 0) {
+      inline_keyboard = wallet.holdings.map((h) => [
+        {
+          text: `${h.token.symbol} ${formatEthBalanceWithSymbol(h.balance)}`,
+          callback_data: this.createCallback(
+            CB.TRANSFERS_SELECT_TOKEN,
+            h.token.id.toString()
+          ),
+        },
+      ]);
+    }
+
+    inline_keyboard.push([
+      {
+        text: WALLET_TEXTS.MESSAGES.ETH,
+        callback_data: this.createCallback(CB.TRANSFERS_SELECT_TOKEN, "ETH"),
+      },
+    ]);
+
+    inline_keyboard.push([
+      {
+        text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
+        callback_data: this.createCallback(CB.MAIN_MENU),
+      },
+      {
+        text: GENERIC_BUTTONS.BACK,
+        callback_data: this.createCallback(CB.TRANSFERS),
+      },
+      {
+        text: GENERIC_BUTTONS.DISMISS,
+        callback_data: this.createCallback(CB.DISMISS_WALLETS),
+      },
+    ]);
+    return inline_keyboard;
   }
 
   async showInvalidPrivateKeyMenu(

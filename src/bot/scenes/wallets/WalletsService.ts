@@ -1,6 +1,6 @@
-import { UserWithWallets } from "@domain";
+import { UserWithWallets, WalletWithHoldings } from "@domain";
 import { BaseService, GlobalSceneContext, WalletsSceneData } from "../../types";
-import { Wallet } from "@prisma/client";
+import { Token, Wallet } from "@prisma/client";
 import {
   createBaseWallet,
   decryptPrivateKey,
@@ -137,5 +137,19 @@ export class WalletsService extends BaseService {
       this.logError(ctx, "importWallet", error);
       throw error;
     }
+  }
+
+  async getWalletWithHoldings(
+    ctx: GlobalSceneContext,
+    walletId: number
+  ): Promise<WalletWithHoldings | null> {
+    return await ctx.services.walletService.getWalletWithHoldings(walletId);
+  }
+
+  async getTokenById(
+    ctx: GlobalSceneContext,
+    tokenId: number
+  ): Promise<Token | null> {
+    return await ctx.services.tokenService.getTokenById(tokenId);
   }
 }

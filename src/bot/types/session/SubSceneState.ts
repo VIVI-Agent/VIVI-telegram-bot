@@ -55,6 +55,21 @@ export interface WalletsSceneData {
   importingPrivateKey?: boolean;
   userPrivateKeyMessageId?: number;
 
+  // Transfer
+  transferMode?: {
+    step:
+      | "select_token"
+      | "select_amount"
+      | "enter_amount"
+      | "enter_recipient"
+      | "confirm_transfer";
+    walletId?: number;
+    tokenId?: number | "ETH";
+    amount?: string;
+    customAmount?: string;
+    recipient?: string;
+  };
+
   // User Importing Token on  Wallet
   importingToken?: boolean;
 }

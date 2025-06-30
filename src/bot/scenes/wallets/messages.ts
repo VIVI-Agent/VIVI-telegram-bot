@@ -1,4 +1,7 @@
 import { explorerUrl } from "@client";
+import { WalletWithHoldings } from "@domain";
+import { Token } from "@prisma/client";
+import { WalletsSceneData } from "@types";
 import { formatEthBalance, formatEthBalanceWithSymbol } from "@utils";
 
 export const WALLET_TEXTS = {
@@ -38,7 +41,9 @@ To export your wallet, select the wallet you want to export:`,
 
 ⚠️ To remove you public wallet select another using the <b>List Wallets Menu</b>\n
 Select the wallet you want to remove:`,
-    TRANSFERS_TITLE: "<b>Wallets > 💸 Transfers</b>",
+    TRANSFERS_TITLE: `<b>Wallets > 💸 Transfers</b>
+
+Select the wallet you want to Withdraw from:`,
     SAVED_PRIVATE_KEY_BUTTON: "I have securely saved my private key",
     // Main Menu  Buttons
     LIST_WALLETS_BUTTON: "📜 List Wallets",
@@ -68,9 +73,99 @@ Select the wallet you want to remove:`,
 
 Please enter your Ethereum private key:
 `,
+    // Transfers messages
+    ETH: "ETH",
+    TRANFER_SELECT_TOKEN: `
+<b>👛 Wallets > 💸 Transfers</b>
+
+Select the token you want to transfer:`,
+    CANCEL_TRANSFER_CONFIRMATION: "⚠️ Cancel Transfer",
+    CONFIRM_TRANSFER_CONFIRMATION: "✅ Confirm Transfer",
   },
 
   FUNCTIONS: {
+    getTransferCustomAmountMessage(): string {
+      return `
+<b>👛 Wallets > 💸 Transfers</b>
+
+Enter the amount you want to transfer:
+`;
+    },
+    getTransferConfirmationMessage(sceneData: WalletsSceneData): string {
+      const transferMode = sceneData.transferMode;
+      if (!transferMode) return "Transfer mode not found";
+
+      const isETH = transferMode.tokenId === "ETH";
+      const tokenSymbol = isETH ? "ETH" : "Token"; // For tokens, we'd need to get the actual symbol
+      const amount = transferMode.amount || "Not specified";
+      const recipient = transferMode.recipient || "Not specified";
+
+      return `
+<b>👛 Wallets > 💸 Transfers</b>
+
+<b>${isETH ? "ETH Transfer" : "Token Transfer"}</b>
+${!isETH ? `<b>Token:</b> ${tokenSymbol}` : ""}
+<b>Amount:</b> ${
+        transferMode.customAmount
+          ? `${transferMode.customAmount} ${isETH ? "ETH" : tokenSymbol}`
+          : `${amount}%`
+      }
+
+<b>Recipient:</b> <code>${recipient}</code>
+`;
+    },
+    getInvalidAmountMessage(amount: string): string {
+      return `
+<b>👛 Wallets > 💸 Transfers</b>
+
+⚠️ <b>Invalid amount:</b> ${amount}
+
+<b>Go Back and try again.</b>
+`;
+    },
+    getInvalidAddressMessage(address: string): string {
+      return `
+<b>👛 Wallets > 💸 Transfers</b>
+
+⚠️ <b>Invalid address:</b> ${address}
+
+<b>Go Back and try again.</b>
+`;
+    },
+    getTransferRecipientMessage(): string {
+      return `
+<b>👛 Wallets > 💸 Transfers</b>
+
+Enter the recipient address:
+`;
+    },
+    getETHTransferMessage(wallet: WalletWithHoldings): string {
+      return `
+<b>👛 Wallets > 💸 Transfers</b>
+
+<b>Wallet:</b>
+<code>${wallet.address}</code>
+<b>Balance:</b> ${formatEthBalanceWithSymbol(wallet.balance)}
+
+Select the amount of ETH you want to transfer:
+
+`;
+    },
+    getTokenTransferMessage(wallet: WalletWithHoldings, token: Token): string {
+      return `
+<b>👛 Wallets > 💸 Transfers</b>
+
+<b>Wallet:</b>
+<code>${wallet.address}</code>
+<b>Balance:</b> ${formatEthBalanceWithSymbol(wallet.balance)}
+
+Token: ${token.symbol}
+Address: ${token.address}
+
+<b>Token Balance:</b> ${formatEthBalanceWithSymbol(
+        wallet.holdings.find((h) => h.token.id === token.id)?.balance || "0"
+      )}`;
+    },
     getSuccessImportWalletMsg(address: string): string {
       return `✅ <b>Wallet imported successfully!</b>\n\n<code>${address}</code>\n\nThe private key has been securely encrypted.`;
     },

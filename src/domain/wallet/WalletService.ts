@@ -1,7 +1,16 @@
 // src/domain/wallet/WalletService.ts
-import { PrismaClient, Wallet } from "@prisma/client";
+import { Prisma, PrismaClient, Wallet } from "@prisma/client";
 import { Address } from "viem";
 
+export type WalletWithHoldings = Prisma.WalletGetPayload<{
+  include: {
+    holdings: {
+      include: {
+        token: true;
+      };
+    };
+  };
+}>;
 export class WalletService {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -110,6 +119,24 @@ export class WalletService {
         address: {
           equals: address,
           mode: "insensitive",
+        },
+      },
+    });
+  }
+
+  public async getWalletWithHoldings(
+    walletId: number
+  ): Promise<WalletWithHoldings | null> {
+    return this.prisma.wallet.findUnique({
+      where: { id: walletId, isDeleted: false },
+      include: {
+        holdings: {
+          where: {
+            balance: { not: "0" },
+          },
+          include: {
+            token: true,
+          },
         },
       },
     });

@@ -19,4 +19,11 @@ export const CB = {
   REMOVE_WALLET_CONFIRM: "remove_wallet_confirm",
   // Export Wallet Buttons
   EXPORT_WALLET_SELECT: "export_wallet_select",
+  // Transfers Buttons
+  TRANSFERS_SELECT_WALLET: "transfers_select_wallet",
+  TRANSFERS_SELECT_TOKEN: "transfers_select_token",
+  TRANSFERS_SELECT_AMOUNT: "transfers_select_amount",
+  TRANSFERS_ENTER_AMOUNT: "transfers_enter_amount",
+  TRANSFER_CANCEL_CONFIRMATION: "transfer_cancel_confirmation",
+  TRANSFER_CONFIRM_CONFIRMATION: "transfer_confirm_confirmation",
 };

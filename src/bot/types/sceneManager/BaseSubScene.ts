@@ -65,6 +65,7 @@ export abstract class BaseSubScene<TSceneData = SceneData>
         this.instanceId
       }] GetSceneData - Scene state exists: ${!!sceneState}`
     );
+    /*
     logger.debug(
       `[BaseSubScene:${
         this.instanceId
@@ -75,7 +76,7 @@ export abstract class BaseSubScene<TSceneData = SceneData>
         this.instanceId
       }] GetSceneData - Returned data: ${JSON.stringify(data)}`
     );
-
+    */
     return data;
   }
 

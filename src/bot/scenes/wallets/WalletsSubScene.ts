@@ -6,6 +6,8 @@ import { WalletsService } from "./WalletsService";
 import { CB } from "./callbacks";
 import { WALLET_TEXTS } from "./messages";
 import { Address, privateKeyToAccount } from "viem/accounts";
+import { AddressValidator } from "@utils";
+import { SendAmountValidator } from "utils/inputValidators/SendAmountValidator";
 
 export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
   private menus: WalletsMenus;
@@ -64,20 +66,20 @@ export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
         // Main Menu
         case CB.MAIN_MENU:
           await ctx.answerCbQuery();
-          this.resetImportingPrivateKey(ctx);
+          this.resetSceneData(ctx);
           await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
           await ctx.sceneManager.activateScene(ctx, "MainMenu");
           return true;
         // Wallets Root
         case CB.WALLETS_ROOT:
           await ctx.answerCbQuery();
-          this.resetImportingPrivateKey(ctx);
+          this.resetSceneData(ctx);
           await this.menus.showWalletsMenu(ctx, sceneData, messageId);
           return true;
         // Dismiss settingsaaasd
         case CB.DISMISS_WALLETS:
           await ctx.answerCbQuery();
-          this.resetImportingPrivateKey(ctx);
+          this.resetSceneData(ctx);
           await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
           return true;
 
@@ -241,6 +243,138 @@ export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
           await this.menus.showImportWalletMenu(ctx, messageId);
           return true;
 
+        // Transfers
+        // Transfers
+        // Transfers
+        // Transfers
+        case CB.TRANSFERS:
+          await ctx.answerCbQuery();
+          this.resetSceneData(ctx);
+          await this.menus.showTransfersMenu(ctx, sceneData, messageId);
+          return true;
+
+        // Transfers Select Wallet
+        case CB.TRANSFERS_SELECT_WALLET:
+          await ctx.answerCbQuery();
+          const transferWalletId = params[0];
+          const transferWallet = await this.service.getWalletWithHoldings(
+            ctx,
+            Number(transferWalletId)
+          );
+
+          sceneData.transferMode = {
+            step: "select_token",
+            walletId: Number(transferWalletId),
+          };
+          this.updateSceneData(ctx, sceneData);
+
+          if (!transferWallet) {
+            this.log("error", ctx, "Wallet not found");
+            ctx.reply(WALLET_TEXTS.ERRORS.WALLET_NOT_FOUND);
+            return false;
+          }
+
+          await this.menus.showWalletTransferMenu(
+            ctx,
+            transferWallet,
+            messageId
+          );
+          return true;
+
+        // Transfers Select Token
+        case CB.TRANSFERS_SELECT_TOKEN:
+          await ctx.answerCbQuery();
+          const transferTokenId = params[0];
+          const selectTokenWalletId = sceneData.transferMode?.walletId;
+
+          const selectTokenWallet = await this.service.getWalletWithHoldings(
+            ctx,
+            selectTokenWalletId!
+          );
+
+          // ETH TRANSFER DETECTION
+          if (transferTokenId === "ETH") {
+            this.updateTransferMode(ctx, {
+              step: "select_amount",
+              tokenId: transferTokenId,
+              amount: undefined,
+              recipient: undefined,
+            });
+
+            await this.menus.showTransferETHAmountMenu(
+              ctx,
+              selectTokenWallet!,
+              messageId
+            );
+            return true;
+          }
+
+          // TOKEN TRANSFER DETECTION
+          const transferToken = await this.service.getTokenById(
+            ctx,
+            Number(transferTokenId)
+          );
+
+          if (transferToken) {
+            this.updateTransferMode(ctx, {
+              step: "select_amount",
+              tokenId: Number(transferTokenId),
+              amount: undefined,
+              recipient: undefined,
+            });
+
+            await this.menus.showTransferAmountMenu(
+              ctx,
+              transferToken,
+              selectTokenWallet!,
+              messageId
+            );
+            return true;
+          }
+          return false;
+
+        // Transfers Select Amount
+        case CB.TRANSFERS_SELECT_AMOUNT:
+          await ctx.answerCbQuery();
+          const amount = params[0];
+
+          this.updateTransferMode(ctx, {
+            amount: amount,
+            customAmount: undefined,
+            step: "enter_recipient",
+          });
+
+          const selectAmountSceneData = this.getSceneData(ctx);
+          await this.menus.showTransferRecipientMenu(
+            ctx,
+            selectAmountSceneData,
+            messageId
+          );
+          return true;
+
+        // Transfers Enter Amount
+        case CB.TRANSFERS_ENTER_AMOUNT:
+          await ctx.answerCbQuery();
+          this.updateTransferMode(ctx, {
+            step: "enter_amount",
+          });
+
+          const enterAmountSceneData = this.getSceneData(ctx);
+          const enterAmountWalletId =
+            enterAmountSceneData.transferMode?.walletId;
+
+          const enterAmountWallet = await this.service.getWalletWithHoldings(
+            ctx,
+            enterAmountWalletId!
+          );
+
+          await this.menus.showTransferCustomAmountMenu(
+            ctx,
+            enterAmountWallet!,
+            messageId
+          );
+          return true;
+
         default:
           this.log("warn", ctx, `Unknown action: ${action}`);
           return false;
@@ -253,6 +387,7 @@ export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
           error instanceof Error ? error.message : error
         }`
       );
+      console.log(error);
       return false;
     }
   }
@@ -261,6 +396,46 @@ export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
     this.log("debug", ctx, `Handling text: ${text}`);
     const sceneData = this.getSceneData(ctx);
     const messageId = sceneData.menuMessageId;
+
+    if (sceneData.transferMode?.step === "enter_amount") {
+      if (!SendAmountValidator.isValidAmount(text)) {
+        await this.menus.showInvalidAmountMenu(ctx, text, messageId);
+        return true;
+      }
+
+      this.updateTransferMode(ctx, {
+        customAmount: text,
+        amount: undefined,
+        step: "enter_recipient",
+      });
+
+      const textHandlerSceneData = this.getSceneData(ctx);
+      await this.menus.showTransferRecipientMenu(
+        ctx,
+        textHandlerSceneData,
+        messageId
+      );
+      return true;
+    }
+
+    if (sceneData.transferMode?.step === "enter_recipient") {
+      if (!AddressValidator.parseEthereumAddress(text)) {
+        await this.menus.showInvalidAddressMenu(ctx, text, messageId);
+        return true;
+      }
+
+      this.updateTransferMode(ctx, {
+        recipient: text,
+      });
+
+      const confirmationSceneData = this.getSceneData(ctx);
+      await this.menus.showTransferConfirmationMenu(
+        ctx,
+        confirmationSceneData,
+        messageId
+      );
+      return true;
+    }
 
     if (sceneData.importingPrivateKey) {
       sceneData.privateKeyMessageId = ctx.message?.message_id;
@@ -288,7 +463,7 @@ export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
         await ctx.deleteMessage(sceneData.privateKeyMessageId);
 
         if (result?.wallet) {
-          this.resetImportingPrivateKey(ctx);
+          this.resetSceneData(ctx);
 
           await ctx.reply(
             WALLET_TEXTS.FUNCTIONS.getSuccessImportWalletMsg(address),
@@ -339,9 +514,27 @@ export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
     return false;
   }
 
-  private resetImportingPrivateKey(ctx: GlobalSceneContext): void {
+  /**
+   * Helper method to safely update transferMode while preserving existing properties
+   */
+  private updateTransferMode(
+    ctx: GlobalSceneContext,
+    updates: Partial<WalletsSceneData["transferMode"]>
+  ): void {
+    const sceneData = this.getSceneData(ctx);
+    sceneData.transferMode = {
+      ...sceneData.transferMode,
+      ...updates,
+    } as NonNullable<WalletsSceneData["transferMode"]>;
+    this.updateSceneData(ctx, sceneData);
+  }
+
+  private resetSceneData(ctx: GlobalSceneContext): void {
     const sceneData = this.getSceneData(ctx);
     sceneData.importingPrivateKey = false;
+    sceneData.transferMode = undefined;
+    sceneData.privateKeyMessageId = undefined;
+
     this.updateSceneData(ctx, sceneData);
   }
 }
