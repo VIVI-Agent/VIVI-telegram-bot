@@ -1,7 +1,7 @@
 import { session, Telegraf } from "telegraf";
 import { message } from "telegraf/filters";
 
-import { redisStore, secrets } from "@config";
+import { redisStore, secrets, webhookServer } from "@config";
 import { services } from "@domain";
 import { GlobalSceneContext, GlobalSessionData } from "@types";
 
@@ -10,6 +10,7 @@ import { GlobalSceneManagerImpl } from "./core/GlobalSceneManager";
 import { createAuthMiddleware } from "./middlewares/AuthMiddleware";
 import { Redis } from "@telegraf/session/redis";
 import { logger } from "@logger";
+import { GENERIC_ERRORS } from "@texts";
 
 // Create bot instance
 const bot = new Telegraf<GlobalSceneContext>(secrets.TELEGRAM_BOT_TOKEN || "");
@@ -46,70 +47,83 @@ bot.use(createAuthMiddleware);
 
 // Start command - activate InitUser scene
 bot.start(async (ctx) => {
-  logger.info("Start command received");
+  if (ctx.chat?.type === "private") {
+    logger.info("Start command received");
 
-  try {
-    // Check if user needs initialization based on wallet status
-    if (!ctx.walletCreated) {
-      logger.info("User has no wallet, activating InitUser scene");
-      await sceneManager.activateScene(ctx, "InitUser");
-    } else {
-      logger.info("User has wallet, activating MainMenu scene");
-      await sceneManager.activateScene(ctx, "MainMenu");
+    try {
+      // Check if user needs initialization based on wallet status
+      if (!ctx.walletCreated) {
+        logger.info("User has no wallet, activating InitUser scene");
+        await sceneManager.activateScene(ctx, "InitUser");
+      } else {
+        logger.info("User has wallet, activating MainMenu scene");
+        await sceneManager.activateScene(ctx, "MainMenu");
+      }
+    } catch (error) {
+      logger.error("Error in start command:", error);
+      await ctx.reply("❌ Error starting bot. Please try again.");
     }
-  } catch (error) {
-    logger.error("Error in start command:", error);
-    await ctx.reply("❌ Error starting bot. Please try again.");
   }
 });
 
 // Handle callbacks
 bot.on("callback_query", async (ctx) => {
-  const callbackQuery = ctx.callbackQuery;
-  if (callbackQuery && "data" in callbackQuery) {
-    const callback = callbackQuery.data;
-    logger.info(`Callback received: ${callback}`);
-    await sceneManager.routeCallback(ctx, callback);
+  if (ctx.chat?.type === "private") {
+    const callbackQuery = ctx.callbackQuery;
+    if (callbackQuery && "data" in callbackQuery) {
+      const callback = callbackQuery.data;
+      logger.info(`Callback received: ${callback}`);
+      await sceneManager.routeCallback(ctx, callback);
+    }
   }
 });
 
 // Handle settings command
 bot.command("settings", async (ctx) => {
-  await sceneManager.activateScene(ctx, "Settings");
+  if (ctx.chat?.type === "private") {
+    await sceneManager.activateScene(ctx, "Settings");
+  }
 });
 
 // Handle wallets command
 bot.command("wallets", async (ctx) => {
-  await sceneManager.activateScene(ctx, "Wallets");
+  if (ctx.chat?.type === "private") {
+    await sceneManager.activateScene(ctx, "Wallets");
+  }
 });
 
 // Handle referral command
 bot.command("referral", async (ctx) => {
-  await sceneManager.activateScene(ctx, "Referral");
+  if (ctx.chat?.type === "private") {
+    await sceneManager.activateScene(ctx, "Referral");
+  }
 });
 
 // Handle positions command
 bot.command("positions", async (ctx) => {
-  await sceneManager.activateScene(ctx, "Positions");
+  if (ctx.chat?.type === "private") {
+    await sceneManager.activateScene(ctx, "Positions");
+  }
 });
 
 // Handle text messages
 bot.on(message("text"), async (ctx) => {
-  const text = ctx.message.text;
-  logger.info(`Text received: ${text}`);
+  if (ctx.chat?.type === "private") {
+    const text = ctx.message.text;
 
-  // Skip commands that are handled elsewhere
-  if (text.startsWith("/start")) {
-    return;
+    // Skip All Commands
+    if (text.startsWith("/")) {
+      return;
+    }
+    logger.info(`Text received: ${text}`);
+    await sceneManager.routeText(ctx, text);
   }
-
-  await sceneManager.routeText(ctx, text);
 });
 
 // Error handling
 bot.catch((err, ctx) => {
   logger.error("Bot error:", err);
-  ctx.reply("❌ An error occurred. Please try again.");
+  ctx.reply(GENERIC_ERRORS.OLD_VERSION);
 });
 
 // Export bot for external use
@@ -119,8 +133,15 @@ export { bot, sceneManager };
 if (require.main === module) {
   logger.info("🤖 Starting VIVI Telegram Bot with Redis session...");
 
+  const webhookUrl = `${webhookServer.WEBHOOK_SERVER_URL}/webhook/${secrets.TELEGRAM_BOT_TOKEN}`;
+
   bot
-    .launch()
+    .launch({
+      webhook: {
+        domain: webhookUrl,
+        port: Number(process.env.PORT || 8080),
+      },
+    })
     .then(() => {
       logger.info("✅ Bot started successfully!");
       logger.info("💾 Sessions are now stored in Redis");

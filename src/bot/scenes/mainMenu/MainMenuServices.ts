@@ -1,7 +1,8 @@
 import { WalletWithHoldings } from "@domain";
 import { getWalletBalance } from "@services";
+import { GENERIC_ERRORS } from "@texts";
 import { BaseService, GlobalSceneContext } from "@types";
-import { getTokenBalance } from "blockchain/transactions/balanceToken";
+import { getTokenBalance } from "@blockchain";
 import { Address } from "viem";
 
 /**
@@ -70,7 +71,7 @@ export class MainMenuServices extends BaseService {
       // await ctx.sceneManager.activateScene(ctx, "Buy");
     } catch (error) {
       this.logError(ctx, "navigateToBuy", error);
-      await ctx.answerCbQuery("❌ Error navigating to Buy");
+      ctx.reply(GENERIC_ERRORS.OLD_VERSION);
     }
   }
 
@@ -82,9 +83,10 @@ export class MainMenuServices extends BaseService {
 
     try {
       await ctx.sceneManager.activateScene(ctx, "Wallets");
+      await ctx.answerCbQuery();
     } catch (error) {
       this.logError(ctx, "navigateToWallets", error);
-      await ctx.answerCbQuery("❌ Error navigating to Wallets");
+      ctx.reply(GENERIC_ERRORS.OLD_VERSION);
     }
   }
 
@@ -96,9 +98,10 @@ export class MainMenuServices extends BaseService {
 
     try {
       await ctx.sceneManager.activateScene(ctx, "Positions");
+      await ctx.answerCbQuery();
     } catch (error) {
       this.logError(ctx, "navigateToHoldings", error);
-      await ctx.answerCbQuery("❌ Error navigating to Holdings");
+      ctx.reply(GENERIC_ERRORS.OLD_VERSION);
     }
   }
 
@@ -110,9 +113,10 @@ export class MainMenuServices extends BaseService {
 
     try {
       await ctx.sceneManager.activateScene(ctx, "Settings");
+      await ctx.answerCbQuery();
     } catch (error) {
       this.logError(ctx, "navigateToSettings", error);
-      await ctx.answerCbQuery("❌ Error navigating to Settings");
+      ctx.reply(GENERIC_ERRORS.OLD_VERSION);
     }
   }
 
@@ -124,9 +128,10 @@ export class MainMenuServices extends BaseService {
 
     try {
       await ctx.sceneManager.activateScene(ctx, "Referral");
+      await ctx.answerCbQuery();
     } catch (error) {
       this.logError(ctx, "handleReferralLink", error);
-      await ctx.answerCbQuery("❌ Error generating referral link");
+      ctx.reply(GENERIC_ERRORS.OLD_VERSION);
     }
   }
 
@@ -138,10 +143,9 @@ export class MainMenuServices extends BaseService {
 
     try {
       await ctx.answerCbQuery("🔐 Dashboard access coming soon!");
-      // TODO: Generate login link or token
     } catch (error) {
       this.logError(ctx, "handleLogin", error);
-      await ctx.answerCbQuery("❌ Error accessing dashboard");
+      ctx.reply(GENERIC_ERRORS.OLD_VERSION);
     }
   }
 
@@ -233,7 +237,7 @@ export class MainMenuServices extends BaseService {
       // await ctx.sceneManager.activateScene(ctx, "Holdings");
     } catch (error) {
       this.logError(ctx, "navigateToLimitOrders", error);
-      await ctx.answerCbQuery("❌ Error navigating to Limit Orders");
+      await ctx.reply(GENERIC_ERRORS.OLD_VERSION);
     }
   }
 
@@ -248,7 +252,7 @@ export class MainMenuServices extends BaseService {
       // await ctx.sceneManager.activateScene(ctx, "Snipe");
     } catch (error) {
       this.logError(ctx, "navigateToSnipe", error);
-      await ctx.answerCbQuery("❌ Error navigating to Snipe");
+      await ctx.reply(GENERIC_ERRORS.OLD_VERSION);
     }
   }
 
@@ -259,11 +263,11 @@ export class MainMenuServices extends BaseService {
     this.log("info", ctx, "Dismissing menu");
 
     try {
-      await ctx.answerCbQuery("Menu dismissed");
+      await ctx.answerCbQuery();
       // The scene will be deactivated by the MainMenuSubScene
     } catch (error) {
       this.logError(ctx, "handleDismiss", error);
-      await ctx.answerCbQuery("❌ Error dismissing menu");
+      await ctx.reply(GENERIC_ERRORS.OLD_VERSION);
     }
   }
 }

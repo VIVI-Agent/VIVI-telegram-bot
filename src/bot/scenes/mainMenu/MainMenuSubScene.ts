@@ -2,6 +2,7 @@ import { BaseSubScene, GlobalSceneContext, MainMenuSceneData } from "@types";
 import { MainMenuMenus } from "./MainMenuMenus";
 import { MainMenuServices } from "./MainMenuServices";
 import { CB } from "./callbacks";
+import { GENERIC_ERRORS } from "@texts";
 
 export class MainMenuSubScene extends BaseSubScene<MainMenuSceneData> {
   private menus: MainMenuMenus;
@@ -128,10 +129,8 @@ export class MainMenuSubScene extends BaseSubScene<MainMenuSceneData> {
 
       if (!user) {
         this.log("warn", ctx, "Failed to load user data");
-        await ctx.reply(
-          "❌ Unable to load your profile. Please try again later."
-        );
-        await this.deactivateScene(ctx);
+        await ctx.reply(GENERIC_ERRORS.OLD_VERSION);
+        await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
         return;
       }
 
@@ -144,7 +143,7 @@ export class MainMenuSubScene extends BaseSubScene<MainMenuSceneData> {
         this.log("info", ctx, `Menu displayed with message ID: ${messageId}`);
       } else {
         this.log("warn", ctx, "Failed to display menu");
-        await ctx.reply("❌ Failed to display menu. Please try again.");
+        await ctx.reply(GENERIC_ERRORS.OLD_VERSION);
       }
     } catch (error) {
       this.log(
@@ -154,9 +153,7 @@ export class MainMenuSubScene extends BaseSubScene<MainMenuSceneData> {
           error instanceof Error ? error.stack : error
         }`
       );
-      await ctx.reply(
-        "❌ An error occurred while loading the menu. Please try again."
-      );
+      await ctx.reply(GENERIC_ERRORS.OLD_VERSION);
     }
   }
 
@@ -225,25 +222,8 @@ export class MainMenuSubScene extends BaseSubScene<MainMenuSceneData> {
           error instanceof Error ? error.stack : error
         }`
       );
-      await ctx.answerCbQuery("❌ Error dismissing menu");
+      await ctx.reply(GENERIC_ERRORS.OLD_VERSION);
       return true;
-    }
-  }
-
-  /**
-   * Deactivates this scene (kept for compatibility, but now we use ctx.sceneManager directly)
-   */
-  private async deactivateScene(ctx: GlobalSceneContext): Promise<void> {
-    try {
-      await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
-    } catch (error) {
-      this.log(
-        "error",
-        ctx,
-        `Error deactivating scene: ${
-          error instanceof Error ? error.stack : error
-        }`
-      );
     }
   }
 }

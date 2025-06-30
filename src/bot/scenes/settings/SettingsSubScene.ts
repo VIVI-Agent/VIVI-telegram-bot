@@ -12,6 +12,7 @@ import { CB } from "./callbacks";
 import { SpeedEnum } from "@prisma/client";
 import { BuyAmountValidator } from "utils/inputValidators/BuyAmountValidator";
 import { SellAmountValidator } from "utils/inputValidators/SellAmountValidator";
+import { GENERIC_ERRORS } from "@texts";
 
 /**
  * Settings sub-scene for managing user trading configuration.
@@ -250,15 +251,7 @@ export class SettingsSubScene extends BaseSubScene<SettingsSceneData> {
     const editField = sceneData.editField;
 
     if (!editField) {
-      this.log(
-        "warn",
-        ctx,
-        "❌ No editField found - user might be sending text without context"
-      );
-      await ctx.reply(
-        "❌ No active setting to edit. Please select a setting first."
-      );
-      return true;
+      return false;
     }
 
     this.log(
@@ -269,9 +262,7 @@ export class SettingsSubScene extends BaseSubScene<SettingsSceneData> {
 
     if (!editField.mode || !editField.fieldName) {
       this.log("warn", ctx, "❌ Invalid editField structure");
-      this.updateSceneData(ctx, { editField: undefined });
-      await ctx.reply("❌ Invalid edit state. Please try again.");
-      return true;
+      return false;
     }
 
     // Procesar según el modo de edición
@@ -323,7 +314,8 @@ export class SettingsSubScene extends BaseSubScene<SettingsSceneData> {
           );
         } catch (error) {
           this.log("error", ctx, `❌ Error updating buy settings: ${error}`);
-          await ctx.reply("❌ Error updating settings. Please try again.");
+          await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
+          await ctx.reply(GENERIC_ERRORS.OLD_VERSION);
         }
         break;
 
@@ -379,14 +371,15 @@ export class SettingsSubScene extends BaseSubScene<SettingsSceneData> {
           break;
         } catch (error) {
           this.log("error", ctx, `❌ Error updating sell settings: ${error}`);
-          await ctx.reply("❌ Error updating settings. Please try again.");
+          await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
+          await ctx.reply(GENERIC_ERRORS.OLD_VERSION);
         }
         break;
 
       default:
         this.log("warn", ctx, `📝 Unknown editField mode: ${editField.mode}`);
-        await ctx.reply("❌ Unknown setting mode. Please try again.");
-        this.updateSceneData(ctx, { editField: undefined });
+        await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
+        await ctx.reply(GENERIC_ERRORS.OLD_VERSION);
         break;
     }
 
