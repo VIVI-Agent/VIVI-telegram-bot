@@ -172,6 +172,7 @@ Address: ${token.address}
         wallet.holdings.find((h) => h.token.id === token.id)?.balance || "0"
       )}`;
     },
+
     getSuccessImportWalletMsg(address: string): string {
       return `✅ <b>Wallet imported successfully!</b>\n\n<code>${address}</code>\n\nThe private key has been securely encrypted.`;
     },
