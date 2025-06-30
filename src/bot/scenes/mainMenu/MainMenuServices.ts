@@ -127,8 +127,8 @@ export class MainMenuServices extends BaseService {
     this.log("info", ctx, "Generating referral link");
 
     try {
-      await ctx.answerCbQuery("🤝 Referral feature coming soon!");
-      // TODO: Generate and show referral link
+      await ctx.answerCbQuery("Navigating to Referral");
+      await ctx.sceneManager.activateScene(ctx, "Referral");
     } catch (error) {
       this.logError(ctx, "handleReferralLink", error);
       await ctx.answerCbQuery("❌ Error generating referral link");

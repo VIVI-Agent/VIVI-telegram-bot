@@ -18,6 +18,7 @@ const walletService = new WalletService(prisma);
 const buySettingsService = new BuySettingsService(prisma);
 const sellSettingsService = new SellSettingsService(prisma);
 const tokenService = new TokenService(prisma);
+const holdingService = new HoldingService(prisma);
 
 export const services = {
   userService,
@@ -25,6 +26,7 @@ export const services = {
   buySettingsService,
   sellSettingsService,
   tokenService,
+  holdingService,
 };
 
 export interface MyServices {

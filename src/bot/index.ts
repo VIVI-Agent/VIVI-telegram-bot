@@ -78,8 +78,14 @@ bot.command("settings", async (ctx) => {
   await sceneManager.activateScene(ctx, "Settings");
 });
 
+// Handle wallets command
 bot.command("wallets", async (ctx) => {
   await sceneManager.activateScene(ctx, "Wallets");
+});
+
+// Handle referral command
+bot.command("referral", async (ctx) => {
+  await sceneManager.activateScene(ctx, "Referral");
 });
 
 // Handle text messages

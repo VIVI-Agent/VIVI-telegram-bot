@@ -13,7 +13,8 @@ export type SceneData =
   | InitUserSceneData
   | MainMenuSceneData
   | SettingsSceneData
-  | WalletsSceneData;
+  | WalletsSceneData
+  | ReferralSceneData;
 
 // InitUserSceneData: Data for the init user scene,
 export interface InitUserSceneData {
@@ -88,3 +89,8 @@ export type SellSettingsFieldName = keyof Pick<
   BuySettings,
   "amount1" | "amount2" | "amount3" | "slippage"
 >;
+
+export interface ReferralSceneData {
+  menuMessageId?: number;
+  user?: any; // TODO: Define proper user type
+}

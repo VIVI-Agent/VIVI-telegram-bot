@@ -44,7 +44,14 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
         );
         scene = new WalletsSubScene(instanceId);
         break;
+      case "Referral":
+        const { ReferralSubScene } = await import(
+          "../scenes/referral/ReferralSubScene"
+        );
+        scene = new ReferralSubScene(instanceId);
+        break;
       default:
+        logger.error(`Unknown scene type: ${sceneType}`);
         throw new Error(`Unknown scene type: ${sceneType}`);
     }
     return scene;

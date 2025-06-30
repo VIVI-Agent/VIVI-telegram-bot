@@ -195,4 +195,69 @@ export class UserService {
       },
     });
   }
+
+  public async getUserWithReferralInfo(userId: number) {
+    // 1) Obtenemos el user + referrals
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        tgUsername: true,
+        points: true,
+        referralPoints: true,
+        totalVolumeBoughtWei: true,
+        totalVolumeSoldWei: true,
+        referrals: {
+          select: {
+            tgUsername: true,
+            totalVolumeBoughtWei: true,
+            totalVolumeSoldWei: true,
+          },
+        },
+      },
+    });
+
+    if (!user) return null;
+
+    // 2) Calculamos el volumen total de los referidos (bought + sold)
+    let referralVolumeBought = new Prisma.Decimal(0);
+    let referralVolumeSold = new Prisma.Decimal(0);
+    for (const ref of user.referrals) {
+      referralVolumeBought = referralVolumeBought.add(ref.totalVolumeBoughtWei);
+      referralVolumeSold = referralVolumeSold.add(ref.totalVolumeSoldWei);
+    }
+    const totalReferralVolumeWei = referralVolumeBought.add(referralVolumeSold);
+    const totalReferralVolumeBigInt = BigInt(totalReferralVolumeWei.toString());
+    const referralVolumeEthString = formatEther(totalReferralVolumeBigInt);
+
+    this.logger.info(
+      `[getUserWithReferralInfo] total referral volume: ${referralVolumeEthString} ETH`
+    );
+
+    // 3) Formateamos los puntos
+    const formattedPoints = user.points.toNumber();
+    const formattedReferralPoints =
+      user.referralPoints.toNumber() + 690 * user.referrals.length;
+
+    this.logger.info(
+      `[getUserWithReferralInfo] total referral points: ${formattedReferralPoints}`
+    );
+
+    // 4) Mapeamos
+    const mappedReferrals = user.referrals.map((r) => ({
+      tgUsername: r.tgUsername,
+    }));
+
+    // 5) Retornamos un objeto final
+    return {
+      id: user.id,
+      tgUsername: user.tgUsername,
+      points: formattedPoints,
+      referralPoints: formattedReferralPoints,
+      totalVolumeBoughtWei: user.totalVolumeBoughtWei,
+      totalVolumeSoldWei: user.totalVolumeSoldWei,
+      totalReferralVolume: referralVolumeEthString,
+      referrals: mappedReferrals,
+    };
+  }
 }
