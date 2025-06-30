@@ -11,6 +11,7 @@ import { createAuthMiddleware } from "./middlewares/AuthMiddleware";
 import { Redis } from "@telegraf/session/redis";
 import { logger } from "@logger";
 import { GENERIC_ERRORS } from "@texts";
+import { registerCommands } from "./commands";
 
 // Create bot instance
 const bot = new Telegraf<GlobalSceneContext>(secrets.TELEGRAM_BOT_TOKEN || "");
@@ -142,7 +143,8 @@ if (require.main === module) {
         port: Number(process.env.PORT || 8080),
       },
     })
-    .then(() => {
+    .then(async () => {
+      await registerCommands(bot);
       logger.info("✅ Bot started successfully!");
       logger.info("💾 Sessions are now stored in Redis");
       logger.info("📈 Memory usage optimized for production");
