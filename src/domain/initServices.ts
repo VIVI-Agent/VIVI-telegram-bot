@@ -9,6 +9,7 @@ import {
   UserService,
   WalletService,
 } from "./index";
+import { HoldingService } from "./holdings/HoldingService";
 
 const prisma = new PrismaClient();
 
@@ -32,4 +33,5 @@ export interface MyServices {
   buySettingsService: BuySettingsService;
   sellSettingsService: SellSettingsService;
   tokenService: TokenService;
+  holdingService: HoldingService;
 }

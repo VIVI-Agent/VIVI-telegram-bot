@@ -375,6 +375,52 @@ export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
           );
           return true;
 
+        // Transfers Confirm Transfer
+        case CB.TRANSFER_CONFIRM_CONFIRMATION:
+          await ctx.answerCbQuery();
+          const transferConfirmationSceneData = this.getSceneData(ctx);
+
+          try {
+            const tx = await this.service.transferETH(
+              ctx,
+              transferConfirmationSceneData,
+              transferConfirmationSceneData.transferMode?.recipient!
+            );
+
+            await tx.waitReceipt;
+
+            await ctx.reply(
+              WALLET_TEXTS.FUNCTIONS.getSuccessTransferMsg(tx.txHash),
+              {
+                parse_mode: "HTML",
+                link_preview_options: {
+                  is_disabled: true,
+                },
+              }
+            );
+          } catch (error) {
+            this.log("error", ctx, `Error in transferETH: ${error}`);
+            await ctx.reply(
+              WALLET_TEXTS.FUNCTIONS.getErrorTransferMsg(error as Error),
+              {
+                parse_mode: "HTML",
+              }
+            );
+            this.resetSceneData(ctx);
+            await this.menus.showTransfersMenu(ctx, sceneData, messageId);
+
+            return false;
+          }
+
+          return true;
+
+        // Transfers Cancel Transfer
+        case CB.TRANSFER_CANCEL_CONFIRMATION:
+          await ctx.answerCbQuery();
+          this.resetSceneData(ctx);
+          await this.menus.showTransfersMenu(ctx, sceneData, messageId);
+          return true;
+
         default:
           this.log("warn", ctx, `Unknown action: ${action}`);
           return false;

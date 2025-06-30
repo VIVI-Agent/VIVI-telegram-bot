@@ -84,6 +84,12 @@ Select the token you want to transfer:`,
   },
 
   FUNCTIONS: {
+    getErrorTransferMsg(error: Error): string {
+      return `❌ ${error.message}`;
+    },
+    getSuccessTransferMsg(txHash: string): string {
+      return `✅ Transfer tx submitted successfully!\n\n<b>Tx Hash:</b> <a href="${explorerUrl}/tx/${txHash}">${txHash}</a>`;
+    },
     getTransferCustomAmountMessage(): string {
       return `
 <b>👛 Wallets > 💸 Transfers</b>
@@ -169,6 +175,7 @@ Address: ${token.address}
     getSuccessImportWalletMsg(address: string): string {
       return `✅ <b>Wallet imported successfully!</b>\n\n<code>${address}</code>\n\nThe private key has been securely encrypted.`;
     },
+
     getExportWalletDataMsg(address: string, privateKey: string): string {
       return `
 <b>👛 Wallets > 📤 Export Wallet</b>
@@ -185,6 +192,7 @@ Address: ${token.address}
 
 `;
     },
+
     getRemoveWalletConfirmationMsg(address: string, balance: string): string {
       return `
 <b>Wallets > ⚠️ Confirm Remove Wallet</b>
@@ -198,6 +206,7 @@ Are you sure you want to remove this wallet?
 
 `;
     },
+
     buildWalletBalanceLine(
       isSelected: boolean,
       address: string,
@@ -209,12 +218,11 @@ Are you sure you want to remove this wallet?
 <a href="${explorerUrl}/address/${address}">🔗 Open in Basescan</a>
 `;
     },
+
     getImportedWalletSuccessMsg: (address: string) => {
       return `✅ <b>Wallet imported successfully!</b>\n\n<code>${address}</code>\n\nThe private key has been securely encrypted.`;
     },
-    getNewWalletFinalMsg(address: string): string {
-      return `Your new wallet address is: <code>${address}</code>\nUse /wallets or return to the menu to manage your accounts.`;
-    },
+
     getNewWalletCreatedMsg(address: string, privateKey: string): string {
       return `
 A new wallet has been created for you!
@@ -225,13 +233,6 @@ Your private key:
 
 Please store your private key securely.
 Once you have saved it, press the button below. This private key will then be removed from this chat.
-`;
-    },
-
-    getDeletePrivateKeyConfirmText(): string {
-      return `
-Are you sure you have saved your private key securely?
-By confirming, this private key will be permanently removed from this chat.
 `;
     },
 
@@ -253,40 +254,6 @@ ${walletInfo}
 ${currentWalletAddress}</a>
 <b>Balance:</b> ${formatEthBalance(balanceStr)} ETH
 `;
-    },
-
-    // Transfer functions
-    selectTransferOption(tokenName: string): string {
-      return `Select how much ${tokenName} you want to transfer:`;
-    },
-
-    walletSelectedForTransferText(address: string): string {
-      return `Wallet *${address}* selected.\nSelect the token you want to transfer:`;
-    },
-
-    finalTransferConfirmText(data: {
-      tokenName: string;
-      transferType: "PERCENT" | "AMOUNT";
-      transferValue: string;
-      walletAddress: string;
-      recipientAddress: string;
-    }): string {
-      return (
-        `You're about to transfer:\n` +
-        `- Token: ${data.tokenName}\n` +
-        `- Amount: ${
-          data.transferType === "PERCENT"
-            ? data.transferValue + "%"
-            : data.transferValue
-        }\n` +
-        `- From: ${data.walletAddress}\n` +
-        `- To: ${data.recipientAddress}\n\n`
-      );
-    },
-
-    transferSuccessText(txHash: string): string {
-      const explorerLink = `${explorerUrl}/tx/${txHash}`;
-      return `✅ Transfer tx submitted successfully!\n\n<b>Tx Hash:</b> <a href="${explorerLink}">${txHash}</a>`;
     },
   },
 };

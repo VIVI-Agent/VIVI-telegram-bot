@@ -141,4 +141,35 @@ export class WalletService {
       },
     });
   }
+
+  public async getUserWalletsWithHoldings(
+    userId: number
+  ): Promise<WalletWithHoldings[]> {
+    return this.prisma.wallet.findMany({
+      where: {
+        userId,
+        isDeleted: false,
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+      include: {
+        holdings: {
+          include: {
+            token: true,
+          },
+        },
+      },
+    });
+  }
+
+  public async updateWalletBalance(
+    walletId: number,
+    balance: bigint
+  ): Promise<Wallet> {
+    return this.prisma.wallet.update({
+      where: { id: walletId },
+      data: { balance: balance.toString() },
+    });
+  }
 }

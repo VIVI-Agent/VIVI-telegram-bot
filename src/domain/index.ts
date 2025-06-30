@@ -4,4 +4,5 @@ export * from "./wallet/WalletService";
 export * from "./buySettings/BuySettingsService";
 export * from "./sellSettings/SellSettingsService";
 export * from "./token/TokenService";
+export * from "./holdings/HoldingService";
 export * from "./initServices";

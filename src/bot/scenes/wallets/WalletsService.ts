@@ -6,6 +6,9 @@ import {
   decryptPrivateKey,
   encryptExistingPrivateKey,
 } from "@services";
+import { formatEthBalanceWithSymbol } from "@utils";
+import { transferETH } from "transactions/transferETH";
+import { getAddress, parseEther, TransactionReceipt } from "viem";
 
 export class WalletsService extends BaseService {
   constructor(instanceId: string) {
@@ -151,5 +154,64 @@ export class WalletsService extends BaseService {
     tokenId: number
   ): Promise<Token | null> {
     return await ctx.services.tokenService.getTokenById(tokenId);
+  }
+
+  async transferETH(
+    ctx: GlobalSceneContext,
+    sceneData: WalletsSceneData,
+    recipient: string
+  ): Promise<{
+    txHash: `0x${string}`;
+    waitReceipt: Promise<TransactionReceipt>;
+  }> {
+    const wallet = await ctx.services.walletService.getWalletById(
+      sceneData.transferMode?.walletId!
+    );
+    if (!wallet) {
+      throw new Error("Wallet not found");
+    }
+    const amount = sceneData.transferMode?.amount;
+    const customAmount = sceneData.transferMode?.customAmount;
+
+    let amountInWei;
+
+    try {
+      if (customAmount) {
+        // Convert custom amount string to wei
+        amountInWei = parseEther(customAmount);
+      } else if (amount) {
+        // Calculate percentage of wallet balance
+        const percentage = BigInt(amount);
+        const balanceInWei = BigInt(wallet.balance);
+        amountInWei = (balanceInWei * percentage) / BigInt(100);
+      } else {
+        throw new Error("No amount specified for transfer");
+      }
+    } catch (error) {
+      this.logError(ctx, "transferETH", error);
+      throw new Error("Invalid amount format");
+    }
+
+    const balanceInWei = BigInt(wallet.balance);
+    const recipientAddress = getAddress(recipient);
+
+    if (balanceInWei <= amountInWei) {
+      throw new Error(
+        `Insufficient balance you are trying to transfer ${formatEthBalanceWithSymbol(
+          amountInWei
+        )} ETH but you have ${formatEthBalanceWithSymbol(balanceInWei)} ETH`
+      );
+    }
+    const decryptedPrivKey = decryptPrivateKey(wallet.encryptedPrivKey);
+
+    const tx = await transferETH({
+      privateKey: decryptedPrivKey,
+      to: recipientAddress,
+      desiredAmountWei: amountInWei,
+    });
+
+    this.log("info", ctx, `Transfer ETH: ${tx.txHash}`);
+
+    return tx;
   }
 }
