@@ -4,10 +4,10 @@ import {
   publicClientQuickNode,
   publicClientBaseOficial,
   publicClientDRPC,
-} from "../../client/viemClient";
-import { ERC20_ABI } from "../../abis/erc20/erc20";
-import { logger } from "logger/logger";
-import { parseEthereumAddress } from "@utils";
+} from "@client";
+import { logger } from "@logger";
+import { AddressValidator } from "@utils";
+import { ERC20_ABI } from "abis/erc20/erc20";
 
 // Create Base official RPC client if needed
 
@@ -23,8 +23,8 @@ export async function transferERC20(
 }> {
   try {
     const walletClient = getUserWalletClientQuickNode(privateKey);
-    const address = parseEthereumAddress(tokenAddress);
-    const to = parseEthereumAddress(toAddress);
+    const address = AddressValidator.parseEthereumAddress(tokenAddress);
+    const to = AddressValidator.parseEthereumAddress(toAddress);
     if (address && to) {
       const txHash = await walletClient.writeContract({
         address,

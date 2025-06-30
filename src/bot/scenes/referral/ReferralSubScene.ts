@@ -1,3 +1,4 @@
+import { GENERIC_ERRORS } from "@texts";
 import {
   BaseSubScene,
   GlobalSceneContext,
@@ -38,6 +39,8 @@ export class ReferralSubScene extends BaseSubScene<ReferralSceneData> {
           sceneData.menuMessageId = menuMessageId;
           this.updateSceneData(ctx, sceneData);
         }
+      } else {
+        ctx.reply(GENERIC_ERRORS.OLD_VERSION);
       }
     } catch (error) {
       this.log("error", ctx, `Error activating referral scene: ${error}`);

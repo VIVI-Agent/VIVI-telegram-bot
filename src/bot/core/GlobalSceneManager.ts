@@ -5,6 +5,7 @@ import {
   ISubScene,
   SubSceneState,
 } from "../types";
+import { GENERIC_ERRORS } from "@texts";
 
 export class GlobalSceneManagerImpl implements GlobalSceneManager {
   private readonly MAX_SCENES_PER_USER = 5;
@@ -136,9 +137,7 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
       // Check if scene exists in current active scenes (within the 5 most recent)
       if (!ctx.session.activeSubScenes[sceneInstanceId]) {
         logger.info(`❌ Scene ${sceneInstanceId} not found in active scenes`);
-        await ctx.reply(
-          "👒 You are using an old version of the bot! Type in or tap /start to use the new version."
-        );
+        await ctx.reply(GENERIC_ERRORS.OLD_VERSION);
         return;
       }
 

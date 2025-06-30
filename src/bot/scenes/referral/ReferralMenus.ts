@@ -53,7 +53,6 @@ export class ReferralMenus extends BaseMenus {
       );
     } catch (error) {
       this.log("error", ctx, `Error showing referral menu: ${error}`);
-      await ctx.reply(REFERRAL_TEXTS.ERRORS.LOADING_FAILED);
       return undefined;
     }
   }
