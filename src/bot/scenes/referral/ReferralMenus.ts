@@ -21,7 +21,7 @@ export class ReferralMenus extends BaseMenus {
     this.log("info", ctx, "Showing referral menu");
 
     try {
-      const referralLink = `https://t.me/${secrets.TELEGRAM_BOT_USERNAME}?start=ref_${sceneData.user.tgUsername}`;
+      const referralLink = `https://t.me/${secrets.TELEGRAM_BOT_USERNAME}?start=ref=${sceneData.user.tgUsername}`;
 
       const text = REFERRAL_TEXTS.FUNCTIONS.getReferralMessage(
         referralLink,

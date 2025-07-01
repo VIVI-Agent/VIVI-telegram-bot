@@ -16,11 +16,10 @@ export class InitUserSubScene extends BaseSubScene<InitUserSceneData> {
 
   async onActivate(ctx: GlobalSceneContext, data?: any): Promise<void> {
     this.log("info", ctx, "Activating InitUser scene");
-    this.log(
-      "debug",
-      ctx,
-      `Active scenes: ${Object.keys(ctx.session.activeSubScenes).join(", ")}`
-    );
+
+    if (data?.referralTgUsername) {
+      this.log("info", ctx, `Referral username: ${data.referralTgUsername}`);
+    }
 
     try {
       // Initialize scene data

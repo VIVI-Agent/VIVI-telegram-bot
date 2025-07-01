@@ -1,14 +1,9 @@
-import { GENERIC_BUTTONS, GENERIC_ERRORS } from "@texts";
-import { BaseSubScene, GlobalSceneContext } from "../../types";
+import { GENERIC_ERRORS } from "@texts";
+import { BaseSubScene, GlobalSceneContext, TradeSceneData } from "../../types";
 import { TradeMenus } from "./TradeMenus";
 import { TradeService } from "./TradeService";
 import { CB } from "./callbacks";
 import { TRADE_TEXTS } from "./messages";
-
-interface TradeSceneData {
-  menuMessageId?: number;
-  tradeData?: any;
-}
 
 export class TradeSubScene extends BaseSubScene<TradeSceneData> {
   private menus: TradeMenus;
@@ -29,11 +24,6 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
     };
 
     try {
-      const tradeData = await this.service.loadUserTradeData(ctx);
-      sceneData.tradeData = tradeData;
-
-      this.updateSceneData(ctx, sceneData);
-
       const menuMessageId = await this.menus.showTradeMenu(ctx, sceneData);
 
       if (menuMessageId) {

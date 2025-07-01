@@ -9,6 +9,47 @@ export const createAuthMiddleware: MiddlewareFn<GlobalSceneContext> = async (
 ) => {
   if (ctx.chat?.type === "private") {
     logger.info("AuthMiddleware");
+
+    // Procesar parámetros de referral solo si hay texto
+    let referralTgUsername = undefined;
+
+    if (ctx.message && "text" in ctx.message) {
+      const messageText = ctx.message.text;
+      logger.info("Message received: ", messageText);
+
+      // Capturar parámetros del comando /start
+      let startParams = undefined;
+
+      if (messageText.startsWith("/start")) {
+        const parts = messageText.split(" ");
+
+        if (parts.length > 1) {
+          startParams = parts[1];
+          logger.info("Start params detected: ", startParams);
+
+          // Caso: Referral - /start ref=username
+          if (startParams.startsWith("ref=")) {
+            referralTgUsername = startParams.split("=")[1];
+            logger.info("Referral detected: ", referralTgUsername);
+          } else {
+            logger.info("Unknown start parameter: ", startParams);
+          }
+        } else {
+          // /start sin parámetros
+          logger.info("Normal start without parameters");
+        }
+      }
+
+      // Agregar información al contexto solo si hay texto
+      ctx.startParams = {
+        original: startParams,
+        referralTgUsername,
+      };
+    } else {
+      // No hay texto (callback u otro tipo de mensaje)
+      logger.info("No text message (probably callback) - continuing with auth");
+    }
+
     // User Data From Telegram
     const tgUserId = ctx.from?.id.toString();
     const tgUsername = ctx.from?.username;
@@ -49,6 +90,7 @@ export const createAuthMiddleware: MiddlewareFn<GlobalSceneContext> = async (
             user = await ctx.services.userService.createUserWithSettings({
               tgUserId,
               tgUsername,
+              referralTgUsername,
             });
           }
           ctx.user = user;

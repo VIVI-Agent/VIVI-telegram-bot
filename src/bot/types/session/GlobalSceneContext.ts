@@ -13,4 +13,10 @@ export interface GlobalSceneContext extends Context {
   session: GlobalSessionData; // Global Session Data
   services: MyServices; // Services Injected by the GlobalSceneManager
   sceneManager: GlobalSceneManager; // Scene Manager for transitions
+
+  // Start command parameters
+  startParams?: {
+    original?: string;
+    referralTgUsername?: string;
+  };
 }

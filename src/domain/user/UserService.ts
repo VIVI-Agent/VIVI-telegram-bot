@@ -90,22 +90,23 @@ export class UserService {
   public async createUserWithSettings(data: {
     tgUserId?: string;
     tgUsername: string;
-    referredById?: number;
+    referralTgUsername?: string;
   }): Promise<UserWithAll> {
     try {
+      let referrer: User | null = null;
       // Log referral information if present
-      if (data.referredById) {
+      if (data.referralTgUsername) {
         this.logger.info(
-          `[createUserWithSettings] Creating user ${data.tgUsername} with referral ID: ${data.referredById}`
+          `[createUserWithSettings] Creating user ${data.tgUsername} with referral: ${data.referralTgUsername}`
         );
 
         // Validate that the referrer exists
-        const referrer = await this.getUserById(data.referredById);
+        referrer = await this.getUserByTgUsername(data.referralTgUsername);
         if (!referrer) {
           this.logger.warn(
-            `[createUserWithSettings] Referrer with ID ${data.referredById} not found, proceeding without referral`
+            `[createUserWithSettings] Referral ${data.referralTgUsername} not found, proceeding without referral`
           );
-          data.referredById = undefined;
+          data.referralTgUsername = undefined;
         }
       }
 
@@ -113,7 +114,7 @@ export class UserService {
         data: {
           tgUserId: data.tgUserId,
           tgUsername: data.tgUsername,
-          referredById: data.referredById,
+          referredById: referrer?.id ?? undefined,
           buySettings: {
             create: {
               amount1: 0.01,
@@ -138,12 +139,6 @@ export class UserService {
           sellSettings: true,
         },
       });
-
-      if (data.referredById) {
-        this.logger.info(
-          `[createUserWithSettings] User ${data.tgUsername} successfully created with referral`
-        );
-      }
 
       return newUser;
     } catch (error) {
@@ -262,5 +257,16 @@ export class UserService {
       totalReferralVolume: referralVolumeEthString,
       referrals: mappedReferrals,
     };
+  }
+
+  public async getUserByUsername(tgUsername: string): Promise<User | null> {
+    return this.prisma.user.findFirst({
+      where: {
+        tgUsername: {
+          equals: tgUsername.trim(),
+          mode: "insensitive",
+        },
+      },
+    });
   }
 }

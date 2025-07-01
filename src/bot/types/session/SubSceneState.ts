@@ -107,7 +107,9 @@ export interface PositionsSceneData {
 
 export interface TradeSceneData {
   menuMessageId?: number;
-  tradeMode?: "buy" | "sell";
+
+  state?: "waiting_token" | "trade_buy" | "trade_sell";
+
   token?: Token;
   wallets?: any[];
 
