@@ -204,6 +204,16 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
           await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
           return true;
 
+        case CB.SWITCH_TO_SELL:
+          await ctx.answerCbQuery();
+          await this.switchMode(ctx, "trade_sell");
+          return true;
+
+        case CB.SWITCH_TO_BUY:
+          await ctx.answerCbQuery();
+          await this.switchMode(ctx, "trade_buy");
+          return true;
+
         case CB.SELECT_WALLET:
           await ctx.answerCbQuery();
           if (params && params[0]) {
@@ -288,6 +298,47 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
           }
           return true;
 
+        case CB.SELECT_PERCENTAGE:
+          await ctx.answerCbQuery();
+          if (params && params[0]) {
+            // if params[0] is "custom", set sceneData.editMode.customAmount to true
+            // call menu to ask for custom percentage using askCustomPercentageMenu
+            if (params[0] === "custom") {
+              sceneData.editMode = {
+                customAmount: true, // Reutilizamos customAmount para custom percentage
+                customSlippage: false,
+              };
+              // Inicializar array para messageIds temporales
+              sceneData.tempCustomPercentageMessageIds = [];
+              this.updateSceneData(ctx, sceneData);
+              const customPercentageMessageId =
+                await this.menus.askCustomPercentageMenu(ctx);
+              if (customPercentageMessageId) {
+                // Guardar el messageId inicial del bot
+                sceneData.tempCustomPercentageMessageIds.push(
+                  customPercentageMessageId
+                );
+                this.updateSceneData(ctx, sceneData);
+              }
+            } else {
+              // Seleccionar un porcentaje predefinido
+              const percentage = params[0];
+              sceneData.selectedAmount = percentage;
+              sceneData.editMode = {
+                customAmount: false,
+                customSlippage: false,
+              };
+              // Limpiar datos de custom percentage cuando se selecciona un predefinido
+              sceneData.customAmount = undefined;
+              sceneData.tempCustomPercentageMessageIds = [];
+              this.updateSceneData(ctx, sceneData);
+
+              // Refresh quote with new percentage and update menu
+              await this.refreshQuoteAndMenu(ctx);
+            }
+          }
+          return true;
+
         case CB.SELECT_SLIPPAGE:
           await ctx.answerCbQuery();
           // Activar modo de edición de slippage custom
@@ -336,9 +387,23 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
           return true;
 
         case CB.SELL_TOKEN:
-          await ctx.answerCbQuery();
-          // TODO: Implement sell token logic
-          await ctx.reply("❤️ Sell Token functionality coming soon!");
+          try {
+            await ctx.answerCbQuery();
+            const selectedWallets = sceneData.selectedWallets;
+            const userId = ctx.user.id;
+
+            const instantReply = await ctx.reply("Processing...");
+
+            const results = await Promise.allSettled(
+              selectedWallets?.map((wid) =>
+                this.service.sellToken(ctx, sceneData, wid, userId)
+              ) || []
+            );
+
+            await ctx.deleteMessage(instantReply.message_id);
+          } catch (error) {
+            this.log("error", ctx, `Error selling token: ${error}`);
+          }
           return true;
 
         default:
@@ -392,66 +457,134 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
     }
     if (this.getSceneData(ctx).editMode?.customAmount && text) {
       const sceneData = this.getSceneData(ctx);
-      const validationResult = BuyAmountValidator.validate(text, false);
 
-      // Guardar el messageId del usuario en el array temporal
-      if (ctx.message?.message_id) {
-        sceneData.tempCustomAmountMessageIds =
-          sceneData.tempCustomAmountMessageIds || [];
-        sceneData.tempCustomAmountMessageIds.push(ctx.message.message_id);
-      }
+      // Check if we're in sell mode (custom percentage) or buy mode (custom amount)
+      if (sceneData.state === "trade_sell") {
+        // Handle custom percentage for sell mode
+        const percentageNum = parseFloat(text);
+        const isValidPercentage =
+          !isNaN(percentageNum) && percentageNum >= 1 && percentageNum <= 100;
 
-      if (validationResult.isValid) {
-        // Establecer el custom amount y también como selectedAmount
-        sceneData.customAmount = text;
-        sceneData.selectedAmount = text; // Importante: establecer también selectedAmount
+        // Guardar el messageId del usuario en el array temporal
+        if (ctx.message?.message_id) {
+          sceneData.tempCustomPercentageMessageIds =
+            sceneData.tempCustomPercentageMessageIds || [];
+          sceneData.tempCustomPercentageMessageIds.push(ctx.message.message_id);
+        }
 
-        // Borrar TODOS los mensajes temporales acumulados
-        if (
-          sceneData.tempCustomAmountMessageIds &&
-          sceneData.tempCustomAmountMessageIds.length > 0
-        ) {
-          for (const msgId of sceneData.tempCustomAmountMessageIds) {
-            try {
-              await ctx.deleteMessage(msgId);
-            } catch (error) {
-              this.log(
-                "debug",
-                ctx,
-                `Could not delete message ${msgId}: ${error}`
-              );
+        if (isValidPercentage) {
+          // Establecer el custom percentage y también como selectedAmount
+          sceneData.customAmount = text;
+          sceneData.selectedAmount = text; // Importante: establecer también selectedAmount
+
+          // Borrar TODOS los mensajes temporales acumulados
+          if (
+            sceneData.tempCustomPercentageMessageIds &&
+            sceneData.tempCustomPercentageMessageIds.length > 0
+          ) {
+            for (const msgId of sceneData.tempCustomPercentageMessageIds) {
+              try {
+                await ctx.deleteMessage(msgId);
+              } catch (error) {
+                this.log(
+                  "debug",
+                  ctx,
+                  `Could not delete message ${msgId}: ${error}`
+                );
+              }
             }
           }
+
+          sceneData.editMode = {
+            customAmount: false,
+            customSlippage: false,
+          };
+          sceneData.tempCustomPercentageMessageIds = []; // Limpiar array
+          this.updateSceneData(ctx, sceneData);
+
+          this.log("info", ctx, `Custom percentage set: ${text}%`);
+
+          // Refrescar quote y mostrar menu
+          await this.refreshQuoteAndMenu(ctx);
+        } else {
+          // Valor inválido: mostrar error y guardar su messageId
+          const errorMessage = await ctx.reply(
+            "❌ Percentage must be between 1 and 100. Please try again."
+          );
+          sceneData.tempCustomPercentageMessageIds =
+            sceneData.tempCustomPercentageMessageIds || [];
+          sceneData.tempCustomPercentageMessageIds.push(
+            errorMessage.message_id
+          );
+
+          const retryMessage = await this.menus.askCustomPercentageMenu(ctx);
+          if (retryMessage) {
+            sceneData.tempCustomPercentageMessageIds.push(retryMessage);
+          }
+          this.updateSceneData(ctx, sceneData);
         }
-
-        sceneData.editMode = {
-          customAmount: false,
-          customSlippage: false,
-        };
-        sceneData.tempCustomAmountMessageIds = []; // Limpiar array
-        this.updateSceneData(ctx, sceneData);
-
-        this.log("info", ctx, `Custom amount set: ${text}`);
       } else {
-        // Valor inválido: mostrar error y guardar su messageId
-        const errorMessage = await ctx.reply(
-          "❌ Invalid amount. Please try again."
-        );
-        sceneData.tempCustomAmountMessageIds =
-          sceneData.tempCustomAmountMessageIds || [];
-        sceneData.tempCustomAmountMessageIds.push(errorMessage.message_id);
+        // Handle custom amount for buy mode
+        const validationResult = BuyAmountValidator.validate(text, false);
 
-        const retryMessage = await this.menus.askCustomAmountMenu(ctx);
-        if (retryMessage) {
-          sceneData.tempCustomAmountMessageIds.push(retryMessage);
+        // Guardar el messageId del usuario en el array temporal
+        if (ctx.message?.message_id) {
+          sceneData.tempCustomAmountMessageIds =
+            sceneData.tempCustomAmountMessageIds || [];
+          sceneData.tempCustomAmountMessageIds.push(ctx.message.message_id);
         }
-        this.updateSceneData(ctx, sceneData);
+
+        if (validationResult.isValid) {
+          // Establecer el custom amount y también como selectedAmount
+          sceneData.customAmount = text;
+          sceneData.selectedAmount = text; // Importante: establecer también selectedAmount
+
+          // Borrar TODOS los mensajes temporales acumulados
+          if (
+            sceneData.tempCustomAmountMessageIds &&
+            sceneData.tempCustomAmountMessageIds.length > 0
+          ) {
+            for (const msgId of sceneData.tempCustomAmountMessageIds) {
+              try {
+                await ctx.deleteMessage(msgId);
+              } catch (error) {
+                this.log(
+                  "debug",
+                  ctx,
+                  `Could not delete message ${msgId}: ${error}`
+                );
+              }
+            }
+          }
+
+          sceneData.editMode = {
+            customAmount: false,
+            customSlippage: false,
+          };
+          sceneData.tempCustomAmountMessageIds = []; // Limpiar array
+          this.updateSceneData(ctx, sceneData);
+
+          this.log("info", ctx, `Custom amount set: ${text}`);
+
+          // Refrescar quote y mostrar menu
+          await this.refreshQuoteAndMenu(ctx);
+        } else {
+          // Valor inválido: mostrar error y guardar su messageId
+          const errorMessage = await ctx.reply(
+            "❌ Invalid amount. Please try again."
+          );
+          sceneData.tempCustomAmountMessageIds =
+            sceneData.tempCustomAmountMessageIds || [];
+          sceneData.tempCustomAmountMessageIds.push(errorMessage.message_id);
+
+          const retryMessage = await this.menus.askCustomAmountMenu(ctx);
+          if (retryMessage) {
+            sceneData.tempCustomAmountMessageIds.push(retryMessage);
+          }
+          this.updateSceneData(ctx, sceneData);
+        }
       }
 
-      // Solo refrescar quote y mostrar menu si la validación fue exitosa
-      if (validationResult.isValid) {
-        await this.refreshQuoteAndMenu(ctx);
-      }
       return true;
     }
 
@@ -552,6 +685,80 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
     } catch (error) {
       this.log("error", ctx, `Error refreshing quote: ${error}`);
       // Could show an error message to user if needed
+    }
+  }
+
+  /**
+   * Switch between buy and sell modes
+   */
+  private async switchMode(
+    ctx: GlobalSceneContext,
+    newMode: "trade_buy" | "trade_sell"
+  ): Promise<void> {
+    try {
+      const sceneData = this.getSceneData(ctx);
+      sceneData.state = newMode;
+      sceneData.selectedWallets = []; // Reset selected wallets
+
+      // Reset custom values when switching modes
+      sceneData.customAmount = undefined;
+      sceneData.customSlippage = undefined;
+      sceneData.editMode = {
+        customAmount: false,
+        customSlippage: false,
+      };
+
+      // Clean up temporary message arrays
+      sceneData.tempCustomAmountMessageIds = [];
+      sceneData.tempCustomPercentageMessageIds = [];
+      sceneData.tempCustomSlippageMessageIds = [];
+
+      // Set appropriate amounts and slippage for the new mode
+      if (newMode === "trade_buy") {
+        sceneData.selectedAmount =
+          sceneData.userWithSettings?.buySettings?.amount1?.toString();
+        sceneData.selectedSlippage =
+          sceneData.userWithSettings?.buySettings?.slippage?.toString();
+
+        // Auto-select wallets with enough ETH for buy
+        const ethAmount =
+          sceneData.userWithSettings?.buySettings?.amount1 ?? 0.01;
+        const ethAmountInWei = BigInt(Math.floor(ethAmount * 10 ** 18));
+
+        for (const wallet of sceneData.userWithWallets?.wallets || []) {
+          if (wallet.balance && BigInt(wallet.balance) > ethAmountInWei) {
+            sceneData.selectedWallets?.push(wallet.id);
+          }
+        }
+      } else {
+        sceneData.selectedAmount =
+          sceneData.userWithSettings?.sellSettings?.amount1?.toString();
+        sceneData.selectedSlippage =
+          sceneData.userWithSettings?.sellSettings?.slippage?.toString();
+
+        // Auto-select wallets with both ETH and tokens for sell
+        for (const wallet of sceneData.userWithWallets?.wallets || []) {
+          const hasEthBalance =
+            wallet.balance && BigInt(wallet.balance) > BigInt(0);
+          const hasTokenBalance =
+            wallet.holdings &&
+            wallet.holdings.balance &&
+            BigInt(wallet.holdings.balance) > BigInt(0);
+
+          if (hasEthBalance && hasTokenBalance) {
+            sceneData.selectedWallets?.push(wallet.id);
+          }
+        }
+      }
+
+      this.updateSceneData(ctx, sceneData);
+
+      // Refresh quote and update menu
+      await this.refreshQuoteAndMenu(ctx);
+
+      this.log("info", ctx, `Switched to ${newMode} mode`);
+    } catch (error) {
+      this.log("error", ctx, `Error switching mode: ${error}`);
     }
   }
 }

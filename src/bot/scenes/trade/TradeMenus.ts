@@ -10,6 +10,23 @@ export class TradeMenus extends BaseMenus {
     super(instanceId, "TradeMenus");
   }
 
+  /**
+   * Helper method to check if user has tokens to sell
+   */
+  private hasTokensToSell(sceneData: TradeSceneData): boolean {
+    if (!sceneData.userWithWallets?.wallets || !sceneData.token) {
+      return false;
+    }
+
+    return sceneData.userWithWallets.wallets.some((wallet) => {
+      return (
+        wallet.holdings &&
+        wallet.holdings.balance &&
+        BigInt(wallet.holdings.balance) > BigInt(0)
+      );
+    });
+  }
+
   async askForTokenMenu(ctx: GlobalSceneContext): Promise<number | undefined> {
     this.log("info", ctx, "Asking for token menu");
 
@@ -66,16 +83,21 @@ export class TradeMenus extends BaseMenus {
       const token = sceneData.token;
       const bestDex = sceneData.bestDex;
       const wallets = sceneData.userWithWallets?.wallets;
-      const buyAmount = sceneData.selectedAmount;
+      const amount = sceneData.selectedAmount;
 
       const text = TRADE_TEXTS.FUNCTIONS.getTradeMessage(
         token!,
         bestDex!,
         wallets!,
-        buyAmount!
+        amount!,
+        sceneData.state === "trade_sell" // Pass mode to determine message type
       );
 
-      const keyboard = this.getBuyKeyboard(sceneData);
+      // Use different keyboard based on the current mode
+      const keyboard =
+        sceneData.state === "trade_sell"
+          ? this.getSellKeyboard(sceneData)
+          : this.getBuyKeyboard(sceneData);
 
       return await this.sendOrUpdateMenu(
         ctx,
@@ -92,16 +114,19 @@ export class TradeMenus extends BaseMenus {
   }
 
   private getBuyKeyboard(sceneData: TradeSceneData) {
-    // Get all the wallets in sceneData.userWithWallets.wallets
-    // Create a keyboard with the wallets
-    // the text on the wallet should be W1 0.01 ETH like this
-    // so we need to compare wallets with selected wallets
     const wallets = sceneData.userWithWallets?.wallets;
     const selectedWallets = sceneData.selectedWallets || [];
     const keyboard = [];
 
-    // users have 5 amount options to buy, we need to create a keyboard with the amount options
-    // 3 buttons per line amount 1, 2, 3 first line. 4, 5, and Custom amount in the second line
+    // Add switch to sell button if user has tokens to sell
+    if (this.hasTokensToSell(sceneData)) {
+      keyboard.push([
+        Markup.button.callback(
+          "🔄 Switch to Sell",
+          this.createCallback(CB.SWITCH_TO_SELL)
+        ),
+      ]);
+    }
 
     const buySettings = sceneData.userWithSettings?.buySettings;
     const userAmounts = [
@@ -112,14 +137,10 @@ export class TradeMenus extends BaseMenus {
       buySettings!.amount5,
     ];
 
-    // create a keyboard with the amount options, add a custom amount button in the second line at the end
-    // only 1 amount can be selected at a time
     // Amount buttons (first 3)
     const firstRow = userAmounts
       .slice(0, 3)
       .map((amount: number, index: number) => {
-        // Si hay custom amount, ningún botón predefinido debe estar seleccionado
-        // Si no hay custom amount, verificar si este amount coincide con selectedAmount
         const isSelected =
           !sceneData.customAmount &&
           amount === Number(sceneData.selectedAmount);
@@ -132,8 +153,6 @@ export class TradeMenus extends BaseMenus {
 
     // Amount buttons (remaining 2 + custom)
     const secondRow = userAmounts.slice(3).map((amount: number) => {
-      // Si hay custom amount, ningún botón predefinido debe estar seleccionado
-      // Si no hay custom amount, verificar si este amount coincide con selectedAmount
       const isSelected =
         !sceneData.customAmount && amount === Number(sceneData.selectedAmount);
       return Markup.button.callback(
@@ -144,8 +163,8 @@ export class TradeMenus extends BaseMenus {
 
     // Custom amount button
     const customButtonText = sceneData.customAmount
-      ? `💰 ${sceneData.customAmount} Ξ 🟢` // Mostrar el valor custom y marcar como seleccionado
-      : `💰 Custom Ξ`; // Mostrar "Custom" cuando no hay valor
+      ? `💰 ${sceneData.customAmount} Ξ 🟢`
+      : `💰 Custom Ξ`;
 
     secondRow.push(
       Markup.button.callback(
@@ -156,12 +175,10 @@ export class TradeMenus extends BaseMenus {
     keyboard.push(secondRow);
 
     // Slippage button and refresh button
-    const slippageSettings =
-      sceneData.userWithSettings?.buySettings ||
-      sceneData.userWithSettings?.sellSettings;
+    const slippageSettings = sceneData.userWithSettings?.buySettings;
     const slippageButtonText = sceneData.customSlippage
-      ? `🛴 ${sceneData.customSlippage}% 🟢` // Mostrar el valor custom y marcar como seleccionado
-      : `🛴 ${slippageSettings?.slippage || 30}%`; // Mostrar valor por defecto
+      ? `🛴 ${sceneData.customSlippage}% 🟢`
+      : `🛴 ${slippageSettings?.slippage || 30}%`;
 
     keyboard.push([
       Markup.button.callback(
@@ -174,9 +191,8 @@ export class TradeMenus extends BaseMenus {
       ),
     ]);
 
-    // Verificar que tenemos wallets
+    // Wallet selection
     if (!wallets || wallets.length === 0) {
-      // Si no hay wallets, mostrar solo los botones de navegación
       keyboard.push([
         {
           text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
@@ -190,36 +206,156 @@ export class TradeMenus extends BaseMenus {
       return keyboard;
     }
 
-    let i = 1;
-    const walletButtons = []; // Array para almacenar todos los botones de wallets
-
-    for (const wallet of wallets) {
+    const walletButtons = wallets.map((wallet, index) => {
       const isSelected = selectedWallets.includes(wallet.id);
-      const walletButton = {
-        text: `W${i} ${isSelected ? " 🟢" : ""}`,
+      return {
+        text: `W${index + 1}${isSelected ? " 🟢" : ""}`,
         callback_data: this.createCallback(
           isSelected ? CB.UNSELECT_WALLET : CB.SELECT_WALLET,
           wallet.id.toString()
         ),
       };
-      walletButtons.push(walletButton); // Agregar al array de botones
-      i++;
-    }
+    });
 
-    // Agregar todas las wallets en una sola línea
     if (walletButtons.length > 0) {
       keyboard.push(walletButtons);
     }
 
-    const buyRow = [
+    // Buy button
+    keyboard.push([
       {
         text: "⚡ BUY",
         callback_data: this.createCallback(CB.BUY_TOKEN),
       },
+    ]);
+
+    // Navigation buttons
+    keyboard.push([
+      {
+        text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
+        callback_data: this.createCallback(CB.MAIN_MENU),
+      },
+      {
+        text: GENERIC_BUTTONS.DISMISS,
+        callback_data: this.createCallback(CB.DISMISS_TRADE),
+      },
+    ]);
+    return keyboard;
+  }
+
+  private getSellKeyboard(sceneData: TradeSceneData) {
+    const wallets = sceneData.userWithWallets?.wallets;
+    const selectedWallets = sceneData.selectedWallets || [];
+    const keyboard = [];
+
+    // Add switch to buy button
+    keyboard.push([
+      Markup.button.callback(
+        "🔄 Switch to Buy",
+        this.createCallback(CB.SWITCH_TO_BUY)
+      ),
+    ]);
+
+    const sellSettings = sceneData.userWithSettings?.sellSettings;
+    const userPercentages = [
+      sellSettings!.amount1, // These are percentages for sell
+      sellSettings!.amount2,
+      sellSettings!.amount3,
     ];
 
-    keyboard.push(buyRow);
+    // Percentage buttons (first 3)
+    const firstRow = userPercentages.slice(0, 3).map((percentage: number) => {
+      const isSelected =
+        !sceneData.customAmount &&
+        percentage === Number(sceneData.selectedAmount);
+      return Markup.button.callback(
+        `💰 ${percentage}%${isSelected ? " 🟢" : ""}`,
+        this.createCallback(CB.SELECT_PERCENTAGE, percentage?.toString() ?? "")
+      );
+    });
+    keyboard.push(firstRow);
 
+    // Percentage buttons (remaining 2 + custom)
+    const secondRow = userPercentages.slice(3).map((percentage: number) => {
+      const isSelected =
+        !sceneData.customAmount &&
+        percentage === Number(sceneData.selectedAmount);
+      return Markup.button.callback(
+        `💰 ${percentage}%${isSelected ? " 🟢" : ""}`,
+        this.createCallback(CB.SELECT_PERCENTAGE, percentage?.toString() ?? "")
+      );
+    });
+
+    // Custom percentage button
+    const customButtonText = sceneData.customAmount
+      ? `💰 ${sceneData.customAmount}% 🟢`
+      : `💰 Custom %`;
+
+    secondRow.push(
+      Markup.button.callback(
+        customButtonText,
+        this.createCallback(CB.SELECT_PERCENTAGE, "custom")
+      )
+    );
+    keyboard.push(secondRow);
+
+    // Slippage button and refresh button
+    const slippageSettings = sceneData.userWithSettings?.sellSettings;
+    const slippageButtonText = sceneData.customSlippage
+      ? `🛴 ${sceneData.customSlippage}% 🟢`
+      : `🛴 ${slippageSettings?.slippage || 30}%`;
+
+    keyboard.push([
+      Markup.button.callback(
+        slippageButtonText,
+        this.createCallback(CB.SELECT_SLIPPAGE)
+      ),
+      Markup.button.callback(
+        "🔄 Refresh",
+        this.createCallback(CB.REFRESH_QUOTE)
+      ),
+    ]);
+
+    // Wallet selection (only show wallets with tokens)
+    if (!wallets || wallets.length === 0) {
+      keyboard.push([
+        {
+          text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
+          callback_data: this.createCallback(CB.MAIN_MENU),
+        },
+        {
+          text: GENERIC_BUTTONS.DISMISS,
+          callback_data: this.createCallback(CB.DISMISS_TRADE),
+        },
+      ]);
+      return keyboard;
+    }
+
+    const walletButtons = wallets.map((wallet, index) => {
+      const isSelected = selectedWallets.includes(wallet.id);
+      const originalIndex = wallets.findIndex((w) => w.id === wallet.id) + 1;
+      return {
+        text: `W${originalIndex}${isSelected ? " 🟢" : ""}`,
+        callback_data: this.createCallback(
+          isSelected ? CB.UNSELECT_WALLET : CB.SELECT_WALLET,
+          wallet.id.toString()
+        ),
+      };
+    });
+
+    if (walletButtons.length > 0) {
+      keyboard.push(walletButtons);
+    }
+
+    // Sell button
+    keyboard.push([
+      {
+        text: "⚡ SELL",
+        callback_data: this.createCallback(CB.SELL_TOKEN),
+      },
+    ]);
+
+    // Navigation buttons
     keyboard.push([
       {
         text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
@@ -239,6 +375,20 @@ export class TradeMenus extends BaseMenus {
     this.log("info", ctx, "Asking for custom amount menu");
 
     const text = TRADE_TEXTS.FUNCTIONS.getCustomAmountMessage();
+    const sentMessage = await ctx.reply(text, {
+      reply_markup: {
+        force_reply: true,
+      },
+    });
+    return sentMessage.message_id;
+  }
+
+  async askCustomPercentageMenu(
+    ctx: GlobalSceneContext
+  ): Promise<number | undefined> {
+    this.log("info", ctx, "Asking for custom percentage menu");
+
+    const text = TRADE_TEXTS.FUNCTIONS.getCustomPercentageMessage();
     const sentMessage = await ctx.reply(text, {
       reply_markup: {
         force_reply: true,

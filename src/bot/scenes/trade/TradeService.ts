@@ -5,6 +5,12 @@ import {
   buyTokenVirtualToken,
   buyTokenVIVIApeStore,
   buyTokenZoraMultiHop,
+  sellToken,
+  sellTokenAerodrome,
+  sellTokenV3,
+  sellTokenVirtualToken,
+  sellTokenVIVIApeStore,
+  sellTokenZoraMultiHop,
   findOrCreateToken,
   getBestDexForBuyEthToToken,
   getBestDexForSellTokenToEth,
@@ -17,6 +23,7 @@ import { TRADE_TEXTS } from "./messages";
 import { publicClientQuickNode } from "@client";
 import { FEE_TIERS } from "blockchain/services/const";
 import { BuyHandlers } from "./BuyHandlers";
+import { SellHandlers } from "./SellHandlers";
 
 export class TradeService extends BaseService {
   constructor(instanceId: string) {
@@ -399,6 +406,290 @@ export class TradeService extends BaseService {
       }
     } catch (error) {
       this.log("error", ctx, `Error buying token: ${error}`);
+      console.log(error);
+      throw error;
+    }
+  }
+
+  /**
+   * Execute sell order
+   */
+  async sellToken(
+    ctx: GlobalSceneContext,
+    sceneData: TradeSceneData,
+    walletId: number,
+    userId: number
+  ) {
+    try {
+      this.log("info", ctx, `Selling token for user: ${userId}`);
+      this.log("info", ctx, `Wallet ID: ${walletId}`);
+      this.log("info", ctx, `Token: ${sceneData.token?.symbol}`);
+      this.log("info", ctx, `Token address: ${sceneData.token?.address}`);
+      this.log("info", ctx, `Percentage: ${sceneData.selectedAmount}%`);
+      this.log("info", ctx, `Slippage: ${sceneData.selectedSlippage}`);
+      this.log("info", ctx, `Best Dex: ${sceneData.bestDex?.dexName}`);
+
+      const token = sceneData.token;
+      const tokenAddress = AddressValidator.parseEthereumAddress(
+        token?.address!
+      );
+      const slippage = Number(sceneData.selectedSlippage) || 50;
+      const bestDex = sceneData.bestDex;
+      const percentage = Number(sceneData.selectedAmount) || 25;
+
+      const feePercent = await calculateFinalFee(
+        ctx,
+        token!.address as Address,
+        userId
+      );
+
+      // Get wallet with holdings
+      const walletWithHoldings =
+        await ctx.services.walletService.getWalletWithHoldings(walletId);
+      if (!walletWithHoldings) {
+        throw new Error(`Wallet ${walletId} not found`);
+      }
+
+      // Find the specific holding for this token
+      const holding = walletWithHoldings.holdings.find(
+        (h) => h.tokenId === token!.id
+      );
+
+      if (
+        !holding ||
+        !holding.balance ||
+        BigInt(holding.balance) === BigInt(0)
+      ) {
+        throw new Error(`No tokens to sell in wallet ${walletId}`);
+      }
+
+      // Calculate amount to sell based on percentage
+      const totalBalance = BigInt(holding.balance);
+      const tokenAmount = (totalBalance * BigInt(percentage)) / BigInt(100);
+
+      if (tokenAmount === BigInt(0)) {
+        throw new Error(`Calculated sell amount is 0 for ${percentage}%`);
+      }
+
+      this.log(
+        "info",
+        ctx,
+        `Selling ${tokenAmount} tokens (${percentage}% of ${totalBalance})`
+      );
+
+      let txHash: `0x${string}`;
+      let waitReceipt: Promise<TransactionReceipt>;
+
+      if (bestDex?.dexName === "UniswapV2") {
+        const swapRes = await sellToken({
+          ctx,
+          userId,
+          walletId,
+          tokenAddress: tokenAddress as Address,
+          tokenAmount,
+          slippagePercent: slippage,
+          feePercent,
+          bestDex,
+        });
+        txHash = swapRes.txHash;
+        waitReceipt = swapRes.waitReceipt;
+
+        const { parseLogsFn, onMinedFn } = SellHandlers.buildUniV2SellHandlers(
+          ctx,
+          token!,
+          userId,
+          walletId,
+          txHash
+        );
+
+        await handleTxNotificationsWithLinks({
+          ctx,
+          txHash,
+          waitReceipt,
+          parseLogsFn,
+          onMinedFn,
+          swapType: "Sell",
+          symbol: token!.symbol,
+          tokenAddress: token!.address,
+        });
+      } else if (
+        bestDex?.dexName === "AerodromeVolatile" ||
+        bestDex?.dexName === "AerodromeStable"
+      ) {
+        const stable = bestDex?.dexName === "AerodromeStable";
+        const swapRes = await sellTokenAerodrome({
+          ctx,
+          userId,
+          walletId,
+          tokenAddress: tokenAddress as Address,
+          tokenAmount,
+          slippagePercent: slippage,
+          feePercent,
+          stable,
+          bestDex,
+        });
+        txHash = swapRes.txHash;
+        waitReceipt = swapRes.waitReceipt;
+
+        const { parseLogsFn: aeroParseLogsFn, onMinedFn: aeroOnMinedFn } =
+          SellHandlers.buildAeroSellHandlers(
+            ctx,
+            token!,
+            userId,
+            walletId,
+            txHash
+          );
+
+        await handleTxNotificationsWithLinks({
+          ctx,
+          txHash,
+          waitReceipt,
+          parseLogsFn: aeroParseLogsFn,
+          onMinedFn: aeroOnMinedFn,
+          swapType: "Sell",
+          symbol: token!.symbol,
+          tokenAddress: token!.address,
+        });
+      } else if (bestDex?.dexName === "UniswapV3") {
+        const tier = bestDex?.feeTier || 3000;
+        const swapRes = await sellTokenV3({
+          ctx,
+          userId,
+          walletId,
+          tokenAddress: tokenAddress as Address,
+          tokenAmount,
+          feePercent,
+          feeTier: tier,
+          bestDex,
+        });
+        txHash = swapRes.txHash;
+        waitReceipt = swapRes.waitReceipt;
+
+        const { parseLogsFn: uniV3ParseLogsFn, onMinedFn: uniV3OnMinedFn } =
+          SellHandlers.buildUniV3SellHandlers(
+            ctx,
+            token!,
+            userId,
+            walletId,
+            txHash
+          );
+
+        await handleTxNotificationsWithLinks({
+          ctx,
+          txHash,
+          waitReceipt,
+          parseLogsFn: uniV3ParseLogsFn,
+          onMinedFn: uniV3OnMinedFn,
+          swapType: "Sell",
+          symbol: token!.symbol,
+          tokenAddress: token!.address,
+        });
+      } else if (bestDex?.dexName === "ZoraMultiHop") {
+        const swapRes = await sellTokenZoraMultiHop({
+          ctx,
+          userId,
+          walletId,
+          tokenAddress: tokenAddress as Address,
+          tokenAmount,
+          slippagePercent: slippage,
+          feePercent,
+          bestDex,
+        });
+        txHash = swapRes.txHash;
+        waitReceipt = swapRes.waitReceipt;
+
+        const { parseLogsFn: zoraParseLogsFn, onMinedFn: zoraOnMinedFn } =
+          SellHandlers.buildZoraSellHandlers(
+            ctx,
+            token!,
+            userId,
+            walletId,
+            txHash
+          );
+
+        await handleTxNotificationsWithLinks({
+          ctx,
+          txHash,
+          waitReceipt,
+          parseLogsFn: zoraParseLogsFn,
+          onMinedFn: zoraOnMinedFn,
+          swapType: "Sell",
+          symbol: token!.symbol,
+          tokenAddress: token!.address,
+        });
+      } else if (bestDex?.dexName === "ApeStore") {
+        const swapRes = await sellTokenVIVIApeStore({
+          ctx,
+          userId,
+          walletId,
+          tokenAddress: tokenAddress as Address,
+          tokenAmount,
+          slippagePercent: slippage,
+          feePercent,
+          bestDex,
+        });
+        txHash = swapRes.txHash;
+        waitReceipt = swapRes.waitReceipt;
+
+        const {
+          parseLogsFn: apeStoreParseLogsFn,
+          onMinedFn: apeStoreOnMinedFn,
+        } = SellHandlers.buildApeStoreSellHandlers(
+          ctx,
+          token!,
+          userId,
+          walletId,
+          txHash
+        );
+
+        await handleTxNotificationsWithLinks({
+          ctx,
+          txHash,
+          waitReceipt,
+          parseLogsFn: apeStoreParseLogsFn,
+          onMinedFn: apeStoreOnMinedFn,
+          swapType: "Sell",
+          symbol: token!.symbol,
+          tokenAddress: token!.address,
+        });
+      } else if (bestDex?.dexName === "VirtualToken") {
+        const swapRes = await sellTokenVirtualToken({
+          ctx,
+          userId,
+          walletId,
+          tokenAddress: tokenAddress as Address,
+          tokenAmount,
+          slippagePercent: slippage,
+          feePercent,
+          bestDex,
+        });
+        txHash = swapRes.txHash;
+        waitReceipt = swapRes.waitReceipt;
+
+        const { parseLogsFn: virtualParseLogsFn, onMinedFn: virtualOnMinedFn } =
+          SellHandlers.buildVirtualTokenSellHandlers(
+            ctx,
+            token!,
+            userId,
+            walletId,
+            txHash
+          );
+
+        await handleTxNotificationsWithLinks({
+          ctx,
+          txHash,
+          waitReceipt,
+          parseLogsFn: virtualParseLogsFn,
+          onMinedFn: virtualOnMinedFn,
+          swapType: "Sell",
+          symbol: token!.symbol,
+          tokenAddress: token!.address,
+        });
+      } else {
+        throw new Error(TRADE_TEXTS.ERRORS.NO_POOL);
+      }
+    } catch (error) {
+      this.log("error", ctx, `Error selling token: ${error}`);
       console.log(error);
       throw error;
     }

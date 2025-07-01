@@ -131,5 +131,6 @@ export interface TradeSceneData {
 
   // Arrays para guardar todos los messageIds temporales durante validación
   tempCustomAmountMessageIds?: number[];
+  tempCustomPercentageMessageIds?: number[];
   tempCustomSlippageMessageIds?: number[];
 }

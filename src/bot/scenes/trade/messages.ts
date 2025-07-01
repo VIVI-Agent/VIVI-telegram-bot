@@ -16,6 +16,8 @@ export const TRADE_TEXTS = {
 
   FUNCTIONS: {
     getCustomAmountMessage: () => `💰 X Ξ\nEnter the amount to buy:`,
+    getCustomPercentageMessage: () =>
+      `💰 X%\nEnter the percentage to sell (1-100):`,
     getCustomSlippageMessage: () => `Slippage\n🛴 Enter the slippage amount:`,
     getInvalidTokenMessage: () =>
       `That doesn't look like a valid token address. Please try again.`,
@@ -24,7 +26,8 @@ export const TRADE_TEXTS = {
       token: Token,
       bestDex: DexQuoteResultBuy | DexQuoteResultSell,
       wallets: Wallet[],
-      buyAmount: string
+      amount: string,
+      isSell?: boolean
     ) => {
       const tokenSymbol = token.symbol;
       const tokenAddress = token.address;
@@ -56,12 +59,21 @@ export const TRADE_TEXTS = {
         })
         .join(" | ");
 
+      // Different message format for buy vs sell
+      const swapDirection = isSell ? "Sell" : "Buy";
+      const amountLabel = isSell ? "💸 <b>Sell:</b> " : "💸 <b>Buy:</b> ";
+      const amountSuffix = isSell ? "%" : " Ξ";
+      const outputLabel = isSell ? "💰 <b>Get:</b> " : "💰 <b>Out:</b> ";
+      const outputValue = isSell
+        ? `${outputAmount} ETH`
+        : `${outputAmount} ${tokenSymbol}`;
+
       return `<b>${tokenSymbol}</b> <a href="https://basescan.org/token/${tokenAddress}">🔗BASE</a>
 <code>${tokenAddress}</code>
 
 <b>Swap Info:</b>
-💸 <b>Buy:</b> ${buyAmount} Ξ
-💰 <b>Out:</b> ${outputAmount} ${tokenSymbol}
+${amountLabel}${amount}${amountSuffix}
+${outputLabel}${outputValue}
 ${dexName}
 
 ${walletBalances}`;
