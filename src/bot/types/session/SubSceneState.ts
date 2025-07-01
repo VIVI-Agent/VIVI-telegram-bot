@@ -1,7 +1,9 @@
+import { DexQuoteResultBuy, DexQuoteResultSell } from "@blockchain";
 import {
   UserWithSettings,
   UserWithWalletAndHoldings,
   UserWithWallets,
+  UserWithWalletsAndHolding,
   WalletWithHoldings,
 } from "@domain";
 import { BuySettings, Token } from "@prisma/client";
@@ -111,10 +113,12 @@ export interface TradeSceneData {
   state?: "waiting_token" | "trade_buy" | "trade_sell";
 
   token?: Token;
-  wallets?: any[];
 
-  selectedWallets?: any[];
+  userWithSettings?: UserWithSettings;
+  userWithWallets?: UserWithWalletsAndHolding;
+  selectedWallets?: number[];
 
+  bestDex?: DexQuoteResultBuy | DexQuoteResultSell;
   selectedAmount?: string;
   selectedSlippage?: string;
 
@@ -122,4 +126,10 @@ export interface TradeSceneData {
     customAmount?: boolean;
     customSlippage?: boolean;
   };
+  customAmount?: string;
+  customSlippage?: string;
+
+  // Arrays para guardar todos los messageIds temporales durante validación
+  tempCustomAmountMessageIds?: number[];
+  tempCustomSlippageMessageIds?: number[];
 }

@@ -64,6 +64,14 @@ export type UserWithWalletAndHoldings = User & {
   >;
 };
 
+export type UserWithWalletsAndHolding = User & {
+  wallets: Array<
+    Wallet & {
+      holdings: (Holding & { token: Token }) | null;
+    }
+  >;
+};
+
 export type UserWithSelectedWalletAndHoldings = User & {
   wallets: Array<
     Wallet & {

@@ -12,12 +12,14 @@ export class SellAmountValidator {
    * Validates a buy amount string input
    * Returns the parsed number if valid, or error if invalid
    */
-  static validate(input: string): SellValidationResult {
+  static validate(input: string, isSlippage: boolean): SellValidationResult {
     // Check for empty input
     if (!input || input.trim() === "") {
       return {
         isValid: false,
-        error: "Please enter Slippage (Min 0, Max 50)",
+        error: isSlippage
+          ? "Please enter Slippage (Min 0, Max 50)"
+          : "Please enter Sell Percentage (Min 0, Max 100)",
       };
     }
 
@@ -31,7 +33,9 @@ export class SellAmountValidator {
     if (isNaN(numValue)) {
       return {
         isValid: false,
-        error: "Please enter a valid Slippage (Min 0, Max 50)",
+        error: isSlippage
+          ? "Please enter a valid Slippage (Min 0, Max 50)"
+          : "Please enter a valid Sell Percentage (Min 0, Max 100)",
       };
     }
 
@@ -39,14 +43,18 @@ export class SellAmountValidator {
     if (numValue <= 0) {
       return {
         isValid: false,
-        error: "Slippage must be greater than 0",
+        error: isSlippage
+          ? "Slippage must be greater than 0"
+          : "Sell Percentage must be greater than 0",
       };
     }
 
-    if (numValue > 100) {
+    if (numValue > (isSlippage ? 50 : 100)) {
       return {
         isValid: false,
-        error: "Slippage must be less than 50",
+        error: isSlippage
+          ? "Slippage must be less than 50"
+          : "Sell Percentage must be less than 100",
       };
     }
 

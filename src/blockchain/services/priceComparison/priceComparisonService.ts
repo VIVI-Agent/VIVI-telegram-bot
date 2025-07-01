@@ -10,6 +10,8 @@ import {
 import { logger } from "@logger";
 import { contracts } from "@config";
 
+const ONLYSUMMARY = true;
+
 export interface DexQuoteResultBuy {
   dexName: string;
   amountOut: string;
@@ -46,17 +48,21 @@ async function getQuoteUniswapV2(
       feeTier: 3000,
     };
 
-    logger.info(
-      `UniswapV2 BUY Quote: ${result.formattedOut} tokens for ${formatUnits(
-        amountIn,
-        18
-      )} ETH`
-    );
+    if (!ONLYSUMMARY) {
+      logger.info(
+        `UniswapV2 BUY Quote: ${result.formattedOut} tokens for ${formatUnits(
+          amountIn,
+          18
+        )} ETH`
+      );
+    }
     return result;
   } catch (err) {
-    logger.error(
-      `UniswapV2 BUY failed - No pool available for token ${tokenOut}`
-    );
+    if (!ONLYSUMMARY) {
+      logger.error(
+        `UniswapV2 BUY failed - No pool available for token ${tokenOut}`
+      );
+    }
     return null;
   }
 }
@@ -74,7 +80,9 @@ async function getBestQuoteUniswapV3(
   let bestAmountOut = 0n;
   let bestTier = 0;
 
-  logger.info(`UniswapV3 BUY - Testing fee tiers: [${feeTiers.join(", ")}]`);
+  if (!ONLYSUMMARY) {
+    logger.info(`UniswapV3 BUY - Testing fee tiers: [${feeTiers.join(", ")}]`);
+  }
 
   for (const feeTier of feeTiers) {
     try {
@@ -94,21 +102,27 @@ async function getBestQuoteUniswapV3(
       });
       const [amountOut] = result as [bigint, bigint, number, bigint];
 
-      logger.info(
-        `  └─ Fee ${feeTier}: ${formatUnits(amountOut, decimalsOut)} tokens`
-      );
+      if (!ONLYSUMMARY) {
+        logger.info(
+          `  └─ Fee ${feeTier}: ${formatUnits(amountOut, decimalsOut)} tokens`
+        );
+      }
 
       if (amountOut > bestAmountOut) {
         bestAmountOut = amountOut;
         bestTier = feeTier;
       }
     } catch (err) {
-      logger.error(`  └─ Fee ${feeTier}: No pool available`);
+      if (!ONLYSUMMARY) {
+        logger.error(`  └─ Fee ${feeTier}: No pool available`);
+      }
     }
   }
 
   if (bestAmountOut === 0n) {
-    logger.error(`UniswapV3 BUY - No pools found for any fee tier`);
+    if (!ONLYSUMMARY) {
+      logger.error(`UniswapV3 BUY - No pools found for any fee tier`);
+    }
     return null;
   }
 
@@ -119,9 +133,11 @@ async function getBestQuoteUniswapV3(
     feeTier: bestTier,
   };
 
-  logger.info(
-    `UniswapV3 BUY Best Quote: ${result.formattedOut} tokens (fee: ${bestTier})`
-  );
+  if (!ONLYSUMMARY) {
+    logger.info(
+      `UniswapV3 BUY Best Quote: ${result.formattedOut} tokens (fee: ${bestTier})`
+    );
+  }
   return result;
 }
 
@@ -162,7 +178,9 @@ async function getQuoteAerodrome(
 
     const out = amounts[amounts.length - 1];
     if (out === 0n) {
-      logger.error(`Aerodrome${poolType} BUY - Zero output amount`);
+      if (!ONLYSUMMARY) {
+        logger.error(`Aerodrome${poolType} BUY - Zero output amount`);
+      }
       return null;
     }
 
@@ -173,12 +191,16 @@ async function getQuoteAerodrome(
       feeTier: stable ? 500 : 3000,
     };
 
-    logger.info(
-      `Aerodrome${poolType} BUY Quote: ${result.formattedOut} tokens`
-    );
+    if (!ONLYSUMMARY) {
+      logger.info(
+        `Aerodrome${poolType} BUY Quote: ${result.formattedOut} tokens`
+      );
+    }
     return result;
   } catch (err) {
-    logger.error(`Aerodrome${poolType} BUY failed - No pool available`);
+    if (!ONLYSUMMARY) {
+      logger.error(`Aerodrome${poolType} BUY failed - No pool available`);
+    }
     return null;
   }
 }
@@ -204,10 +226,14 @@ async function getQuoteApeStoreBuy(
       feeTier: 3000, // ApeStore uses a fixed fee tier
     };
 
-    logger.info(`ApeStore BUY Quote: ${result.formattedOut} tokens`);
+    if (!ONLYSUMMARY) {
+      logger.info(`ApeStore BUY Quote: ${result.formattedOut} tokens`);
+    }
     return result;
   } catch (err) {
-    logger.error(`ApeStore BUY failed - ${err}`);
+    if (!ONLYSUMMARY) {
+      logger.error(`ApeStore BUY failed - ${err}`);
+    }
     return null;
   }
 }
@@ -227,9 +253,11 @@ async function getZoraMultiHopQuoteBuy(
   const fee3 = 10000; // ZORA → TOKEN
   const fees = [fee1, fee2, fee3];
 
-  logger.info(
-    `ZoraMultiHop BUY - Path: ETH → USDC (${fee1}) → ZORA (${fee2}) → TOKEN (${fee3})`
-  );
+  if (!ONLYSUMMARY) {
+    logger.info(
+      `ZoraMultiHop BUY - Path: ETH → USDC (${fee1}) → ZORA (${fee2}) → TOKEN (${fee3})`
+    );
+  }
 
   try {
     // Construir el path para exactInput multi-hop
@@ -262,14 +290,20 @@ async function getZoraMultiHopQuoteBuy(
       fees: fees,
     };
 
-    logger.info(
-      `ZoraMultiHop BUY Quote: ${
-        quoteResult.formattedOut
-      } tokens (fees: ${fees.join(",")})`
-    );
+    if (!ONLYSUMMARY) {
+      logger.info(
+        `ZoraMultiHop BUY Quote: ${
+          quoteResult.formattedOut
+        } tokens (fees: ${fees.join(",")})`
+      );
+    }
     return quoteResult;
   } catch (err) {
-    logger.error(`ZoraMultiHop BUY failed - fees=[${fees.join(",")}] - ${err}`);
+    if (!ONLYSUMMARY) {
+      logger.error(
+        `ZoraMultiHop BUY failed - fees=[${fees.join(",")}] - ${err}`
+      );
+    }
     return null;
   }
 }
@@ -283,7 +317,9 @@ async function getVirtualTokenQuoteBuy(
   amountIn: bigint,
   decimalsOut: number
 ): Promise<DexQuoteResultBuy | null> {
-  logger.info(`VirtualToken BUY - Path: ETH → VIRTUAL → TOKEN`);
+  if (!ONLYSUMMARY) {
+    logger.info(`VirtualToken BUY - Path: ETH → VIRTUAL → TOKEN`);
+  }
 
   try {
     // VirtualToken route: ETH → VIRTUAL → TARGET_TOKEN
@@ -311,10 +347,14 @@ async function getVirtualTokenQuoteBuy(
       path: path.join("→"),
     };
 
-    logger.info(`VirtualToken BUY Quote: ${result.formattedOut} tokens`);
+    if (!ONLYSUMMARY) {
+      logger.info(`VirtualToken BUY Quote: ${result.formattedOut} tokens`);
+    }
     return result;
   } catch (err) {
-    logger.error(`VirtualToken BUY failed - No pool available`);
+    if (!ONLYSUMMARY) {
+      logger.error(`VirtualToken BUY failed - No pool available`);
+    }
     return null;
   }
 }

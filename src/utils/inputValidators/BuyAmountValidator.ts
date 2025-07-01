@@ -12,12 +12,14 @@ export class BuyAmountValidator {
    * Validates a buy amount string input
    * Returns the parsed number if valid, or error if invalid
    */
-  static validate(input: string): BuyValidationResult {
+  static validate(input: string, isSlippage: boolean): BuyValidationResult {
     // Check for empty input
     if (!input || input.trim() === "") {
       return {
         isValid: false,
-        error: "Please enter ETH amount (eg: 0.001)",
+        error: isSlippage
+          ? "Please enter Slippage (Min 0, Max 50)"
+          : "Please enter ETH amount (eg: 0.001)",
       };
     }
 
@@ -31,7 +33,9 @@ export class BuyAmountValidator {
     if (isNaN(numValue)) {
       return {
         isValid: false,
-        error: "Please enter a valid ETH amount  (eg: 0.001)",
+        error: isSlippage
+          ? "Please enter a valid Slippage (Min 0, Max 50)"
+          : "Please enter a valid ETH amount (eg: 0.001)",
       };
     }
 
@@ -39,7 +43,16 @@ export class BuyAmountValidator {
     if (numValue <= 0) {
       return {
         isValid: false,
-        error: "ETH amount must be greater than 0 (eg: 0.001)",
+        error: isSlippage
+          ? "Slippage must be greater than 0"
+          : "ETH amount must be greater than 0 (eg: 0.001)",
+      };
+    }
+
+    if (numValue > 50) {
+      return {
+        isValid: false,
+        error: "Slippage must be less than 50",
       };
     }
 

@@ -1,7 +1,12 @@
 // src/domain/user/UserService.ts
 import winston from "winston";
 import { Prisma, PrismaClient, SpeedEnum, User } from "@prisma/client";
-import { UserWithAll, UserWithSettings, UserWithWallets } from "./UserTypes";
+import {
+  UserWithAll,
+  UserWithSettings,
+  UserWithWallets,
+  UserWithWalletsAndHolding,
+} from "./UserTypes";
 import { formatEther } from "viem";
 import { formatEthBalanceWithSymbol, formatPoints } from "@utils";
 
@@ -268,5 +273,37 @@ export class UserService {
         },
       },
     });
+  }
+
+  public async getUserWalletsWithHolding(
+    userId: number,
+    tokenId: number
+  ): Promise<UserWithWalletsAndHolding | null> {
+    const result = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        wallets: {
+          where: { isDeleted: false },
+          include: {
+            holdings: {
+              where: { tokenId, balance: { not: "0" } },
+              include: { token: true },
+              take: 1, // Solo tomar el primer holding
+            },
+          },
+        },
+      },
+    });
+
+    if (!result) return null;
+
+    // Transformar el resultado para que holdings sea un objeto individual en lugar de array
+    return {
+      ...result,
+      wallets: result.wallets.map((wallet) => ({
+        ...wallet,
+        holdings: wallet.holdings[0] || null, // Tomar el primer holding o null si no existe
+      })),
+    } as UserWithWalletsAndHolding;
   }
 }

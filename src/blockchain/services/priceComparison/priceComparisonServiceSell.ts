@@ -10,6 +10,8 @@ import {
 import { contracts } from "@config";
 import { logger } from "@logger";
 
+const ONLYSUMMARY = true;
+
 export interface DexQuoteResultSell {
   dexName: string;
   amountOut: string;
@@ -46,17 +48,21 @@ async function getQuoteUniswapV2Sell(
       feeTier: 3000,
     };
 
-    logger.info(
-      `UniswapV2 SELL Quote: ${result.formattedOut} ETH for ${formatUnits(
-        amountIn,
-        18
-      )} tokens`
-    );
+    if (!ONLYSUMMARY) {
+      logger.info(
+        `UniswapV2 SELL Quote: ${result.formattedOut} ETH for ${formatUnits(
+          amountIn,
+          18
+        )} tokens`
+      );
+    }
     return result;
   } catch (err) {
-    logger.error(
-      `UniswapV2 SELL failed - No pool available for token ${tokenIn}`
-    );
+    if (!ONLYSUMMARY) {
+      logger.error(
+        `UniswapV2 SELL failed - No pool available for token ${tokenIn}`
+      );
+    }
     return null;
   }
 }
@@ -74,7 +80,9 @@ async function getBestQuoteUniswapV3Sell(
   let bestAmountOut = 0n;
   let bestTier = 0;
 
-  logger.info(`UniswapV3 SELL - Testing fee tiers: [${feeTiers.join(", ")}]`);
+  if (!ONLYSUMMARY) {
+    logger.info(`UniswapV3 SELL - Testing fee tiers: [${feeTiers.join(", ")}]`);
+  }
 
   for (const feeTier of feeTiers) {
     try {
@@ -95,21 +103,27 @@ async function getBestQuoteUniswapV3Sell(
 
       const [amountOut] = result as [bigint, bigint, number, bigint];
 
-      logger.info(
-        `  └─ Fee ${feeTier}: ${formatUnits(amountOut, decimalsOut)} ETH`
-      );
+      if (!ONLYSUMMARY) {
+        logger.info(
+          `  └─ Fee ${feeTier}: ${formatUnits(amountOut, decimalsOut)} ETH`
+        );
+      }
 
       if (amountOut > bestAmountOut) {
         bestAmountOut = amountOut;
         bestTier = feeTier;
       }
     } catch (err) {
-      logger.error(`  └─ Fee ${feeTier}: No pool available`);
+      if (!ONLYSUMMARY) {
+        logger.error(`  └─ Fee ${feeTier}: No pool available`);
+      }
     }
   }
 
   if (bestAmountOut === 0n) {
-    logger.error(`UniswapV3 SELL - No pools found for any fee tier`);
+    if (!ONLYSUMMARY) {
+      logger.error(`UniswapV3 SELL - No pools found for any fee tier`);
+    }
     return null;
   }
 
@@ -120,9 +134,11 @@ async function getBestQuoteUniswapV3Sell(
     feeTier: bestTier,
   };
 
-  logger.info(
-    `UniswapV3 SELL Best Quote: ${result.formattedOut} ETH (fee: ${bestTier})`
-  );
+  if (!ONLYSUMMARY) {
+    logger.info(
+      `UniswapV3 SELL Best Quote: ${result.formattedOut} ETH (fee: ${bestTier})`
+    );
+  }
   return result;
 }
 
@@ -164,7 +180,9 @@ async function getQuoteAerodromeSell(
 
     const out = amounts[amounts.length - 1];
     if (out === 0n) {
-      logger.error(`Aerodrome${poolType} SELL - Zero output amount`);
+      if (!ONLYSUMMARY) {
+        logger.error(`Aerodrome${poolType} SELL - Zero output amount`);
+      }
       return null;
     }
 
@@ -175,10 +193,16 @@ async function getQuoteAerodromeSell(
       feeTier: stable ? 500 : 3000,
     };
 
-    logger.info(`Aerodrome${poolType} SELL Quote: ${result.formattedOut} ETH`);
+    if (!ONLYSUMMARY) {
+      logger.info(
+        `Aerodrome${poolType} SELL Quote: ${result.formattedOut} ETH`
+      );
+    }
     return result;
   } catch (err) {
-    logger.error(`Aerodrome${poolType} SELL failed - No pool available`);
+    if (!ONLYSUMMARY) {
+      logger.error(`Aerodrome${poolType} SELL failed - No pool available`);
+    }
     return null;
   }
 }
@@ -205,10 +229,14 @@ async function getQuoteApeStoreSell(
       feeTier: 0,
     };
 
-    logger.info(`ApeStore SELL Quote: ${result.formattedOut} ETH`);
+    if (!ONLYSUMMARY) {
+      logger.info(`ApeStore SELL Quote: ${result.formattedOut} ETH`);
+    }
     return result;
   } catch (err) {
-    logger.error(`ApeStore SELL failed - ${err}`);
+    if (!ONLYSUMMARY) {
+      logger.error(`ApeStore SELL failed - ${err}`);
+    }
     return null;
   }
 }
@@ -247,10 +275,14 @@ async function getVirtualTokenQuoteSell(
       path: path.join(" → "),
     };
 
-    logger.info(`VirtualToken SELL Quote: ${result.formattedOut} ETH`);
+    if (!ONLYSUMMARY) {
+      logger.info(`VirtualToken SELL Quote: ${result.formattedOut} ETH`);
+    }
     return result;
   } catch (err) {
-    logger.error(`VirtualToken SELL failed - No pool available`);
+    if (!ONLYSUMMARY) {
+      logger.error(`VirtualToken SELL failed - No pool available`);
+    }
     return null;
   }
 }

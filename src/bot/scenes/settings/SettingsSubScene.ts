@@ -272,7 +272,10 @@ export class SettingsSubScene extends BaseSubScene<SettingsSceneData> {
           `✅ Updating buy settings for ${editField.fieldName} with value: ${text}`
         );
 
-        const validation = BuyAmountValidator.validate(text);
+        const validation = BuyAmountValidator.validate(
+          text,
+          editField.fieldName === "slippage"
+        );
         if (!validation.isValid) {
           this.log("warn", ctx, `❌ Validation failed: ${validation.error}`);
           await ctx.reply(`❌ ${validation.error}`);
@@ -324,7 +327,10 @@ export class SettingsSubScene extends BaseSubScene<SettingsSceneData> {
           `📝 Updating sell settings for ${editField.fieldName} with value: ${text}`
         );
 
-        const validationSell = SellAmountValidator.validate(text);
+        const validationSell = SellAmountValidator.validate(
+          text,
+          editField.fieldName === "slippage"
+        );
         if (!validationSell.isValid) {
           this.log(
             "warn",
