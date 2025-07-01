@@ -13,6 +13,27 @@ export class TradeMenus extends BaseMenus {
     super(instanceId, "TradeMenus");
   }
 
+  async askForTokenMenu(ctx: GlobalSceneContext): Promise<number | undefined> {
+    this.log("info", ctx, "Asking for token menu");
+
+    const text = TRADE_TEXTS.FUNCTIONS.getWaitingTokenMessage();
+
+    const keyboard = [
+      [
+        {
+          text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
+          callback_data: this.createCallback(CB.MAIN_MENU),
+        },
+        {
+          text: GENERIC_BUTTONS.DISMISS,
+          callback_data: this.createCallback(CB.DISMISS_TRADE),
+        },
+      ],
+    ];
+
+    return await this.sendOrUpdateMenu(ctx, text, keyboard, "HTML");
+  }
+
   /**
    * Show the main trade menu
    */

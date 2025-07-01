@@ -1,4 +1,8 @@
+import { findOrCreateToken } from "@blockchain";
 import { BaseService, GlobalSceneContext } from "../../types";
+import { Address } from "viem";
+import { AddressValidator } from "@utils";
+import { TRADE_TEXTS } from "./messages";
 
 export class TradeService extends BaseService {
   constructor(instanceId: string) {
@@ -8,18 +12,18 @@ export class TradeService extends BaseService {
   /**
    * Load user trade data
    */
-  async loadUserTradeData(ctx: GlobalSceneContext) {
+  async findToken(ctx: GlobalSceneContext, tokenAddress: Address) {
     try {
       this.log("info", ctx, `Loading trade data for user: ${ctx.user.id}`);
+      this.log("info", ctx, `Token address: ${tokenAddress}`);
+      if (!AddressValidator.parseEthereumAddress(tokenAddress)) {
+        throw new Error(TRADE_TEXTS.ERRORS.TOKEN_NOT_FOUND);
+      }
 
-      // TODO: Implement actual trade data loading
-      return {
-        activeOrders: [],
-        tradeHistory: [],
-      };
+      return await findOrCreateToken(ctx, tokenAddress);
     } catch (error) {
       this.log("error", ctx, `Error loading trade data: ${error}`);
-      throw error;
+      throw new Error(TRADE_TEXTS.ERRORS.TOKEN_NOT_FOUND);
     }
   }
 

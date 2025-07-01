@@ -105,7 +105,7 @@ export class PositionsMenus extends BaseMenus {
         else if (parseFloat(pctChange) < 0) emoji = "📉";
 
         // Create sell link for the token symbol
-        const sellLink = `https://t.me/${secrets.TELEGRAM_BOT_USERNAME}?start=sell_${item.token.address}`;
+        const sellLink = `https://t.me/${secrets.TELEGRAM_BOT_USERNAME}?start=trade_sell_${item.token.address}`;
 
         text += `${emoji} <b><a href="${sellLink}">${
           item.token.symbol

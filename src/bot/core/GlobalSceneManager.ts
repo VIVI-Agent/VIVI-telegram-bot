@@ -6,6 +6,7 @@ import {
   SubSceneState,
 } from "../types";
 import { GENERIC_ERRORS } from "@texts";
+import { AddressValidator } from "@utils";
 
 export class GlobalSceneManagerImpl implements GlobalSceneManager {
   private readonly MAX_SCENES_PER_USER = 5;
@@ -257,6 +258,15 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
           return; // Stop routing once handled
         }
       }
+    }
+
+    const tokenAddress = AddressValidator.parseEthereumAddress(text);
+    if (tokenAddress) {
+      await this.activateScene(ctx, "Trade", {
+        mode: "buy",
+        token: tokenAddress,
+      });
+      return;
     }
 
     logger.info(`❌ Unhandled text: ${text}`);

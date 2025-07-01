@@ -17,13 +17,16 @@ export class TokenService {
     });
   }
 
-  public async createToken(address: Address, token: Token): Promise<Token> {
+  public async createToken(
+    address: Address,
+    token: Partial<Token>
+  ): Promise<Token> {
     return await this.prisma.token.create({
       data: {
         address: address,
-        name: token.name,
-        symbol: token.symbol,
-        decimals: token.decimals,
+        name: token.name ?? "Unknown",
+        symbol: token.symbol ?? "UNK",
+        decimals: token.decimals ?? 18,
       },
     });
   }

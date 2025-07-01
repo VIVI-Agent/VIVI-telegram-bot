@@ -57,9 +57,8 @@ bot.start(async (ctx) => {
       logger.info(`Start params: ${startParams}`);
       if (startParams) {
         // https://t.me/VIVIBaseBot?start=trade_sell_0x06e3685982b381ab7ecb760c8fbd7d92ac368a27
-        const [action] = startParams.split("_");
+        const [action, mode, token] = startParams.split("_");
         if (action === "trade") {
-          const [mode, token] = startParams.split("_");
           await sceneManager.activateScene(ctx, "Trade", { mode, token });
           return;
         }

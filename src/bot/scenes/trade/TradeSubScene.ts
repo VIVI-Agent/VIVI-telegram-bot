@@ -4,6 +4,7 @@ import { TradeMenus } from "./TradeMenus";
 import { TradeService } from "./TradeService";
 import { CB } from "./callbacks";
 import { TRADE_TEXTS } from "./messages";
+import { findOrCreateToken } from "@blockchain";
 
 export class TradeSubScene extends BaseSubScene<TradeSceneData> {
   private menus: TradeMenus;
@@ -17,14 +18,44 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
 
   async onActivate(ctx: GlobalSceneContext, data?: any): Promise<void> {
     this.log("info", ctx, "Activating Trade scene");
-
+    this.log("info", ctx, `Data: ${JSON.stringify(data)}`);
     // Initialize scene data
     const sceneData: TradeSceneData = {
       menuMessageId: undefined,
+      state: "waiting_token",
+      token: undefined,
+      editMode: {
+        customAmount: false,
+        customSlippage: false,
+      },
     };
 
+    // Handle data parameters
     try {
-      const menuMessageId = await this.menus.showTradeMenu(ctx, sceneData);
+      if (data && (data.mode === "buy" || data.mode === "sell")) {
+        if (data.token) {
+          const token = await this.service.findToken(ctx, data.token);
+          if (token) {
+            // Set token data
+            sceneData.token = token;
+            sceneData.state = data.mode === "buy" ? "trade_buy" : "trade_sell";
+            this.updateSceneData(ctx, sceneData);
+          } else {
+            // Handle error or invalid token address
+            await ctx.reply(TRADE_TEXTS.ERRORS.TOKEN_NOT_FOUND);
+            await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
+            return;
+          }
+        }
+      }
+
+      let menuMessageId: number | undefined;
+
+      if (sceneData.state === "waiting_token") {
+        menuMessageId = await this.menus.askForTokenMenu(ctx);
+      } else {
+        menuMessageId = await this.menus.showTradeMenu(ctx, sceneData);
+      }
 
       if (menuMessageId) {
         sceneData.menuMessageId = menuMessageId;
