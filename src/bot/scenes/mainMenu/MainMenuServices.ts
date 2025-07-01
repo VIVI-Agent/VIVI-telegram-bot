@@ -200,7 +200,6 @@ export class MainMenuServices extends BaseService {
                       tokenId: token.id,
                       walletId: wallet.id,
                       newBalance: chainBalance,
-                      holdingService: ctx.services.holdingService,
                     });
                   }
                 } catch (err) {

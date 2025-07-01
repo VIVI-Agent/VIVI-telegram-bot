@@ -204,19 +204,6 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
           await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
           return true;
 
-        // Trade actions
-        case CB.BUY_TOKEN:
-          await ctx.answerCbQuery();
-          // TODO: Implement buy token logic
-          await ctx.reply("💚 Buy Token functionality coming soon!");
-          return true;
-
-        case CB.SELL_TOKEN:
-          await ctx.answerCbQuery();
-          // TODO: Implement sell token logic
-          await ctx.reply("❤️ Sell Token functionality coming soon!");
-          return true;
-
         case CB.SELECT_WALLET:
           await ctx.answerCbQuery();
           if (params && params[0]) {
@@ -325,6 +312,33 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
         case CB.REFRESH_QUOTE:
           await ctx.answerCbQuery();
           await this.refreshQuoteAndMenu(ctx);
+          return true;
+
+        // Trade actions
+        case CB.BUY_TOKEN:
+          try {
+            await ctx.answerCbQuery();
+            const selectedWallets = sceneData.selectedWallets;
+            const userId = ctx.user.id;
+
+            const instantReply = await ctx.reply("Processing...");
+
+            const results = await Promise.allSettled(
+              selectedWallets?.map((wid) =>
+                this.service.buyToken(ctx, sceneData, wid, userId)
+              ) || []
+            );
+
+            await ctx.deleteMessage(instantReply.message_id);
+          } catch (error) {
+            this.log("error", ctx, `Error buying token: ${error}`);
+          }
+          return true;
+
+        case CB.SELL_TOKEN:
+          await ctx.answerCbQuery();
+          // TODO: Implement sell token logic
+          await ctx.reply("❤️ Sell Token functionality coming soon!");
           return true;
 
         default:

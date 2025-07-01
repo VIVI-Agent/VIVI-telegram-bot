@@ -9,9 +9,8 @@ export class HoldingService {
     tokenId: number;
     walletId: number;
     newBalance: bigint;
-    holdingService: HoldingService;
   }): Promise<void> {
-    const { userId, tokenId, walletId, newBalance, holdingService } = params;
+    const { userId, tokenId, walletId, newBalance } = params;
     const balanceStr = newBalance.toString();
 
     // Buscar el holding existente

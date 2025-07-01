@@ -5,12 +5,13 @@ import { formatEthBalanceWithSymbol } from "@utils";
 
 export const TRADE_TEXTS = {
   BUTTONS: {
-    BUY_TOKEN: "💚 Buy Token",
-    SELL_TOKEN: "❤️ Sell Token",
+    BUY_TOKEN: "⚡ BUY",
+    SELL_TOKEN: "⚡ SELL",
   },
 
   ERRORS: {
     TOKEN_NOT_FOUND: "That doesn't look like a valid token address",
+    NO_POOL: "No pool found for this token",
   },
 
   FUNCTIONS: {

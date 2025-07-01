@@ -283,6 +283,7 @@ export class UserService {
       where: { id: userId },
       include: {
         wallets: {
+          orderBy: { createdAt: "asc" },
           where: { isDeleted: false },
           include: {
             holdings: {
@@ -305,5 +306,33 @@ export class UserService {
         holdings: wallet.holdings[0] || null, // Tomar el primer holding o null si no existe
       })),
     } as UserWithWalletsAndHolding;
+  }
+
+  public async updateUserVolumeBuy(
+    id: number,
+    ethInBN: bigint
+  ): Promise<User | null> {
+    const ethInWeiDecimal = new Prisma.Decimal(ethInBN.toString()); // Convertir a Decimal
+
+    return this.prisma.user.update({
+      where: { id },
+      data: {
+        totalVolumeBoughtWei: { increment: ethInWeiDecimal }, // Usar Decimal
+      },
+    });
+  }
+
+  public async updateUserVolumeSell(
+    id: number,
+    ethInBN: bigint
+  ): Promise<User | null> {
+    const ethInWeiDecimal = new Prisma.Decimal(ethInBN.toString()); // Convertir a Decimal
+
+    return this.prisma.user.update({
+      where: { id },
+      data: {
+        totalVolumeSoldWei: { increment: ethInWeiDecimal }, // Usar Decimal
+      },
+    });
   }
 }

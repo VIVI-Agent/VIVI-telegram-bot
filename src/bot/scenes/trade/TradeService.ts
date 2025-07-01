@@ -1,14 +1,22 @@
 import {
+  buyToken,
+  buyTokenAerodrome,
+  buyTokenV3,
+  buyTokenVirtualToken,
+  buyTokenVIVIApeStore,
+  buyTokenZoraMultiHop,
   findOrCreateToken,
   getBestDexForBuyEthToToken,
   getBestDexForSellTokenToEth,
+  handleTxNotificationsWithLinks,
 } from "@blockchain";
 import { BaseService, GlobalSceneContext, TradeSceneData } from "../../types";
-import { Address } from "viem";
-import { AddressValidator } from "@utils";
+import { Address, parseEther, TransactionReceipt } from "viem";
+import { AddressValidator, calculateFinalFee } from "@utils";
 import { TRADE_TEXTS } from "./messages";
 import { publicClientQuickNode } from "@client";
 import { FEE_TIERS } from "blockchain/services/const";
+import { BuyHandlers } from "./BuyHandlers";
 
 export class TradeService extends BaseService {
   constructor(instanceId: string) {
@@ -161,37 +169,237 @@ export class TradeService extends BaseService {
   /**
    * Execute buy order
    */
-  async executeBuyOrder(
+  async buyToken(
     ctx: GlobalSceneContext,
-    tokenAddress: string,
-    amount: string
+    sceneData: TradeSceneData,
+    walletId: number,
+    userId: number
   ) {
     try {
-      this.log("info", ctx, `Executing buy order for user: ${ctx.user.id}`);
+      this.log("info", ctx, `Buying token for user: ${userId}`);
+      this.log("info", ctx, `Wallet ID: ${walletId}`);
+      this.log("info", ctx, `Token: ${sceneData.token?.symbol}`);
+      this.log("info", ctx, `Token address: ${sceneData.token?.address}`);
+      this.log("info", ctx, `Amount: ${sceneData.selectedAmount}`);
+      this.log("info", ctx, `Slippage: ${sceneData.selectedSlippage}`);
+      this.log("info", ctx, `Best Dex: ${sceneData.bestDex?.dexName}`);
+      const token = sceneData.token;
+      const tokenAddress = AddressValidator.parseEthereumAddress(
+        token?.address!
+      );
+      const amountEth = parseEther(sceneData.selectedAmount!);
+      const slippage = Number(sceneData.selectedSlippage) || 50;
+      const bestDex = sceneData.bestDex;
 
-      // TODO: Implement buy order logic
-      throw new Error("Buy order not implemented yet");
+      const feePercent = await calculateFinalFee(
+        ctx,
+        token!.address as Address,
+        userId
+      );
+
+      let txHash: `0x${string}`;
+      let waitReceipt: Promise<TransactionReceipt>;
+
+      if (bestDex?.dexName === "UniswapV2") {
+        const swapRes = await buyToken({
+          ctx,
+          userId,
+          walletId,
+          tokenAddress: tokenAddress as Address,
+          amountEth,
+          slippagePercent: slippage,
+          bestDex: bestDex, // Pasar bestDex al servicio
+          feePercent,
+        });
+        txHash = swapRes.txHash;
+        waitReceipt = swapRes.waitReceipt;
+
+        // Build parseLogs y onMined
+        const { parseLogsFn, onMinedFn } = BuyHandlers.buildUniV2BuyHandlers(
+          ctx,
+          token!,
+          userId,
+          walletId,
+          txHash
+        );
+        await handleTxNotificationsWithLinks({
+          ctx,
+          txHash,
+          waitReceipt,
+          parseLogsFn,
+          onMinedFn,
+          swapType: "Buy",
+          symbol: token!.symbol,
+          tokenAddress: token!.address,
+        });
+      } else if (
+        bestDex?.dexName === "AerodromeVolatile" ||
+        bestDex?.dexName === "AerodromeStable"
+      ) {
+        const stable = bestDex?.dexName === "AerodromeStable";
+        const swapRes = await buyTokenAerodrome({
+          ctx,
+          userId,
+          walletId,
+          tokenAddress: tokenAddress as Address,
+          amountEth,
+          slippagePercent: slippage,
+          feePercent,
+          bestDex: bestDex, // Pasar bestDex al servicio
+          stable,
+        });
+        txHash = swapRes.txHash;
+        waitReceipt = swapRes.waitReceipt;
+
+        const { parseLogsFn, onMinedFn } = BuyHandlers.buildAeroBuyHandlers(
+          ctx,
+          token!,
+          userId,
+          walletId,
+          txHash
+        );
+        await handleTxNotificationsWithLinks({
+          ctx,
+          txHash,
+          waitReceipt,
+          parseLogsFn,
+          onMinedFn,
+          swapType: "Buy",
+          symbol: token!.symbol,
+          tokenAddress: token!.address,
+        });
+      } else if (bestDex?.dexName === "UniswapV3") {
+        const tier = bestDex?.feeTier || 3000;
+        const swapRes = await buyTokenV3({
+          ctx,
+          userId,
+          walletId,
+          tokenAddress: tokenAddress as Address,
+          amountEth,
+          feePercent,
+          feeTier: tier,
+          bestDex: bestDex, // Pasar bestDex al servicio
+        });
+        txHash = swapRes.txHash;
+        waitReceipt = swapRes.waitReceipt;
+
+        const { parseLogsFn, onMinedFn } = BuyHandlers.buildUniV3BuyHandlers(
+          ctx,
+          token!,
+          userId,
+          walletId,
+          txHash
+        );
+        await handleTxNotificationsWithLinks({
+          ctx,
+          txHash,
+          waitReceipt,
+          parseLogsFn,
+          onMinedFn,
+          swapType: "Buy",
+          symbol: token!.symbol,
+          tokenAddress: token!.address,
+        });
+      } else if (bestDex?.dexName === "ZoraMultiHop") {
+        const swapRes = await buyTokenZoraMultiHop({
+          ctx,
+          userId,
+          walletId,
+          tokenAddress: tokenAddress as Address,
+          amountEth,
+          slippagePercent: slippage,
+          feePercent,
+          bestDex: bestDex, // Pasar bestDex al servicio
+        });
+        txHash = swapRes.txHash;
+        waitReceipt = swapRes.waitReceipt;
+
+        const { parseLogsFn, onMinedFn } = BuyHandlers.buildZoraBuyHandlers(
+          ctx,
+          token!,
+          userId,
+          walletId,
+          txHash
+        );
+        await handleTxNotificationsWithLinks({
+          ctx,
+          txHash,
+          waitReceipt,
+          parseLogsFn,
+          onMinedFn,
+          swapType: "Buy",
+          symbol: token!.symbol,
+          tokenAddress: token!.address,
+        });
+      } else if (bestDex?.dexName === "ApeStore") {
+        const swapRes = await buyTokenVIVIApeStore({
+          ctx,
+          userId,
+          walletId,
+          tokenAddress: tokenAddress as Address,
+          amountEth,
+          slippagePercent: slippage,
+          feePercent,
+          bestDex: bestDex,
+        });
+        txHash = swapRes.txHash;
+        waitReceipt = swapRes.waitReceipt;
+
+        const { parseLogsFn, onMinedFn } = BuyHandlers.buildApeStoreBuyHandlers(
+          ctx,
+          token!,
+          userId,
+          walletId,
+          txHash
+        );
+        await handleTxNotificationsWithLinks({
+          ctx,
+          txHash,
+          waitReceipt,
+          parseLogsFn,
+          onMinedFn,
+          swapType: "Buy",
+          symbol: token!.symbol,
+          tokenAddress: token!.address,
+        });
+      } else if (bestDex?.dexName === "VirtualToken") {
+        const swapRes = await buyTokenVirtualToken({
+          ctx,
+          userId,
+          walletId,
+          tokenAddress: tokenAddress as Address,
+          amountEth,
+          slippagePercent: slippage,
+          feePercent,
+          bestDex: bestDex,
+        });
+        txHash = swapRes.txHash;
+        waitReceipt = swapRes.waitReceipt;
+
+        const { parseLogsFn, onMinedFn } =
+          BuyHandlers.buildVirtualTokenBuyHandlers(
+            ctx,
+            token!,
+            userId,
+            walletId,
+            txHash
+          );
+        await handleTxNotificationsWithLinks({
+          ctx,
+          txHash,
+          waitReceipt,
+          parseLogsFn,
+          onMinedFn,
+          swapType: "Buy",
+          symbol: token!.symbol,
+          tokenAddress: token!.address,
+        });
+      } else {
+        throw new Error(TRADE_TEXTS.ERRORS.NO_POOL);
+      }
     } catch (error) {
-      this.log("error", ctx, `Error executing buy order: ${error}`);
-      throw error;
-    }
-  }
-
-  /**
-   * Execute sell order
-   */
-  async executeSellOrder(
-    ctx: GlobalSceneContext,
-    tokenAddress: string,
-    amount: string
-  ) {
-    try {
-      this.log("info", ctx, `Executing sell order for user: ${ctx.user.id}`);
-
-      // TODO: Implement sell order logic
-      throw new Error("Sell order not implemented yet");
-    } catch (error) {
-      this.log("error", ctx, `Error executing sell order: ${error}`);
+      this.log("error", ctx, `Error buying token: ${error}`);
+      console.log(error);
       throw error;
     }
   }

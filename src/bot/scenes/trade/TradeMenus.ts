@@ -211,6 +211,15 @@ export class TradeMenus extends BaseMenus {
       keyboard.push(walletButtons);
     }
 
+    const buyRow = [
+      {
+        text: "⚡ BUY",
+        callback_data: this.createCallback(CB.BUY_TOKEN),
+      },
+    ];
+
+    keyboard.push(buyRow);
+
     keyboard.push([
       {
         text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
