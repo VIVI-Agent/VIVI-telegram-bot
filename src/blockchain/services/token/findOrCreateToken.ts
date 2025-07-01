@@ -1,7 +1,7 @@
 // src/bot/services/tokens/findOrCreateToken.ts
 import { Address } from "viem";
 import { Token } from "@prisma/client";
-import { getTokenInfo } from "./getTokenInfo";
+import { getTokenInfo } from "@blockchain";
 import { GlobalSceneContext } from "@types";
 import { logger } from "@logger";
 

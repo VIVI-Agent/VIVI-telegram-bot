@@ -172,4 +172,10 @@ export class WalletService {
       data: { balance: balance.toString() },
     });
   }
+
+  public async getSelectedWallet(userId: number): Promise<Wallet | null> {
+    return this.prisma.wallet.findFirst({
+      where: { userId, isSelected: true, isDeleted: false },
+    });
+  }
 }
