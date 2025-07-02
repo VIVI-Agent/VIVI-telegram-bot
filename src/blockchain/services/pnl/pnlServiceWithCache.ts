@@ -4,6 +4,7 @@ import { getBestDexForSellTokenToEth } from "@blockchain";
 import { publicClientDRPC } from "@client";
 import { PnlData } from "@domain";
 import { GlobalSceneContext } from "@types";
+import { pnlUpdateEmitter } from "./pnlUpdateEmitter";
 
 export interface PnlSummary {
   token: { symbol: string; address: string; id: number; decimals: number };
@@ -252,8 +253,21 @@ export class PnlServiceWithCache {
       }
 
       logger.debug(
-        `[PnlServiceWithCache] Background PnL update completed for user ${userId}`
+        `[PnlServiceWithCache] Background PnL update completed for user ${userId}, emitting update event`
       );
+
+      // Check how many instances are subscribed before emitting
+      const subscriptionCount = pnlUpdateEmitter.getSubscriptionCount(userId);
+      const subscriptions = pnlUpdateEmitter.getSubscriptions(userId);
+
+      logger.debug(
+        `[PnlServiceWithCache] Found ${subscriptionCount} subscribed instances for user ${userId}: ${subscriptions
+          .map((s) => `${s.sceneType}:${s.instanceId}`)
+          .join(", ")}`
+      );
+
+      // Emit event to notify listening scenes that data has been updated
+      pnlUpdateEmitter.emitPnlUpdate(userId, freshData);
     } catch (error) {
       logger.error(
         `[PnlServiceWithCache] Error updating PnL cache in background:`,

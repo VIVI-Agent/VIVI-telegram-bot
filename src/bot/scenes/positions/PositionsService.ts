@@ -2,8 +2,37 @@ import { PnlServiceWithCache } from "blockchain/services/pnl/pnlServiceWithCache
 import { BaseService, GlobalSceneContext } from "../../types";
 
 export class PositionsService extends BaseService {
+  private backgroundOperations: Set<Promise<any>> = new Set();
+  private isActive: boolean = true;
+
   constructor(instanceId: string) {
     super(instanceId, "PositionsService");
+  }
+
+  /**
+   * Mark service as inactive (called during cleanup)
+   */
+  deactivate(): void {
+    this.isActive = false;
+    // Note: Using console.log instead of this.log since ctx might not be available during cleanup
+    console.log(
+      `[PositionsService:${this.instanceId}] Service marked as inactive`
+    );
+  }
+
+  /**
+   * Check if service is still active
+   */
+  private checkIfActive(ctx: GlobalSceneContext): boolean {
+    if (!this.isActive) {
+      this.log(
+        "warn",
+        ctx,
+        `Service ${this.instanceId} is no longer active, aborting operation`
+      );
+      return false;
+    }
+    return true;
   }
 
   /**
@@ -11,6 +40,9 @@ export class PositionsService extends BaseService {
    */
   async loadUserPnl(ctx: GlobalSceneContext) {
     try {
+      if (!this.checkIfActive(ctx))
+        return { data: [], isFromCache: false, needsUpdate: false };
+
       this.log("info", ctx, `Loading positions for user: ${ctx.user.id}`);
 
       const pnlService = new PnlServiceWithCache();
@@ -21,12 +53,20 @@ export class PositionsService extends BaseService {
       );
 
       // If we got cached data but it needs update, trigger background refresh
-      if (pnlResult.isFromCache && pnlResult.needsUpdate) {
+      if (pnlResult.isFromCache && pnlResult.needsUpdate && this.isActive) {
         this.log("info", ctx, "Cache is stale, triggering background update");
-        // Fire and forget - update in background
-        this.updateCacheInBackground(ctx, pnlService).catch((error) => {
-          this.log("error", ctx, `Background cache update failed: ${error}`);
-        });
+        // Fire and forget - update in background with timeout protection
+        const backgroundUpdate = this.updateCacheInBackground(ctx, pnlService)
+          .catch((error) => {
+            this.log("error", ctx, `Background cache update failed: ${error}`);
+          })
+          .finally(() => {
+            // Remove from tracking set when done
+            this.backgroundOperations.delete(backgroundUpdate);
+          });
+
+        // Track background operation
+        this.backgroundOperations.add(backgroundUpdate);
       }
 
       this.log(
@@ -47,6 +87,9 @@ export class PositionsService extends BaseService {
    */
   async refreshPositions(ctx: GlobalSceneContext) {
     try {
+      if (!this.checkIfActive(ctx))
+        return { data: [], isFromCache: false, needsUpdate: false };
+
       this.log(
         "info",
         ctx,
@@ -61,8 +104,10 @@ export class PositionsService extends BaseService {
         ctx.user.id
       );
 
-      // Save to cache
-      await pnlService.saveFreshDataToCache(ctx, ctx.user.id, freshData);
+      // Save to cache only if service is still active
+      if (this.isActive) {
+        await pnlService.saveFreshDataToCache(ctx, ctx.user.id, freshData);
+      }
 
       this.log("info", ctx, `Positions refreshed: ${freshData.length} tokens`);
 
@@ -78,7 +123,7 @@ export class PositionsService extends BaseService {
   }
 
   /**
-   * Update cache in background without blocking UI
+   * Update cache in background without blocking UI (with timeout protection)
    */
   private async updateCacheInBackground(
     ctx: GlobalSceneContext,
@@ -87,12 +132,53 @@ export class PositionsService extends BaseService {
     try {
       this.log("debug", ctx, "Starting background cache update");
 
-      await pnlService.updateUserPnlCacheInBackground(ctx, ctx.user.id);
+      // 🛡️ PROTECTION: Add timeout to prevent hanging operations
+      const updatePromise = pnlService.updateUserPnlCacheInBackground(
+        ctx,
+        ctx.user.id
+      );
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("Background update timeout")), 60000); // 60s timeout
+      });
 
-      this.log("debug", ctx, "Background cache update completed");
+      // Race between update and timeout
+      await Promise.race([updatePromise, timeoutPromise]);
+
+      // Double-check if service is still active before logging success
+      if (this.isActive) {
+        this.log("debug", ctx, "Background cache update completed");
+      } else {
+        this.log(
+          "debug",
+          ctx,
+          "Background cache update completed but service is inactive"
+        );
+      }
     } catch (error) {
-      this.log("error", ctx, `Background cache update error: ${error}`);
+      // Only log error if service is still active (avoid noise during cleanup)
+      if (this.isActive) {
+        this.log("error", ctx, `Background cache update error: ${error}`);
+      }
       // Don't throw - this is background operation
+    }
+  }
+
+  /**
+   * Cancel all background operations (called during cleanup)
+   */
+  async cancelBackgroundOperations(): Promise<void> {
+    this.deactivate(); // Mark as inactive first
+
+    if (this.backgroundOperations.size > 0) {
+      // Note: Using console.log instead of this.log since ctx might not be available during cleanup
+      console.log(
+        `[PositionsService:${this.instanceId}] Cancelling ${this.backgroundOperations.size} background operations`
+      );
+
+      // Wait a bit for operations to check isActive flag and exit gracefully
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      this.backgroundOperations.clear();
     }
   }
 }
