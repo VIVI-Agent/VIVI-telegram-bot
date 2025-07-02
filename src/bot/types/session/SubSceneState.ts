@@ -82,6 +82,7 @@ export interface WalletsSceneData {
 
   // User Importing Token on  Wallet
   importingToken?: boolean;
+  tokenAddress?: string;
 }
 
 export enum SettingEditMode {

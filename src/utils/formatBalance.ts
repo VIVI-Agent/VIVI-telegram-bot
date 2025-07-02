@@ -1,4 +1,4 @@
-import { formatEther } from "viem";
+import { formatEther, formatUnits, parseUnits } from "viem";
 
 export function formatEthBalance(
   balanceWei: bigint | string,
@@ -24,4 +24,37 @@ export function formatEthBalanceWithSymbol(
 
 export function formatPoints(points: number): string {
   return points.toFixed(0);
+}
+
+export function formatTokenBalance(
+  balanceWei: bigint,
+  tokenDecimals: number,
+  displayDecimals = 4
+): string {
+  try {
+    // Convert bigint to string using token decimals
+    const balanceString = formatUnits(balanceWei, tokenDecimals);
+    // Convert to number for formatting
+    const balanceNumber = parseFloat(balanceString);
+    // Return formatted with locale separators
+    return balanceNumber.toLocaleString("en-US", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: displayDecimals,
+    });
+  } catch (error) {
+    return "0";
+  }
+}
+
+export function formatTokenBalanceWithSymbol(
+  balanceWei: bigint,
+  tokenDecimals: number,
+  symbol: string,
+  displayDecimals = 4
+): string {
+  return `${formatTokenBalance(
+    balanceWei,
+    tokenDecimals,
+    displayDecimals
+  )} ${symbol}`;
 }

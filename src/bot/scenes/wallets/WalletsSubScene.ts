@@ -419,6 +419,13 @@ export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
           await this.menus.showTransfersMenu(ctx, sceneData, messageId);
           return true;
 
+        // Import Token
+        case CB.IMPORT_TOKEN:
+          await ctx.answerCbQuery();
+          sceneData.importingToken = true;
+          this.updateSceneData(ctx, sceneData);
+          await this.menus.askForTokenAddressMenu(ctx, messageId);
+          return true;
         default:
           this.log("warn", ctx, `Unknown action: ${action}`);
           return false;
@@ -440,6 +447,30 @@ export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
     this.log("debug", ctx, `Handling text: ${text}`);
     const sceneData = this.getSceneData(ctx);
     const messageId = sceneData.menuMessageId;
+
+    if (sceneData.importingToken) {
+      sceneData.tokenAddress = text;
+      this.updateSceneData(ctx, sceneData);
+
+      const result = await this.service.importToken(ctx, sceneData, text);
+      if (result?.success) {
+        await this.menus.showImportTokenSuccessMenu(
+          ctx,
+          result.success,
+          result.totalBalance || 0n,
+          result.wallets || [],
+          result.token!,
+          messageId
+        );
+      } else {
+        await this.menus.showImportTokenFailedMenu(
+          ctx,
+          result?.error || "Unknown error",
+          messageId
+        );
+      }
+      return true;
+    }
 
     if (sceneData.transferMode?.step === "enter_amount") {
       if (!SendAmountValidator.isValidAmount(text)) {

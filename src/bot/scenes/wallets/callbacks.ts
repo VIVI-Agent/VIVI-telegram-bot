@@ -11,6 +11,7 @@ export const CB = {
   IMPORT_WALLET: "import_wallet",
   EXPORT_WALLET: "export_wallet",
   TRANSFERS: "transfers",
+  IMPORT_TOKEN: "import_token",
   // List Wallets Buttons
   SELECT_WALLET: "select_wallet",
   SAVED_PRIVATE_KEY: "saved_private_key",

@@ -237,6 +237,65 @@ export class WalletsMenus extends BaseMenus {
     return inline_keyboard;
   }
 
+  async askForTokenAddressMenu(
+    ctx: GlobalSceneContext,
+    messageId?: number
+  ): Promise<number | undefined> {
+    const keyboard = this.buildAskForTokenKeyboard();
+    const menuText = WALLET_TEXTS.MESSAGES.ASK_FOR_TOKEN_TITLE;
+
+    return this.sendOrUpdateMenu(ctx, menuText, keyboard, "HTML", messageId);
+  }
+
+  async showImportTokenSuccessMenu(
+    ctx: GlobalSceneContext,
+    success: string,
+    totalBalance: bigint,
+    wallets: { address: string; balance: bigint }[],
+    token: Token,
+    messageId?: number
+  ): Promise<number | undefined> {
+    const keyboard = this.buildImportTokenKeyboard();
+    const menuText = `${WALLET_TEXTS.FUNCTIONS.getImportTokenSuccessMessage(
+      success,
+      totalBalance,
+      wallets,
+      token
+    )}`;
+
+    return this.sendOrUpdateMenu(ctx, menuText, keyboard, "HTML", messageId);
+  }
+
+  private buildImportTokenKeyboard() {
+    return [
+      [
+        {
+          text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
+          callback_data: this.createCallback(CB.MAIN_MENU),
+        },
+        {
+          text: GENERIC_BUTTONS.BACK,
+          callback_data: this.createCallback(CB.WALLETS_ROOT),
+        },
+        {
+          text: GENERIC_BUTTONS.DISMISS,
+          callback_data: this.createCallback(CB.DISMISS_WALLETS),
+        },
+      ],
+    ];
+  }
+
+  async showImportTokenFailedMenu(
+    ctx: GlobalSceneContext,
+    error: string,
+    messageId?: number
+  ): Promise<number | undefined> {
+    const keyboard = this.buildImportTokenKeyboard();
+    const menuText = WALLET_TEXTS.FUNCTIONS.getImportTokenFailedMessage(error);
+
+    return this.sendOrUpdateMenu(ctx, menuText, keyboard, "HTML", messageId);
+  }
+
   async showWalletTransferMenu(
     ctx: GlobalSceneContext,
     wallet: WalletWithHoldings,
@@ -328,6 +387,25 @@ export class WalletsMenus extends BaseMenus {
       WALLET_TEXTS.FUNCTIONS.getTransferConfirmationMessage(sceneData);
 
     await this.sendOrUpdateMenu(ctx, menuText, keyboard, "HTML", messageId);
+  }
+
+  private buildAskForTokenKeyboard() {
+    return [
+      [
+        {
+          text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
+          callback_data: this.createCallback(CB.MAIN_MENU),
+        },
+        {
+          text: GENERIC_BUTTONS.BACK,
+          callback_data: this.createCallback(CB.WALLETS_ROOT),
+        },
+        {
+          text: GENERIC_BUTTONS.DISMISS,
+          callback_data: this.createCallback(CB.DISMISS_WALLETS),
+        },
+      ],
+    ];
   }
 
   private buildTransferConfirmationKeyboard() {
@@ -685,6 +763,10 @@ export class WalletsMenus extends BaseMenus {
         ),
       ],
       [
+        Markup.button.callback(
+          WALLET_TEXTS.MESSAGES.IMPORT_TOKEN_BUTTON,
+          this.createCallback(CB.IMPORT_TOKEN)
+        ),
         Markup.button.callback(
           WALLET_TEXTS.MESSAGES.TRANSFERS_BUTTON,
           this.createCallback(CB.TRANSFERS)

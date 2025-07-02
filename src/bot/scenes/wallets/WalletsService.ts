@@ -6,9 +6,9 @@ import {
   decryptPrivateKey,
   encryptExistingPrivateKey,
 } from "@services";
-import { formatEthBalanceWithSymbol } from "@utils";
-import { transferETH } from "@blockchain";
-import { getAddress, parseEther, TransactionReceipt } from "viem";
+import { AddressValidator, formatEthBalanceWithSymbol } from "@utils";
+import { findOrCreateToken, getTokenBalance, transferETH } from "@blockchain";
+import { Address, getAddress, parseEther, TransactionReceipt } from "viem";
 
 export class WalletsService extends BaseService {
   constructor(instanceId: string) {
@@ -213,5 +213,79 @@ export class WalletsService extends BaseService {
     this.log("info", ctx, `Transfer ETH: ${tx.txHash}`);
 
     return tx;
+  }
+
+  async importToken(
+    ctx: GlobalSceneContext,
+    sceneData: WalletsSceneData,
+    tokenAddress: string
+  ): Promise<{
+    success?: string;
+    error?: string;
+    totalBalance?: bigint;
+    token?: Token;
+    wallets?: {
+      address: string;
+      balance: bigint;
+    }[];
+  }> {
+    const checkedAddress = AddressValidator.parseEthereumAddress(tokenAddress);
+
+    if (!checkedAddress) {
+      return { error: "Invalid token address" };
+    }
+
+    const token = await findOrCreateToken(ctx, checkedAddress);
+    if (!token) {
+      return { error: "Failed to detect token" };
+    }
+
+    const userWallets = await ctx.services.walletService.getUserWallets(
+      sceneData.user!.id!
+    );
+    let tokenFound = false;
+    let totalBalance = 0n;
+    let wallets: {
+      address: string;
+      balance: bigint;
+    }[] = [];
+    // Check for each wallet balance of the token using getTokenBalance
+    for (const wallet of userWallets) {
+      const balanceBN = await getTokenBalance(
+        checkedAddress,
+        wallet.address as Address
+      );
+      if (balanceBN === 0n) {
+        tokenFound = false;
+      } else {
+        tokenFound = true;
+        totalBalance = totalBalance + balanceBN;
+        try {
+          await ctx.services.holdingService.updateHoldingFromChain({
+            userId: sceneData.user!.id!,
+            tokenId: token.id,
+            walletId: wallet.id,
+            newBalance: balanceBN,
+          });
+          wallets.push({
+            address: wallet.address as string,
+            balance: balanceBN,
+          });
+        } catch (error) {
+          this.logError(ctx, "importToken", error);
+        }
+      }
+    }
+    if (!tokenFound) {
+      return { error: "Token not found in any wallet" };
+    }
+
+    // Create a new token in the database
+    return {
+      success: "Token imported successfully",
+      totalBalance,
+      wallets,
+      token: token,
+    };
   }
 }

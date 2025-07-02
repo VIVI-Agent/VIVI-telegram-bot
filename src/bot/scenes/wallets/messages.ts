@@ -2,7 +2,11 @@ import { explorerUrl } from "@client";
 import { WalletWithHoldings } from "@domain";
 import { Token } from "@prisma/client";
 import { WalletsSceneData } from "@types";
-import { formatEthBalance, formatEthBalanceWithSymbol } from "@utils";
+import {
+  formatEthBalance,
+  formatEthBalanceWithSymbol,
+  formatTokenBalance,
+} from "@utils";
 
 export const WALLET_TEXTS = {
   ERRORS: {
@@ -28,6 +32,8 @@ export const WALLET_TEXTS = {
   PROMPTS: {},
 
   MESSAGES: {
+    ASK_FOR_TOKEN_TITLE:
+      "<b>👛 Wallets > 📥 Import Token</b>\n\nEnter the token address:",
     LIST_WALLETS_TITLE: "<b>👛 Wallets > 📜 List Wallets</b> \n",
     CREATE_WALLET_TITLE: "<b>👛 Wallets > ➕ Create Wallet</b>",
     IMPORT_WALLET_TITLE: "<b>👛 Wallets > 📥 Import Wallet</b>",
@@ -52,6 +58,7 @@ Select the wallet you want to Withdraw from:`,
     EXPORT_WALLET: "📤 Export Wallet",
     REMOVE_WALLET: "🗑️ Remove Wallet",
     TRANSFERS_BUTTON: "💸 Transfers",
+    IMPORT_TOKEN_BUTTON: "📥 Import Token",
     // Create Wallet messages
     MAX_WALLETS_REACHED: "You have reached the maximum number of wallets.",
     // Transfer messages
@@ -84,6 +91,27 @@ Select the token you want to transfer:`,
   },
 
   FUNCTIONS: {
+    getImportTokenSuccessMessage(
+      success: string,
+      totalBalance: bigint,
+      wallets: { address: string; balance: bigint }[],
+      token: Token
+    ): string {
+      return `<b>👛 Wallets > 📥 Import Token</b>\n\n✅ ${success}\n\n<b>${
+        token.symbol
+      } Balance:</b> ${formatTokenBalance(
+        totalBalance,
+        token.decimals
+      )}\n\n<b>Wallets:</b>\n${wallets
+        .map(
+          (w) =>
+            `${w.address}: ${formatTokenBalance(w.balance, token.decimals)}`
+        )
+        .join("\n")}`;
+    },
+    getImportTokenFailedMessage(error: string): string {
+      return `<b>👛 Wallets > 📥 Import Token</b>\n\n❌ ${error} \n\n<b>Go Back and try again.</b>`;
+    },
     getErrorTransferMsg(error: Error): string {
       return `❌ ${error.message}`;
     },
