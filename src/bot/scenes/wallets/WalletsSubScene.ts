@@ -377,16 +377,32 @@ export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
         case CB.TRANSFER_CONFIRM_CONFIRMATION:
           await ctx.answerCbQuery();
           const transferConfirmationSceneData = this.getSceneData(ctx);
-
+          let tx;
           try {
-            const tx = await this.service.transferETH(
-              ctx,
-              transferConfirmationSceneData,
-              transferConfirmationSceneData.transferMode?.recipient!
-            );
+            // validate token or eth transfer
+            if (transferConfirmationSceneData.transferMode?.tokenId === "ETH") {
+              tx = await this.service.transferETH(
+                ctx,
+                transferConfirmationSceneData,
+                transferConfirmationSceneData.transferMode?.recipient!
+              );
+            } else {
+              tx = await this.service.transferToken(
+                ctx,
+                transferConfirmationSceneData,
+                transferConfirmationSceneData.transferMode?.recipient!
+              );
+            }
+            const waitReceipt = await tx.waitReceipt;
+            if (waitReceipt) {
+              this.log("info", ctx, `Transfer successful: ${tx.txHash}`);
+            } else {
+              this.log("error", ctx, `Transfer failed: ${tx.txHash}`);
+            }
 
-            await tx.waitReceipt;
-
+            setImmediate(() => {
+              this.service.updateBalance(ctx, sceneData);
+            });
             await ctx.reply(
               WALLET_TEXTS.FUNCTIONS.getSuccessTransferMsg(tx.txHash),
               {
@@ -396,8 +412,18 @@ export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
                 },
               }
             );
+            this.resetSceneData(ctx);
+            await this.menus.showTransfersMenu(ctx, sceneData, messageId);
           } catch (error) {
-            this.log("error", ctx, `Error in transferETH: ${error}`);
+            const transferType =
+              transferConfirmationSceneData.transferMode?.tokenId === "ETH"
+                ? "ETH"
+                : "Token";
+            this.log(
+              "error",
+              ctx,
+              `Error in transfer${transferType}: ${error}`
+            );
             await ctx.reply(
               WALLET_TEXTS.FUNCTIONS.getErrorTransferMsg(error as Error),
               {
@@ -406,8 +432,6 @@ export class WalletsSubScene extends BaseSubScene<WalletsSceneData> {
             );
             this.resetSceneData(ctx);
             await this.menus.showTransfersMenu(ctx, sceneData, messageId);
-
-            return false;
           }
 
           return true;

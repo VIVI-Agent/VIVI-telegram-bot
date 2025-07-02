@@ -72,4 +72,19 @@ export class HoldingService {
       },
     });
   }
+
+  async getHoldingWithToken(
+    walletId: number,
+    tokenId: number
+  ): Promise<HoldingWithToken | null> {
+    return await this.prisma.holding.findFirst({
+      where: {
+        walletId,
+        tokenId,
+        balance: { not: "0" },
+        wallet: { isDeleted: false },
+      },
+      include: { token: true },
+    });
+  }
 }

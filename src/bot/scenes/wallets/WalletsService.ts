@@ -6,9 +6,25 @@ import {
   decryptPrivateKey,
   encryptExistingPrivateKey,
 } from "@services";
-import { AddressValidator, formatEthBalanceWithSymbol } from "@utils";
-import { findOrCreateToken, getTokenBalance, transferETH } from "@blockchain";
-import { Address, getAddress, parseEther, TransactionReceipt } from "viem";
+import {
+  AddressValidator,
+  formatEthBalanceWithSymbol,
+  formatTokenBalance,
+} from "@utils";
+import {
+  findOrCreateToken,
+  getTokenBalance,
+  transferETH,
+  transferERC20,
+  getWalletBalance,
+} from "@blockchain";
+import {
+  Address,
+  getAddress,
+  parseEther,
+  parseUnits,
+  TransactionReceipt,
+} from "viem";
 
 export class WalletsService extends BaseService {
   constructor(instanceId: string) {
@@ -156,6 +172,89 @@ export class WalletsService extends BaseService {
     return await ctx.services.tokenService.getTokenById(tokenId);
   }
 
+  async transferToken(
+    ctx: GlobalSceneContext,
+    sceneData: WalletsSceneData,
+    recipient: string
+  ): Promise<{
+    txHash: `0x${string}`;
+    waitReceipt: Promise<TransactionReceipt>;
+  }> {
+    const wallet = await ctx.services.walletService.getWalletById(
+      sceneData.transferMode?.walletId!
+    );
+    if (!wallet) {
+      throw new Error("Wallet not found");
+    }
+
+    const holdingWithToken =
+      await ctx.services.holdingService.getHoldingWithToken(
+        sceneData.transferMode?.walletId!,
+        Number(sceneData.transferMode?.tokenId)
+      );
+
+    if (!holdingWithToken) {
+      throw new Error("Token not found");
+    }
+    const token = holdingWithToken.token;
+
+    const amount = sceneData.transferMode?.amount;
+    const customAmount = sceneData.transferMode?.customAmount;
+
+    let amountInWei;
+
+    try {
+      if (customAmount) {
+        // Convert custom amount string to wei
+        amountInWei = parseUnits(customAmount, token.decimals);
+      } else if (amount) {
+        // Calculate percentage of wallet balance (improved precision like old bot)
+        const pctFloat = parseFloat(amount);
+        const scaledPct = Math.round(pctFloat * 100);
+        const ratioBN = BigInt(scaledPct);
+        amountInWei =
+          (BigInt(holdingWithToken.balance) * ratioBN) / BigInt(10000);
+      } else {
+        throw new Error("No amount specified for transfer");
+      }
+    } catch (error) {
+      this.logError(ctx, "transferToken", error);
+      throw new Error("Invalid amount format");
+    }
+
+    // Validate amount doesn't exceed balance
+    const balanceInWei = BigInt(holdingWithToken.balance);
+    if (amountInWei > balanceInWei) {
+      throw new Error(
+        `Insufficient balance. You are trying to transfer ${formatTokenBalance(
+          amountInWei,
+          token.decimals
+        )} ${token.symbol} but you have ${formatTokenBalance(
+          balanceInWei,
+          token.decimals
+        )} ${token.symbol}`
+      );
+    }
+
+    if (amountInWei <= 0n) {
+      throw new Error("Transfer amount must be greater than 0");
+    }
+
+    const decryptedPrivKey = decryptPrivateKey(wallet.encryptedPrivKey);
+
+    const tx = await transferERC20(
+      decryptedPrivKey,
+      token.address as Address,
+      recipient as Address,
+      amountInWei,
+      2
+    );
+
+    this.log("info", ctx, `Transfer Token: ${tx.txHash}`);
+
+    return tx;
+  }
+
   async transferETH(
     ctx: GlobalSceneContext,
     sceneData: WalletsSceneData,
@@ -287,5 +386,44 @@ export class WalletsService extends BaseService {
       wallets,
       token: token,
     };
+  }
+
+  async updateBalance(ctx: GlobalSceneContext, sceneData: WalletsSceneData) {
+    try {
+      const wallet = await ctx.services.walletService.getWalletById(
+        sceneData.transferMode?.walletId!
+      );
+      if (!wallet) {
+        throw new Error("Wallet not found");
+      }
+
+      if (sceneData.transferMode?.tokenId === "ETH") {
+        const ethBalance = await getWalletBalance(wallet.address as Address);
+
+        await ctx.services.walletService.updateWalletBalance(
+          wallet.id,
+          ethBalance
+        );
+      } else {
+        const token = await ctx.services.tokenService.getTokenById(
+          Number(sceneData.transferMode?.tokenId)
+        );
+        if (!token) {
+          throw new Error("Token not found");
+        }
+        const balance = await getTokenBalance(
+          token.address as Address,
+          wallet.address as Address
+        );
+        await ctx.services.holdingService.updateHoldingFromChain({
+          userId: ctx.user.id,
+          tokenId: Number(sceneData.transferMode?.tokenId),
+          walletId: wallet.id,
+          newBalance: balance,
+        });
+      }
+    } catch (error) {
+      this.logError(ctx, "updateBalance", error);
+    }
   }
 }

@@ -262,7 +262,7 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
         logger.info(
           `🔄 Trying text route to scene: ${sceneState.name} (${instanceId})`
         );
-        logger.info(`🔄 Scene state data: ${JSON.stringify(sceneState.data)}`);
+        //logger.info(`🔄 Scene state data: ${JSON.stringify(sceneState.data)}`);
 
         // Create scene instance dynamically
         const scene = await this.createSceneInstance(

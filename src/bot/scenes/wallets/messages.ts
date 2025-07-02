@@ -116,7 +116,7 @@ Select the token you want to transfer:`,
       return `❌ ${error.message}`;
     },
     getSuccessTransferMsg(txHash: string): string {
-      return `✅ Transfer tx submitted successfully!\n\n<b>Tx Hash:</b> <a href="${explorerUrl}/tx/${txHash}">${txHash}</a>`;
+      return `✅ Transfer Confirmed!\n<a href="${explorerUrl}/tx/${txHash}">${txHash}</a>`;
     },
     getTransferCustomAmountMessage(): string {
       return `
