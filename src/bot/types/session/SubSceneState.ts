@@ -1,4 +1,8 @@
-import { DexQuoteResultBuy, DexQuoteResultSell } from "@blockchain";
+import {
+  DexQuoteResultBuy,
+  DexQuoteResultSell,
+  TokenInfoSummary,
+} from "@blockchain";
 import {
   UserWithSettings,
   UserWithWalletAndHoldings,
@@ -113,6 +117,7 @@ export interface TradeSceneData {
   state?: "waiting_token" | "trade_buy" | "trade_sell";
 
   token?: Token;
+  externalTokenInfo?: TokenInfoSummary | null;
 
   userWithSettings?: UserWithSettings;
   userWithWallets?: UserWithWalletsAndHolding;

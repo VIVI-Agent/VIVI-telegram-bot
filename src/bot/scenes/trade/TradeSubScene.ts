@@ -6,15 +6,24 @@ import { CB } from "./callbacks";
 import { TRADE_TEXTS } from "./messages";
 import { AddressValidator, BuyAmountValidator } from "@utils";
 import { bigint } from "zod";
+import {
+  TokenInfoServiceWithCache,
+  tokenInfoUpdateEmitter,
+  TokenInfoUpdateEvent,
+} from "@blockchain";
+import { Address } from "viem";
 
 export class TradeSubScene extends BaseSubScene<TradeSceneData> {
   private menus: TradeMenus;
   private service: TradeService;
+  private tokenInfoService: TokenInfoServiceWithCache;
+  private tokenInfoListener?: (event: TokenInfoUpdateEvent) => void;
 
   constructor(instanceId: string) {
     super(instanceId, "Trade");
     this.menus = new TradeMenus(instanceId);
     this.service = new TradeService(instanceId);
+    this.tokenInfoService = new TokenInfoServiceWithCache();
   }
 
   async onActivate(ctx: GlobalSceneContext, data?: any): Promise<void> {
@@ -42,6 +51,14 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
               sceneData.token = token;
               sceneData.state =
                 data.mode === "buy" ? "trade_buy" : "trade_sell";
+
+              // Load token info from cache
+              await this.loadTokenInfoWithCache(
+                ctx,
+                token.address as Address,
+                sceneData
+              );
+
               this.updateSceneData(ctx, sceneData);
             } else {
               // Handle error or invalid token address
@@ -521,6 +538,9 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
             sceneData.token = token;
             sceneData.state = "trade_buy";
 
+            // Load token info from cache
+            await this.loadTokenInfoWithCache(ctx, tokenAddress, sceneData);
+
             // Load user settings and wallets with holdings
             const [userWithSettings, wallets] = await Promise.all([
               this.service.getUserWithSettings(ctx),
@@ -952,5 +972,316 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
     } catch (error) {
       this.log("error", ctx, `Error switching mode: ${error}`);
     }
+  }
+
+  /**
+   * Load token info from cache and setup background updates
+   */
+  private async loadTokenInfoWithCache(
+    ctx: GlobalSceneContext,
+    tokenAddress: Address,
+    sceneData: TradeSceneData
+  ): Promise<void> {
+    try {
+      this.log("info", ctx, `Loading token info for ${tokenAddress}`);
+
+      // 🔄 **STEP 1: Load from cache immediately**
+      const cacheResult = await this.tokenInfoService.getTokenInfoWithCache(
+        ctx,
+        tokenAddress
+      );
+
+      // Set cached data immediately (or null if no cache)
+      sceneData.externalTokenInfo = cacheResult.data;
+      this.log(
+        "info",
+        ctx,
+        `Token info loaded from ${
+          cacheResult.isFromCache ? "cache" : "fresh"
+        }: ${cacheResult.data ? "available" : "N/A"}`
+      );
+
+      // 🎯 **STEP 2: Subscribe to token info updates for this instance**
+      this.setupTokenInfoListener(ctx, tokenAddress);
+
+      // 🚀 **STEP 3: Trigger background update if needed**
+      this.log(
+        "debug",
+        ctx,
+        `Token info cache check - needsUpdate: ${cacheResult.needsUpdate}, isFromCache: ${cacheResult.isFromCache}`
+      );
+
+      if (cacheResult.needsUpdate || !cacheResult.isFromCache) {
+        this.log(
+          "info",
+          ctx,
+          `Token info needs update, triggering background refresh for ${tokenAddress} (needsUpdate: ${cacheResult.needsUpdate}, isFromCache: ${cacheResult.isFromCache})`
+        );
+
+        // Start background update (don't await - let it run async)
+        setImmediate(async () => {
+          try {
+            this.log(
+              "info",
+              ctx,
+              `Starting background token info update for ${tokenAddress}`
+            );
+            await this.tokenInfoService.updateTokenInfoCacheInBackground(
+              ctx,
+              tokenAddress
+            );
+            this.log(
+              "info",
+              ctx,
+              `Completed background token info update for ${tokenAddress}`
+            );
+          } catch (error) {
+            this.log(
+              "error",
+              ctx,
+              `Background token info update failed for ${tokenAddress}: ${error}`
+            );
+          }
+        });
+      } else {
+        this.log(
+          "debug",
+          ctx,
+          `Token info cache is fresh, no update needed for ${tokenAddress}`
+        );
+      }
+    } catch (error) {
+      this.log(
+        "error",
+        ctx,
+        `Error loading token info for ${tokenAddress}: ${error}`
+      );
+      // Set null on error
+      sceneData.externalTokenInfo = null;
+    }
+  }
+
+  /**
+   * Setup token info listener for this scene instance
+   */
+  private setupTokenInfoListener(
+    ctx: GlobalSceneContext,
+    tokenAddress: Address
+  ): void {
+    try {
+      // Remove any existing listener
+      this.cleanupTokenInfoListener();
+
+      // Subscribe this instance to token info updates
+      tokenInfoUpdateEmitter.subscribe(tokenAddress, this.instanceId, "Trade");
+
+      // Create new listener
+      this.tokenInfoListener = (event: TokenInfoUpdateEvent) => {
+        this.handleTokenInfoUpdate(ctx, event);
+      };
+
+      // Register listener for this specific instance
+      tokenInfoUpdateEmitter.onInstanceTokenInfoUpdate(
+        this.instanceId,
+        this.tokenInfoListener
+      );
+
+      this.log(
+        "info",
+        ctx,
+        `Token info listener setup for ${tokenAddress} on instance ${this.instanceId}`
+      );
+    } catch (error) {
+      this.log("error", ctx, `Error setting up token info listener: ${error}`);
+    }
+  }
+
+  /**
+   * Handle token info update events
+   */
+  private async handleTokenInfoUpdate(
+    ctx: GlobalSceneContext,
+    event: TokenInfoUpdateEvent
+  ): Promise<void> {
+    try {
+      this.log(
+        "info",
+        ctx,
+        `Received token info update for ${event.tokenAddress} on instance ${event.instanceId}`
+      );
+      console.log(
+        `🚀 [SCENE DEBUG] 📬 RECEIVED TOKEN INFO UPDATE FOR ${event.tokenAddress}`
+      );
+
+      console.log(`🔍 [SCENE DEBUG] Raw event data for ${event.tokenAddress}:`);
+      console.log(
+        `   👥 holders: ${event.data.holders} (type: ${typeof event.data
+          .holders})`
+      );
+      console.log(
+        `   📊 marketCap: ${event.data.marketCap} (type: ${typeof event.data
+          .marketCap})`
+      );
+      console.log(
+        `   📜 totalSupply: ${event.data.totalSupply} (type: ${typeof event.data
+          .totalSupply})`
+      );
+      console.log(
+        `   🌐 website: ${event.data.website} (type: ${typeof event.data
+          .website})`
+      );
+      console.log(
+        `   📱 telegramLink: ${event.data.telegramLink} (type: ${typeof event
+          .data.telegramLink})`
+      );
+      console.log(
+        `   🐦 twitterLink: ${event.data.twitterLink} (type: ${typeof event.data
+          .twitterLink})`
+      );
+      console.log(`   📅 timestamp: ${event.timestamp}`);
+
+      // 🛡️ **PROTECTION: Verify this scene is still active and event is for this instance**
+      const sceneState = ctx.session.activeSubScenes[this.instanceId];
+      if (
+        !sceneState ||
+        !sceneState.active ||
+        event.instanceId !== this.instanceId
+      ) {
+        this.log(
+          "debug",
+          ctx,
+          `Ignoring token info update - scene not active or wrong instance`
+        );
+        return;
+      }
+
+      const sceneData = this.getSceneData(ctx);
+
+      // 🛡️ **PROTECTION: Verify we're still trading the same token**
+      if (
+        !sceneData.token ||
+        sceneData.token.address.toLowerCase() !==
+          event.tokenAddress.toLowerCase()
+      ) {
+        this.log(
+          "debug",
+          ctx,
+          `Ignoring token info update - token address mismatch`
+        );
+        return;
+      }
+
+      // 🛡️ **PROTECTION: Verify menu message still exists**
+      if (!sceneData.menuMessageId) {
+        this.log(
+          "debug",
+          ctx,
+          `Ignoring token info update - no menu message to update`
+        );
+        return;
+      }
+
+      // 📊 **UPDATE: Update scene data with new token info**
+      const newTokenInfo = {
+        tokenAddress: event.tokenAddress,
+        marketCap: event.data.marketCap,
+        totalSupply: event.data.totalSupply,
+        holders: event.data.holders,
+        website: event.data.website,
+        telegramLink: event.data.telegramLink,
+        twitterLink: event.data.twitterLink,
+        isFromCache: false,
+        lastUpdated: event.timestamp,
+      };
+
+      console.log(
+        `💾 [SCENE DEBUG] About to save token info to scene data for ${event.tokenAddress}:`
+      );
+      console.log(
+        `   👥 holders: ${
+          newTokenInfo.holders
+        } (type: ${typeof newTokenInfo.holders})`
+      );
+      console.log(
+        `   📊 marketCap: ${
+          newTokenInfo.marketCap
+        } (type: ${typeof newTokenInfo.marketCap})`
+      );
+      console.log(
+        `   📜 totalSupply: ${
+          newTokenInfo.totalSupply
+        } (type: ${typeof newTokenInfo.totalSupply})`
+      );
+      console.log(
+        `   🌐 website: ${
+          newTokenInfo.website
+        } (type: ${typeof newTokenInfo.website})`
+      );
+      console.log(
+        `   📱 telegramLink: ${
+          newTokenInfo.telegramLink
+        } (type: ${typeof newTokenInfo.telegramLink})`
+      );
+      console.log(
+        `   🐦 twitterLink: ${
+          newTokenInfo.twitterLink
+        } (type: ${typeof newTokenInfo.twitterLink})`
+      );
+
+      sceneData.externalTokenInfo = newTokenInfo;
+      this.updateSceneData(ctx, sceneData);
+
+      this.log(
+        "info",
+        ctx,
+        `Updated scene data with fresh token info for ${event.tokenAddress}`
+      );
+
+      console.log(
+        `✅ [SCENE DEBUG] Scene data updated with token info for ${event.tokenAddress}`
+      );
+
+      // 🔄 **REFRESH: Update the menu with new token info**
+      await this.menus.showTradeMenu(ctx, sceneData, sceneData.menuMessageId);
+
+      this.log(
+        "info",
+        ctx,
+        `Trade menu refreshed with updated token info for ${event.tokenAddress}`
+      );
+      console.log(
+        `🚀 [SCENE DEBUG] 🔄 MENU REFRESHED FOR ${event.tokenAddress} - NEW DATA DISPLAYED!`
+      );
+    } catch (error) {
+      this.log("error", ctx, `Error handling token info update: ${error}`);
+    }
+  }
+
+  /**
+   * Cleanup token info listener
+   */
+  private cleanupTokenInfoListener(): void {
+    if (this.tokenInfoListener) {
+      // Remove instance-specific listener
+      tokenInfoUpdateEmitter.removeAllInstanceListeners(this.instanceId);
+
+      // Unsubscribe from future updates
+      tokenInfoUpdateEmitter.unsubscribe(this.instanceId);
+
+      this.tokenInfoListener = undefined;
+    }
+  }
+
+  /**
+   * Override cleanup to cleanup listeners
+   */
+  async cleanup(ctx: GlobalSceneContext): Promise<void> {
+    this.log(
+      "info",
+      ctx,
+      "Cleaning up Trade scene, cleaning up token info listener"
+    );
+    this.cleanupTokenInfoListener();
+    await super.cleanup(ctx);
   }
 }

@@ -131,6 +131,9 @@ export abstract class BaseMenus {
           {
             parse_mode: parseMode,
             reply_markup: { inline_keyboard: inlineKeyboard },
+            link_preview_options: {
+              is_disabled: true,
+            },
           }
         );
 
@@ -155,6 +158,9 @@ export abstract class BaseMenus {
     const sent = await ctx.reply(text, {
       parse_mode: parseMode,
       reply_markup: { inline_keyboard: inlineKeyboard },
+      link_preview_options: {
+        is_disabled: true,
+      },
     });
 
     this.log("debug", ctx, `New message sent with ID: ${sent.message_id}`);

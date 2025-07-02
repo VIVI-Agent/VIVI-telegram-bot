@@ -1,5 +1,8 @@
-import { DexQuoteResultBuy, DexQuoteResultSell } from "@blockchain";
-import { WalletWithHoldings } from "@domain";
+import {
+  DexQuoteResultBuy,
+  DexQuoteResultSell,
+  TokenInfoSummary,
+} from "@blockchain";
 import { Token, Wallet, Holding } from "@prisma/client";
 import { formatEthBalanceWithSymbol } from "@utils";
 import { formatUnits } from "viem";
@@ -33,7 +36,8 @@ export const TRADE_TEXTS = {
       bestDex: DexQuoteResultBuy | DexQuoteResultSell,
       wallets: TradeWallet[],
       amount: string,
-      isSell?: boolean
+      isSell?: boolean,
+      tokenInfo?: TokenInfoSummary | null
     ) => {
       const tokenSymbol = token.symbol;
       const tokenAddress = token.address;
@@ -112,7 +116,6 @@ export const TRADE_TEXTS = {
       const walletBalances = `${ethBalanceLine}\n${tokenBalanceLine}`;
 
       // Different message format for buy vs sell
-      const swapDirection = isSell ? "Sell" : "Buy";
       const amountLabel = isSell ? "💸 <b>Sell:</b> " : "💸 <b>Buy:</b> ";
       const amountSuffix = isSell ? "%" : " Ξ";
       const outputLabel = isSell ? "💰 <b>Get:</b> " : "💰 <b>Out:</b> ";
@@ -120,15 +123,133 @@ export const TRADE_TEXTS = {
         ? `${outputAmount} ETH`
         : `${outputAmount} ${tokenSymbol}`;
 
+      // Token info section
+      let tokenInfoSection = "";
+      if (tokenInfo) {
+        const marketCap = formatMarketCap(tokenInfo.marketCap);
+        const supply = formatSupply(tokenInfo.totalSupply);
+
+        tokenInfoSection = `
+<b>Token Info:</b>
+📜 <b>Supply:</b> ${supply}
+📊 <b>MarketCap (USD):</b> ${marketCap}
+`;
+      }
+
+      // Social links section
+      const socialLinks = buildSocialLinks(
+        tokenAddress,
+        tokenInfo
+          ? {
+              website: tokenInfo.website,
+              telegramLink: tokenInfo.telegramLink,
+              twitterLink: tokenInfo.twitterLink,
+            }
+          : undefined,
+        bestDex.dexName
+      );
+
       return `<b>${tokenSymbol}</b> <a href="https://basescan.org/token/${tokenAddress}">🔗BASE</a>
 <code>${tokenAddress}</code>
 
 <b>Swap Info:</b>
 ${amountLabel}${amount}${amountSuffix}
 ${outputLabel}${outputValue}
-${dexName}
+${dexName}${tokenInfoSection}
 
-${walletBalances}`;
+${walletBalances}
+
+${socialLinks}`;
     },
   },
 } as const;
+
+/**
+ * Build social links string for token info
+ */
+export function buildSocialLinks(
+  address: string,
+  info?: {
+    website?: string;
+    telegramLink?: string;
+    twitterLink?: string;
+  },
+  bestDexName?: string
+): string {
+  const defaultLinks = [
+    `<a href="https://dexscreener.com/base/${address}">[Dexscreener]</a>`,
+    `<a href="https://basescan.org/token/${address}">[Basescan]</a>`,
+  ];
+
+  // Add Apestore link if bestDexName is "ApeStore"
+  if (bestDexName === "ApeStore") {
+    defaultLinks.push(
+      `<a href="https://ape.store/base/${address}">[Apestore]</a>`
+    );
+  }
+
+  if (!info) return defaultLinks.join(" | ");
+
+  const links = [...defaultLinks];
+  if (info.website) links.push(`<a href="${info.website}">[Website]</a>`);
+  if (info.telegramLink)
+    links.push(`<a href="${info.telegramLink}">[Telegram]</a>`);
+  if (info.twitterLink)
+    links.push(`<a href="${info.twitterLink}">[Twitter]</a>`);
+
+  return links.join(" | ");
+}
+
+/**
+ * Format market cap with appropriate units
+ */
+export function formatMarketCap(marketCap?: string): string {
+  if (!marketCap) return "N/A";
+
+  const value = parseFloat(marketCap);
+  if (isNaN(value)) return "N/A";
+
+  if (value >= 1000000000) {
+    return `$${(value / 1000000000).toFixed(2)}B`;
+  } else if (value >= 1000000) {
+    return `$${(value / 1000000).toFixed(2)}M`;
+  } else if (value >= 1000) {
+    return `$${(value / 1000).toFixed(2)}K`;
+  } else {
+    return `$${value.toFixed(2)}`;
+  }
+}
+
+/**
+ * Format supply with appropriate units
+ */
+export function formatSupply(supply?: string): string {
+  if (!supply) return "N/A";
+
+  const value = parseFloat(supply);
+  if (isNaN(value)) return "N/A";
+
+  if (value >= 1000000000000) {
+    return `${(value / 1000000000000).toFixed(2)}T`;
+  } else if (value >= 1000000000) {
+    return `${(value / 1000000000).toFixed(2)}B`;
+  } else if (value >= 1000000) {
+    return `${(value / 1000000).toFixed(2)}M`;
+  } else if (value >= 1000) {
+    return `${(value / 1000).toFixed(2)}K`;
+  } else {
+    return `${Math.floor(value).toLocaleString()}`;
+  }
+}
+
+/**
+ * Format holders count
+ */
+export function formatHolders(holders?: string): string {
+  if (!holders) return "N/A";
+
+  const value = parseFloat(holders);
+  if (isNaN(value)) return "N/A";
+
+  return Math.floor(value).toLocaleString();
+}

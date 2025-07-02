@@ -1,6 +1,7 @@
 export * from "./services/priceComparison/priceComparisonService";
 export * from "./services/priceComparison/priceComparisonServiceSell";
 export * from "./services/pnl/pnlUpdateEmitter";
+export * from "./services/token/tokenInfoUpdateEmitter";
 export * from "./transactions";
 export * from "./services/token";
 export * from "./services/common";

@@ -2,7 +2,6 @@ import { GENERIC_BUTTONS, GENERIC_ERRORS } from "@texts";
 import { BaseMenus, GlobalSceneContext, TradeSceneData } from "../../types";
 import { CB } from "./callbacks";
 import { TRADE_TEXTS } from "./messages";
-import { formatEthBalanceWithSymbol } from "@utils";
 import { Markup } from "telegraf";
 
 export class TradeMenus extends BaseMenus {
@@ -90,7 +89,8 @@ export class TradeMenus extends BaseMenus {
         bestDex!,
         wallets!,
         amount!,
-        sceneData.state === "trade_sell" // Pass mode to determine message type
+        sceneData.state === "trade_sell", // Pass mode to determine message type
+        sceneData.externalTokenInfo // Pass token info from scene data
       );
 
       // Use different keyboard based on the current mode

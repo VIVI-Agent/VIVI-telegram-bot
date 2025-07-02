@@ -8,4 +8,5 @@ export * from "./holdings/HoldingService";
 export * from "./pnlCache/PnlCacheService";
 export * from "./allowance/AllowanceService";
 export * from "./feeWhitelist/FeeWhitelistService";
+export * from "./externalTokenInfo/ExternalTokenInfoService";
 export * from "./initServices";
