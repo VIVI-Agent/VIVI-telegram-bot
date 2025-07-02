@@ -581,6 +581,10 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
 
               this.updateSceneData(ctx, sceneData);
 
+              const userMessageId = ctx.message?.message_id;
+              if (userMessageId) {
+                await ctx.deleteMessage(userMessageId);
+              }
               // Show trade menu with all data loaded
               const menuMessageId = await this.menus.showTradeMenu(
                 ctx,
@@ -601,12 +605,33 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
             }
           }
         }
+        const userMessageId = ctx.message?.message_id;
+        if (userMessageId) {
+          await ctx.deleteMessage(userMessageId);
+        }
+
         this.menus.askForTokenMenuAgain(
           ctx,
           this.getSceneData(ctx).menuMessageId!
         );
+        return true;
       } catch (error) {
-        ctx.reply(GENERIC_ERRORS.OLD_VERSION);
+        if (
+          error instanceof Error &&
+          error.message === TRADE_TEXTS.ERRORS.TOKEN_NOT_FOUND
+        ) {
+          const userMessageId = ctx.message?.message_id;
+          if (userMessageId) {
+            await ctx.deleteMessage(userMessageId);
+          }
+          this.menus.askForTokenMenuAgain(
+            ctx,
+            this.getSceneData(ctx).menuMessageId!
+          );
+        } else {
+          ctx.reply(GENERIC_ERRORS.OLD_VERSION);
+        }
+        return true;
       }
     }
     if (this.getSceneData(ctx).editMode?.customAmount && text) {
