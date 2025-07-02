@@ -60,6 +60,10 @@ export class PnlServiceWithCache {
           (cache) => cache.lastUpdated < thirtySecondsAgo
         );
 
+        logger.debug(
+          `[PnlServiceWithCache] Returning cached data for user ${userId}, needsUpdate: ${needsUpdate}`
+        );
+
         return {
           data: formattedData,
           isFromCache: true,
@@ -67,8 +71,19 @@ export class PnlServiceWithCache {
         };
       }
 
+      logger.debug(
+        `[PnlServiceWithCache] No cache available, calculating fresh data for user ${userId}`
+      );
+
       // No cache available, calculate fresh data
       const freshData = await this.calculateFreshUserPnl(ctx, userId);
+
+      // Save fresh data to cache for next time
+      await this.saveFreshDataToCache(ctx, userId, freshData);
+
+      logger.debug(
+        `[PnlServiceWithCache] Fresh data calculated and saved to cache for user ${userId}`
+      );
 
       return {
         data: freshData,
@@ -99,6 +114,10 @@ export class PnlServiceWithCache {
             lastUpdated: cache.lastUpdated,
           }));
 
+          logger.debug(
+            `[PnlServiceWithCache] Returning fallback cached data for user ${userId}`
+          );
+
           return {
             data: formattedData,
             isFromCache: true,
@@ -117,6 +136,74 @@ export class PnlServiceWithCache {
         isFromCache: false,
         needsUpdate: false,
       };
+    }
+  }
+
+  /**
+   * Save fresh PnL data to cache
+   */
+  async saveFreshDataToCache(
+    ctx: GlobalSceneContext,
+    userId: number,
+    freshData: PnlSummary[]
+  ): Promise<void> {
+    try {
+      logger.debug(
+        `[PnlServiceWithCache] Saving fresh data to cache for user ${userId}`
+      );
+
+      // Save each token's PnL to cache
+      for (const tokenPnl of freshData) {
+        // Find the holding for this token
+        const holding = await ctx.services.holdingService.getHoldingByTokenId(
+          userId,
+          tokenPnl.token.id
+        );
+
+        if (holding) {
+          const pnlData: PnlData = {
+            currentValueWei: parseUnits(
+              (
+                parseFloat(tokenPnl.unrealizedPnlEth) +
+                parseFloat(tokenPnl.realizedPnlEth)
+              ).toFixed(18),
+              18
+            ).toString(),
+            currentPriceWei: parseUnits(tokenPnl.currentPrice, 18).toString(),
+            costBasisWei: "0", // TODO: Calculate from holding data
+            unrealizedPnlWei: parseUnits(
+              tokenPnl.unrealizedPnlEth,
+              18
+            ).toString(),
+            realizedPnlWei: parseUnits(tokenPnl.realizedPnlEth, 18).toString(),
+            totalPnlWei: parseUnits(tokenPnl.totalPnlEth, 18).toString(),
+            percentageReturn: tokenPnl.percentageReturn.replace("%", ""),
+          };
+
+          await ctx.services.pnlCacheService.savePnlCache(
+            userId,
+            holding.id,
+            pnlData
+          );
+
+          logger.debug(
+            `[PnlServiceWithCache] Saved cache for token ${tokenPnl.token.symbol} (${tokenPnl.token.id})`
+          );
+        } else {
+          logger.warn(
+            `[PnlServiceWithCache] No holding found for token ${tokenPnl.token.id} when saving cache`
+          );
+        }
+      }
+
+      logger.debug(
+        `[PnlServiceWithCache] Successfully saved cache for ${freshData.length} tokens for user ${userId}`
+      );
+    } catch (error) {
+      logger.error(
+        `[PnlServiceWithCache] Error saving fresh data to cache:`,
+        error
+      );
     }
   }
 
@@ -178,7 +265,7 @@ export class PnlServiceWithCache {
   /**
    * Calculate fresh PnL data from blockchain
    */
-  private async calculateFreshUserPnl(
+  async calculateFreshUserPnl(
     ctx: GlobalSceneContext,
     userId: number
   ): Promise<PnlSummary[]> {
@@ -260,7 +347,7 @@ export class PnlServiceWithCache {
   /**
    * Calculate fresh PNL for a specific token holding (from blockchain)
    */
-  private async calculateTokenPnlFresh(
+  async calculateTokenPnlFresh(
     ctx: GlobalSceneContext,
     holdingId: number
   ): Promise<{

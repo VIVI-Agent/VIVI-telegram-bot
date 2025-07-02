@@ -2,10 +2,8 @@ import { GENERIC_BUTTONS } from "@texts";
 import { BaseMenus, GlobalSceneContext, PositionsSceneData } from "../../types";
 import { CB } from "./callbacks";
 import { POSITIONS_TEXTS } from "./messages";
-import { WalletWithHoldings } from "@domain";
 import { formatPnl } from "@utils";
 import { secrets } from "@config";
-import { Markup } from "telegraf";
 
 export class PositionsMenus extends BaseMenus {
   constructor(instanceId: string) {
