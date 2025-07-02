@@ -409,38 +409,4 @@ export class TokenInfoServiceWithCache {
       );
     }
   }
-
-  /**
-   * Mark token cache as stale (useful when new data is available)
-   */
-  async invalidateTokenCache(
-    ctx: GlobalSceneContext,
-    tokenAddress: Address
-  ): Promise<void> {
-    // Note: We could implement cache invalidation if needed
-    logger.debug(
-      `[TokenInfoServiceWithCache] Token cache invalidation requested for ${tokenAddress}`
-    );
-  }
-
-  /**
-   * Get cache statistics
-   */
-  async getCacheStats(ctx: GlobalSceneContext, tokenAddress?: Address) {
-    if (tokenAddress) {
-      const subscriptionCount =
-        tokenInfoUpdateEmitter.getSubscriptionCount(tokenAddress);
-      const subscriptions =
-        tokenInfoUpdateEmitter.getSubscriptions(tokenAddress);
-      return {
-        subscriptionCount,
-        subscriptions,
-      };
-    }
-
-    return {
-      totalSubscriptions: tokenInfoUpdateEmitter.getSubscriptionCount(),
-      allSubscriptions: tokenInfoUpdateEmitter.getSubscriptions(),
-    };
-  }
 }

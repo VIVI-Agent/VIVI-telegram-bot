@@ -454,10 +454,10 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
             const selectedWallets = sceneData.selectedWallets;
             const userId = ctx.user.id;
 
+            await this.menus.showTradeMenu(ctx, sceneData, messageId, true);
+
             const instantReply = await ctx.reply(
-              `⏳ Processing buy order for ${sceneData.token?.symbol}...\n` +
-                `💰 Amount: ${sceneData.selectedAmount} ETH\n` +
-                `📊 Wallets: ${selectedWallets?.length || 0}`
+              `⏳ Processing Buy Tx ${sceneData.token?.symbol}...\n`
             );
 
             const results = await Promise.allSettled(
@@ -471,7 +471,6 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
                 )
               ) || []
             );
-
             await ctx.deleteMessage(instantReply.message_id);
           } catch (error) {
             this.log("error", ctx, `Error buying token: ${error}`);
@@ -483,11 +482,10 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
             await ctx.answerCbQuery();
             const selectedWallets = sceneData.selectedWallets;
             const userId = ctx.user.id;
+            await this.menus.showTradeMenu(ctx, sceneData, messageId, true);
 
             const instantReply = await ctx.reply(
-              `⏳ Processing sell order for ${sceneData.token?.symbol}...\n` +
-                `📈 Percentage: ${sceneData.selectedAmount}% of holdings\n` +
-                `📊 Wallets: ${selectedWallets?.length || 0}`
+              `⏳ Processing Sell Tx ${sceneData.token?.symbol}...\n`
             );
 
             const results = await Promise.allSettled(

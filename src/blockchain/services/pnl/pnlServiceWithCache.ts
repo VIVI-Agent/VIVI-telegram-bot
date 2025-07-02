@@ -458,21 +458,4 @@ export class PnlServiceWithCache {
       throw error;
     }
   }
-
-  /**
-   * Mark user cache as stale (useful when trades occur)
-   */
-  async invalidateUserCache(
-    ctx: GlobalSceneContext,
-    userId: number
-  ): Promise<void> {
-    await ctx.services.pnlCacheService.markUserCacheAsStale(userId);
-  }
-
-  /**
-   * Get cache statistics
-   */
-  async getCacheStats(ctx: GlobalSceneContext, userId?: number) {
-    return await ctx.services.pnlCacheService.getCacheStats(userId);
-  }
 }

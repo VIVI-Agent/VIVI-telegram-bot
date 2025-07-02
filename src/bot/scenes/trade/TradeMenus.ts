@@ -68,13 +68,15 @@ export class TradeMenus extends BaseMenus {
     ];
     return await this.sendOrUpdateMenu(ctx, text, keyboard, "HTML", messageId);
   }
+
   /**
    * Show the main trade menu
    */
   async showTradeMenu(
     ctx: GlobalSceneContext,
     sceneData: TradeSceneData,
-    messageId?: number
+    messageId?: number,
+    hideMenuKeyboard?: boolean
   ): Promise<number | undefined> {
     this.log("info", ctx, "Showing trade menu");
 
@@ -84,14 +86,45 @@ export class TradeMenus extends BaseMenus {
       const wallets = sceneData.userWithWallets?.wallets;
       const amount = sceneData.selectedAmount;
 
+      // Sum up all the tokens holding for the user
+      const totalHoldings = wallets?.reduce((acc, wallet) => {
+        if (!wallet.holdings?.balance) return acc;
+        const balance = BigInt(wallet.holdings.balance);
+        const formattedBalance = Number(balance) / 10 ** token!.decimals;
+        return acc + formattedBalance;
+      }, 0);
+
       const text = TRADE_TEXTS.FUNCTIONS.getTradeMessage(
         token!,
         bestDex!,
         wallets!,
         amount!,
         sceneData.state === "trade_sell", // Pass mode to determine message type
-        sceneData.externalTokenInfo // Pass token info from scene data
+        sceneData.externalTokenInfo, // Pass token info from scene data
+        totalHoldings?.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 4,
+        })
       );
+
+      if (hideMenuKeyboard) {
+        return await this.sendOrUpdateMenu(
+          ctx,
+          text,
+          [
+            [
+              {
+                text: `⏳ Sending ${
+                  sceneData.state === "trade_sell" ? "Sell" : "Buy"
+                } Tx ${sceneData.token?.symbol}`,
+                callback_data: "noop",
+              },
+            ],
+          ],
+          "HTML",
+          messageId
+        );
+      }
 
       // Use different keyboard based on the current mode
       const keyboard =
@@ -177,8 +210,8 @@ export class TradeMenus extends BaseMenus {
     // Slippage button and refresh button
     const slippageSettings = sceneData.userWithSettings?.buySettings;
     const slippageButtonText = sceneData.customSlippage
-      ? `🛴 ${sceneData.customSlippage}% 🟢`
-      : `🛴 ${slippageSettings?.slippage || 30}%`;
+      ? `Slip ${sceneData.customSlippage}% 🟢`
+      : `Slip ${slippageSettings?.slippage || 30}%`;
 
     keyboard.push([
       Markup.button.callback(
@@ -302,8 +335,8 @@ export class TradeMenus extends BaseMenus {
     // Slippage button and refresh button
     const slippageSettings = sceneData.userWithSettings?.sellSettings;
     const slippageButtonText = sceneData.customSlippage
-      ? `🛴 ${sceneData.customSlippage}% 🟢`
-      : `🛴 ${slippageSettings?.slippage || 30}%`;
+      ? `Slip ${sceneData.customSlippage}% 🟢`
+      : `Slip ${slippageSettings?.slippage || 30}%`;
 
     keyboard.push([
       Markup.button.callback(

@@ -37,7 +37,8 @@ export const TRADE_TEXTS = {
       wallets: TradeWallet[],
       amount: string,
       isSell?: boolean,
-      tokenInfo?: TokenInfoSummary | null
+      tokenInfo?: TokenInfoSummary | null,
+      totalHoldings?: string
     ) => {
       const tokenSymbol = token.symbol;
       const tokenAddress = token.address;
@@ -156,7 +157,7 @@ export const TRADE_TEXTS = {
 ${amountLabel}${amount}${amountSuffix}
 ${outputLabel}${outputValue}
 ${dexName}${tokenInfoSection}
-
+<b>👛 Bag:</b> ${totalHoldings} ${tokenSymbol}
 ${walletBalances}
 
 ${socialLinks}`;
