@@ -140,6 +140,23 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
     logger.info(`🔄 Routing callback: ${callback}`);
     logger.info(`🔄 Active scenes:`, Object.keys(ctx.session.activeSubScenes));
 
+    // Handle global callbacks that don't belong to any specific scene
+    if (callback.startsWith("DISMISS_TX_MSG:")) {
+      const messageId = callback.split(":")[1];
+      if (messageId) {
+        try {
+          await ctx.deleteMessage(parseInt(messageId));
+          await ctx.answerCbQuery();
+          logger.info(`🗑️ Dismissed transaction message: ${messageId}`);
+          return;
+        } catch (error) {
+          logger.error(`Failed to dismiss message ${messageId}:`, error);
+          await ctx.answerCbQuery();
+          await ctx.reply(GENERIC_ERRORS.OLD_VERSION);
+          return;
+        }
+      }
+    }
     // Check if callback contains scene instanceId (format: "sceneId:action")
     if (callback.includes(":")) {
       const [sceneInstanceId, action] = callback.split(":", 2);

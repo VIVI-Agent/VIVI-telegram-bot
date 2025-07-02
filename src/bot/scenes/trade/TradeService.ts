@@ -92,7 +92,8 @@ export class TradeService extends BaseService {
       } else if (sceneData.state === "trade_sell" && token) {
         // get best dex for sell token to eth
         const sellSettings = sceneData.userWithSettings?.sellSettings;
-        const percentageAmount = sellSettings?.amount1 || 25; // Porcentaje (1-100)
+        const percentageAmount =
+          Number(sceneData.selectedAmount) || sellSettings?.amount1 || 25; // Porcentaje (1-100)
 
         // Calcular el balance total de tokens solo en las wallets seleccionadas
         let totalBalance = BigInt(0);
@@ -180,7 +181,8 @@ export class TradeService extends BaseService {
     ctx: GlobalSceneContext,
     sceneData: TradeSceneData,
     walletId: number,
-    userId: number
+    userId: number,
+    onTransactionSuccess?: () => Promise<void>
   ) {
     try {
       this.log("info", ctx, `Buying token for user: ${userId}`);
@@ -227,7 +229,9 @@ export class TradeService extends BaseService {
           token!,
           userId,
           walletId,
-          txHash
+          txHash,
+          undefined, // isGroup
+          onTransactionSuccess
         );
         await handleTxNotificationsWithLinks({
           ctx,
@@ -263,7 +267,9 @@ export class TradeService extends BaseService {
           token!,
           userId,
           walletId,
-          txHash
+          txHash,
+          undefined, // isGroup
+          onTransactionSuccess
         );
         await handleTxNotificationsWithLinks({
           ctx,
@@ -295,7 +301,9 @@ export class TradeService extends BaseService {
           token!,
           userId,
           walletId,
-          txHash
+          txHash,
+          undefined, // isGroup
+          onTransactionSuccess
         );
         await handleTxNotificationsWithLinks({
           ctx,
@@ -326,7 +334,9 @@ export class TradeService extends BaseService {
           token!,
           userId,
           walletId,
-          txHash
+          txHash,
+          undefined, // isGroup
+          onTransactionSuccess
         );
         await handleTxNotificationsWithLinks({
           ctx,
@@ -357,7 +367,9 @@ export class TradeService extends BaseService {
           token!,
           userId,
           walletId,
-          txHash
+          txHash,
+          undefined, // isGroup
+          onTransactionSuccess
         );
         await handleTxNotificationsWithLinks({
           ctx,
@@ -389,7 +401,9 @@ export class TradeService extends BaseService {
             token!,
             userId,
             walletId,
-            txHash
+            txHash,
+            undefined, // isGroup
+            onTransactionSuccess
           );
         await handleTxNotificationsWithLinks({
           ctx,
@@ -418,7 +432,8 @@ export class TradeService extends BaseService {
     ctx: GlobalSceneContext,
     sceneData: TradeSceneData,
     walletId: number,
-    userId: number
+    userId: number,
+    onTransactionSuccess?: () => Promise<void>
   ) {
     try {
       this.log("info", ctx, `Selling token for user: ${userId}`);
@@ -499,7 +514,9 @@ export class TradeService extends BaseService {
           token!,
           userId,
           walletId,
-          txHash
+          txHash,
+          undefined, // isGroup
+          onTransactionSuccess
         );
 
         await handleTxNotificationsWithLinks({
@@ -537,7 +554,9 @@ export class TradeService extends BaseService {
             token!,
             userId,
             walletId,
-            txHash
+            txHash,
+            undefined, // isGroup
+            onTransactionSuccess
           );
 
         await handleTxNotificationsWithLinks({
@@ -571,7 +590,9 @@ export class TradeService extends BaseService {
             token!,
             userId,
             walletId,
-            txHash
+            txHash,
+            undefined, // isGroup
+            onTransactionSuccess
           );
 
         await handleTxNotificationsWithLinks({
@@ -604,7 +625,9 @@ export class TradeService extends BaseService {
             token!,
             userId,
             walletId,
-            txHash
+            txHash,
+            undefined, // isGroup
+            onTransactionSuccess
           );
 
         await handleTxNotificationsWithLinks({
@@ -639,7 +662,9 @@ export class TradeService extends BaseService {
           token!,
           userId,
           walletId,
-          txHash
+          txHash,
+          undefined, // isGroup
+          onTransactionSuccess
         );
 
         await handleTxNotificationsWithLinks({
@@ -672,7 +697,9 @@ export class TradeService extends BaseService {
             token!,
             userId,
             walletId,
-            txHash
+            txHash,
+            undefined, // isGroup
+            onTransactionSuccess
           );
 
         await handleTxNotificationsWithLinks({

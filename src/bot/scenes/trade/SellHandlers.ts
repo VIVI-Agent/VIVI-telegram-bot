@@ -31,6 +31,7 @@ export class SellHandlers {
     eventName: string;
     parseEvent: (args: any) => { tokensIn: bigint; ethOut: bigint };
     isGroup?: boolean;
+    onTransactionSuccess?: () => Promise<void>; // Callback para notificar éxito
   }) {
     const {
       ctx,
@@ -42,6 +43,7 @@ export class SellHandlers {
       eventName,
       parseEvent,
       isGroup,
+      onTransactionSuccess,
     } = params;
 
     // parseLogsFn => handles formatting details
@@ -164,6 +166,18 @@ export class SellHandlers {
           wallet.id,
           newEthBalanceBN
         );
+
+        // Call success callback after all updates are complete
+        if (onTransactionSuccess) {
+          try {
+            await onTransactionSuccess();
+            logger.info(
+              `Transaction success callback executed for user ${userId}`
+            );
+          } catch (error) {
+            logger.error(`Error in transaction success callback: ${error}`);
+          }
+        }
       }
     };
 
@@ -179,7 +193,8 @@ export class SellHandlers {
     userId: number,
     walletId: number,
     txHash: Address,
-    isGroup?: boolean
+    isGroup?: boolean,
+    onTransactionSuccess?: () => Promise<void>
   ) {
     return this.buildGenericSellHandlers({
       ctx,
@@ -188,6 +203,7 @@ export class SellHandlers {
       walletId,
       txHash,
       isGroup,
+      onTransactionSuccess,
       abi: VIVIUniswapV2ABI,
       eventName: "Sell",
       parseEvent: (args) => ({ tokensIn: args.tokensIn, ethOut: args.ethOut }),
@@ -200,7 +216,8 @@ export class SellHandlers {
     userId: number,
     walletId: number,
     txHash: Address,
-    isGroup?: boolean
+    isGroup?: boolean,
+    onTransactionSuccess?: () => Promise<void>
   ) {
     return this.buildGenericSellHandlers({
       ctx,
@@ -209,6 +226,7 @@ export class SellHandlers {
       walletId,
       txHash,
       isGroup,
+      onTransactionSuccess,
       abi: VIVIAerodromeABI,
       eventName: "Sell",
       parseEvent: (args) => ({
@@ -224,7 +242,8 @@ export class SellHandlers {
     userId: number,
     walletId: number,
     txHash: Address,
-    isGroup?: boolean
+    isGroup?: boolean,
+    onTransactionSuccess?: () => Promise<void>
   ) {
     return this.buildGenericSellHandlers({
       ctx,
@@ -233,6 +252,7 @@ export class SellHandlers {
       walletId,
       txHash,
       isGroup,
+      onTransactionSuccess,
       abi: VIVIUniswapV3ABI,
       eventName: "Sell",
       parseEvent: (args) => ({ tokensIn: args.tokensIn, ethOut: args.ethOut }),
@@ -245,7 +265,8 @@ export class SellHandlers {
     userId: number,
     walletId: number,
     txHash: Address,
-    isGroup?: boolean
+    isGroup?: boolean,
+    onTransactionSuccess?: () => Promise<void>
   ) {
     return this.buildGenericSellHandlers({
       ctx,
@@ -254,6 +275,7 @@ export class SellHandlers {
       walletId,
       txHash,
       isGroup,
+      onTransactionSuccess,
       abi: VIVIZoraMultiHopABI,
       eventName: "Sell",
       parseEvent: (args) => ({ tokensIn: args.tokensIn, ethOut: args.ethOut }),
@@ -266,7 +288,8 @@ export class SellHandlers {
     userId: number,
     walletId: number,
     txHash: Address,
-    isGroup?: boolean
+    isGroup?: boolean,
+    onTransactionSuccess?: () => Promise<void>
   ) {
     return this.buildGenericSellHandlers({
       ctx,
@@ -275,6 +298,7 @@ export class SellHandlers {
       walletId,
       txHash,
       isGroup,
+      onTransactionSuccess,
       abi: VIVIApeStoreABI,
       eventName: "Sell",
       parseEvent: (args) => ({ tokensIn: args.tokensIn, ethOut: args.ethOut }),
@@ -287,7 +311,8 @@ export class SellHandlers {
     userId: number,
     walletId: number,
     txHash: Address,
-    isGroup?: boolean
+    isGroup?: boolean,
+    onTransactionSuccess?: () => Promise<void>
   ) {
     return this.buildGenericSellHandlers({
       ctx,
@@ -296,6 +321,7 @@ export class SellHandlers {
       walletId,
       txHash,
       isGroup,
+      onTransactionSuccess,
       abi: VIVIVirtualsHopABI,
       eventName: "Sell",
       parseEvent: (args) => ({ tokensIn: args.tokensIn, ethOut: args.ethOut }),

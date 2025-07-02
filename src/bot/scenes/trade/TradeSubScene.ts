@@ -35,14 +35,22 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
     try {
       if (data && (data.mode === "buy" || data.mode === "sell")) {
         if (data.token) {
-          const token = await this.service.findToken(ctx, data.token);
-          if (token) {
-            // Set token data
-            sceneData.token = token;
-            sceneData.state = data.mode === "buy" ? "trade_buy" : "trade_sell";
-            this.updateSceneData(ctx, sceneData);
-          } else {
-            // Handle error or invalid token address
+          try {
+            const token = await this.service.findToken(ctx, data.token);
+            if (token) {
+              // Set token data
+              sceneData.token = token;
+              sceneData.state =
+                data.mode === "buy" ? "trade_buy" : "trade_sell";
+              this.updateSceneData(ctx, sceneData);
+            } else {
+              // Handle error or invalid token address
+              await ctx.reply(TRADE_TEXTS.ERRORS.TOKEN_NOT_FOUND);
+              await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
+              return;
+            }
+          } catch (error) {
+            this.log("error", ctx, `Error finding token: ${error}`);
             await ctx.reply(TRADE_TEXTS.ERRORS.TOKEN_NOT_FOUND);
             await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
             return;
@@ -63,11 +71,6 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
         if (userWithSettings && wallets) {
           sceneData.userWithSettings = userWithSettings;
           sceneData.userWithWallets = wallets;
-          // Get best dex, will return sell or buy quote depending on the state
-          const bestDex = await this.service.getBestDex(ctx, sceneData);
-          if (bestDex) {
-            sceneData.bestDex = bestDex.best;
-          }
 
           if (sceneData.state === "trade_buy") {
             sceneData.selectedAmount =
@@ -107,15 +110,21 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
               ctx,
               `Selected wallets TO BUY: ${sceneData.selectedWallets}`
             );
+
+            // Get best dex for buy mode after wallets are selected
+            const bestDex = await this.service.getBestDex(ctx, sceneData);
+            if (bestDex) {
+              sceneData.bestDex = bestDex.best;
+            }
           } else if (sceneData.state === "trade_sell") {
             sceneData.selectedAmount =
               sceneData.userWithSettings.sellSettings?.amount1?.toString();
             sceneData.selectedSlippage =
               sceneData.userWithSettings.sellSettings?.slippage?.toString();
             this.updateSceneData(ctx, sceneData);
-            // First check wallet.balance >0, if not, skip
-            // Then check wallet.holdings.balance >0, if not, skip
-            // Set selectedWallets with the wallet address if the has enough eth and token balance
+
+            // Check if user has any tokens to sell
+            let hasAnyTokens = false;
             for (const wallet of sceneData.userWithWallets.wallets) {
               // Check if wallet has ETH balance > 0 (for gas fees)
               const hasEthBalance =
@@ -130,6 +139,7 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
               // Only select wallets that have both ETH and tokens
               if (hasEthBalance && hasTokenBalance) {
                 sceneData.selectedWallets?.push(wallet.id);
+                hasAnyTokens = true;
                 this.log(
                   "info",
                   ctx,
@@ -153,6 +163,61 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
                 sceneData.selectedWallets?.length || 0
               }`
             );
+
+            // Get best dex for sell mode if we have tokens to sell
+            if (hasAnyTokens) {
+              const bestDex = await this.service.getBestDex(ctx, sceneData);
+              if (bestDex) {
+                sceneData.bestDex = bestDex.best;
+              }
+            }
+
+            // If no tokens to sell, switch to buy mode
+            if (!hasAnyTokens) {
+              this.log(
+                "info",
+                ctx,
+                `No ${sceneData.token?.symbol} tokens found in wallets, switching to buy mode`
+              );
+
+              // Switch to buy mode
+              sceneData.state = "trade_buy";
+              sceneData.selectedAmount =
+                sceneData.userWithSettings.buySettings?.amount1?.toString();
+              sceneData.selectedSlippage =
+                sceneData.userWithSettings.buySettings?.slippage?.toString();
+              sceneData.selectedWallets = [];
+
+              // Auto-select wallets with enough ETH for buy
+              const ethAmount =
+                sceneData.userWithSettings.buySettings?.amount1 ?? 0.01;
+              const ethAmountInWei = BigInt(Math.floor(ethAmount * 10 ** 18));
+
+              for (const wallet of sceneData.userWithWallets.wallets) {
+                if (wallet.balance && BigInt(wallet.balance) > ethAmountInWei) {
+                  sceneData.selectedWallets?.push(wallet.id);
+                  this.log(
+                    "info",
+                    ctx,
+                    `Wallet ${wallet.id} has enough ETH: ${
+                      wallet.balance
+                    } Wei > ${ethAmountInWei.toString()} Wei`
+                  );
+                }
+              }
+
+              this.log(
+                "info",
+                ctx,
+                `Switched to buy mode, selected wallets: ${sceneData.selectedWallets}`
+              );
+
+              // Get best dex for the switched buy mode
+              const bestDex = await this.service.getBestDex(ctx, sceneData);
+              if (bestDex) {
+                sceneData.bestDex = bestDex.best;
+              }
+            }
           }
 
           // Show trade menu
@@ -372,11 +437,21 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
             const selectedWallets = sceneData.selectedWallets;
             const userId = ctx.user.id;
 
-            const instantReply = await ctx.reply("Processing...");
+            const instantReply = await ctx.reply(
+              `⏳ Processing buy order for ${sceneData.token?.symbol}...\n` +
+                `💰 Amount: ${sceneData.selectedAmount} ETH\n` +
+                `📊 Wallets: ${selectedWallets?.length || 0}`
+            );
 
             const results = await Promise.allSettled(
               selectedWallets?.map((wid) =>
-                this.service.buyToken(ctx, sceneData, wid, userId)
+                this.service.buyToken(
+                  ctx,
+                  sceneData,
+                  wid,
+                  userId,
+                  this.createTransactionSuccessCallback(ctx, "buy")
+                )
               ) || []
             );
 
@@ -392,11 +467,21 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
             const selectedWallets = sceneData.selectedWallets;
             const userId = ctx.user.id;
 
-            const instantReply = await ctx.reply("Processing...");
+            const instantReply = await ctx.reply(
+              `⏳ Processing sell order for ${sceneData.token?.symbol}...\n` +
+                `📈 Percentage: ${sceneData.selectedAmount}% of holdings\n` +
+                `📊 Wallets: ${selectedWallets?.length || 0}`
+            );
 
             const results = await Promise.allSettled(
               selectedWallets?.map((wid) =>
-                this.service.sellToken(ctx, sceneData, wid, userId)
+                this.service.sellToken(
+                  ctx,
+                  sceneData,
+                  wid,
+                  userId,
+                  this.createTransactionSuccessCallback(ctx, "sell")
+                )
               ) || []
             );
 
@@ -435,16 +520,67 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
             const sceneData = this.getSceneData(ctx);
             sceneData.token = token;
             sceneData.state = "trade_buy";
-            const menuMessageId = await this.menus.showTradeMenu(
-              ctx,
-              sceneData,
-              this.getSceneData(ctx).menuMessageId!
-            );
-            if (menuMessageId) {
-              sceneData.menuMessageId = menuMessageId;
+
+            // Load user settings and wallets with holdings
+            const [userWithSettings, wallets] = await Promise.all([
+              this.service.getUserWithSettings(ctx),
+              this.service.getUserWalletsWithHolding(ctx, token.id),
+            ]);
+
+            if (userWithSettings && wallets) {
+              sceneData.userWithSettings = userWithSettings;
+              sceneData.userWithWallets = wallets;
+
+              // Set default amount and slippage for buy mode
+              sceneData.selectedAmount =
+                userWithSettings.buySettings?.amount1?.toString();
+              sceneData.selectedSlippage =
+                userWithSettings.buySettings?.slippage?.toString();
+
+              // Auto-select wallets with enough ETH for buy
+              const ethAmount = userWithSettings.buySettings?.amount1 ?? 0.01;
+              const ethAmountInWei = BigInt(Math.floor(ethAmount * 10 ** 18));
+              sceneData.selectedWallets = [];
+
+              for (const wallet of wallets.wallets) {
+                if (wallet.balance && BigInt(wallet.balance) > ethAmountInWei) {
+                  sceneData.selectedWallets.push(wallet.id);
+                  this.log(
+                    "info",
+                    ctx,
+                    `Wallet ${wallet.id} has enough ETH: ${
+                      wallet.balance
+                    } Wei > ${ethAmountInWei.toString()} Wei`
+                  );
+                }
+              }
+
+              // Get best dex quote
+              const bestDex = await this.service.getBestDex(ctx, sceneData);
+              if (bestDex) {
+                sceneData.bestDex = bestDex.best;
+              }
+
               this.updateSceneData(ctx, sceneData);
+
+              // Show trade menu with all data loaded
+              const menuMessageId = await this.menus.showTradeMenu(
+                ctx,
+                sceneData,
+                this.getSceneData(ctx).menuMessageId!
+              );
+              if (menuMessageId) {
+                sceneData.menuMessageId = menuMessageId;
+                this.updateSceneData(ctx, sceneData);
+              }
+
+              this.log(
+                "info",
+                ctx,
+                `Selected wallets for buy: ${sceneData.selectedWallets}`
+              );
+              return true;
             }
-            return true;
           }
         }
         this.menus.askForTokenMenuAgain(
@@ -685,6 +821,62 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
     } catch (error) {
       this.log("error", ctx, `Error refreshing quote: ${error}`);
       // Could show an error message to user if needed
+    }
+  }
+
+  /**
+   * Public method to create transaction success callback
+   */
+  public createTransactionSuccessCallback(
+    ctx: GlobalSceneContext,
+    transactionType: "buy" | "sell"
+  ): () => Promise<void> {
+    return async () => {
+      await this.handleTransactionSuccess(ctx, transactionType);
+    };
+  }
+
+  /**
+   * Handle automatic mode switch after successful transaction
+   */
+  private async handleTransactionSuccess(
+    ctx: GlobalSceneContext,
+    transactionType: "buy" | "sell"
+  ): Promise<void> {
+    try {
+      this.log(
+        "info",
+        ctx,
+        `Transaction ${transactionType} completed successfully, switching mode`
+      );
+
+      const sceneData = this.getSceneData(ctx);
+
+      // Wait a moment to ensure all balance updates are complete
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // Refresh user data with updated balances
+      const [userWithSettings, wallets] = await Promise.all([
+        this.service.getUserWithSettings(ctx),
+        this.service.getUserWalletsWithHolding(ctx, sceneData.token?.id!),
+      ]);
+
+      if (userWithSettings && wallets) {
+        sceneData.userWithSettings = userWithSettings;
+        sceneData.userWithWallets = wallets;
+
+        // Switch to opposite mode
+        const newMode = transactionType === "buy" ? "trade_sell" : "trade_buy";
+        await this.switchMode(ctx, newMode);
+
+        this.log(
+          "info",
+          ctx,
+          `Successfully switched to ${newMode} mode after ${transactionType}`
+        );
+      }
+    } catch (error) {
+      this.log("error", ctx, `Error handling transaction success: ${error}`);
     }
   }
 

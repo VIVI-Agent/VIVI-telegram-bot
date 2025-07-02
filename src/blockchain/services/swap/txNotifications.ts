@@ -37,7 +37,7 @@ function getFormattedSymbolLink(
     action = swapType === "Buy" ? "sell" : "buy";
   }
 
-  const link = `https://t.me/${botUsername}?start=${action}_${tokenAddress}`;
+  const link = `https://t.me/${botUsername}?start=trade_${action}_${tokenAddress}`;
   return `<a href="${link}">${symbol}</a>`;
 }
 
@@ -106,12 +106,29 @@ export async function handleTxNotifications({
     receipt = await waitReceipt;
   } catch (err) {
     logger.error(`${swapType} waitReceipt error:`, err);
+
+    // Crear teclado con botón dismiss para errores de espera
+    const errorKeyboard = {
+      inline_keyboard: [
+        [
+          {
+            text: "🗑️ Dismiss",
+            callback_data: `DISMISS_TX_MSG:${msgId}`,
+          },
+        ],
+      ],
+    };
+
     await ctx.telegram.editMessageText(
       chatId,
       msgId,
       undefined,
       `${swapType} ❌ Error esperando confirmación.\n<b>Hash:</b> <a href="${explorerLink}">${shortTx}</a>`,
-      { parse_mode: "HTML", link_preview_options: { is_disabled: true } }
+      {
+        parse_mode: "HTML",
+        link_preview_options: { is_disabled: true },
+        reply_markup: errorKeyboard,
+      }
     );
     return;
   }
@@ -120,12 +137,28 @@ export async function handleTxNotifications({
   // 3. Verificar estado
   // ───────────────────────────────────────────────────────────
   if (receipt.status === "reverted") {
+    // Crear teclado con botón dismiss para transacciones fallidas
+    const failedKeyboard = {
+      inline_keyboard: [
+        [
+          {
+            text: "🗑️ Dismiss",
+            callback_data: `DISMISS_TX_MSG:${msgId}`,
+          },
+        ],
+      ],
+    };
+
     await ctx.telegram.editMessageText(
       chatId,
       msgId,
       undefined,
       `${swapType} ❌ Transaction failed.\n<b>Hash:</b> <a href="${explorerLink}">${shortTx}</a>`,
-      { parse_mode: "HTML", link_preview_options: { is_disabled: true } }
+      {
+        parse_mode: "HTML",
+        link_preview_options: { is_disabled: true },
+        reply_markup: failedKeyboard,
+      }
     );
     return;
   }
@@ -171,9 +204,22 @@ export async function handleTxNotifications({
     finalMessage = `${swapType} ${formattedSymbol} ✅ ${details}`;
   }
 
+  // Crear teclado con botón dismiss
+  const keyboard = {
+    inline_keyboard: [
+      [
+        {
+          text: "🗑️ Dismiss",
+          callback_data: `DISMISS_TX_MSG:${msgId}`,
+        },
+      ],
+    ],
+  };
+
   await ctx.telegram.editMessageText(chatId, msgId, undefined, finalMessage, {
     parse_mode: "HTML",
     link_preview_options: { is_disabled: true },
+    reply_markup: keyboard,
   });
 }
 

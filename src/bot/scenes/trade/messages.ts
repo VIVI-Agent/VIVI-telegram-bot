@@ -1,7 +1,13 @@
 import { DexQuoteResultBuy, DexQuoteResultSell } from "@blockchain";
 import { WalletWithHoldings } from "@domain";
-import { Token, Wallet } from "@prisma/client";
+import { Token, Wallet, Holding } from "@prisma/client";
 import { formatEthBalanceWithSymbol } from "@utils";
+import { formatUnits } from "viem";
+
+// Type for wallets as they appear in TradeSceneData
+type TradeWallet = Wallet & {
+  holdings: (Holding & { token: Token }) | null;
+};
 
 export const TRADE_TEXTS = {
   BUTTONS: {
@@ -25,7 +31,7 @@ export const TRADE_TEXTS = {
     getTradeMessage: (
       token: Token,
       bestDex: DexQuoteResultBuy | DexQuoteResultSell,
-      wallets: Wallet[],
+      wallets: TradeWallet[],
       amount: string,
       isSell?: boolean
     ) => {
@@ -51,13 +57,59 @@ export const TRADE_TEXTS = {
         const emoji = bestDex.dexName.includes("Uniswap") ? "🦄" : "✈️";
         dexName += `${emoji} ${bestDex.dexName} ${feeTier}\n`;
       }
-      // Format wallet balances
-      const walletBalances = wallets
+      // Format wallet balances in two separate lines: ETH line and Token line
+      const ethBalanceLine = wallets
         .map((wallet, index) => {
-          const balance = wallet.balance || "0.000001"; // Default fallback
-          return `<b>W${index + 1}:</b> ${formatEthBalanceWithSymbol(balance)}`;
+          const ethBalance = wallet.balance || "0.000001"; // Default fallback
+          const ethFormatted = formatEthBalanceWithSymbol(ethBalance).replace(
+            " ETH",
+            " Ξ"
+          );
+          return `<b>W${index + 1}:</b> ${ethFormatted}`;
         })
         .join(" | ");
+
+      const tokenBalanceLine = wallets
+        .map((wallet, index) => {
+          // Check if wallet has holding for this specific token (holdings is a single object, not array)
+          const tokenHolding =
+            wallet.holdings?.tokenId === token.id ? wallet.holdings : null;
+          let tokenFormatted = "";
+
+          if (
+            tokenHolding &&
+            tokenHolding.balance &&
+            BigInt(tokenHolding.balance) > 0n
+          ) {
+            const tokenBalance = formatUnits(
+              BigInt(tokenHolding.balance),
+              token.decimals
+            );
+            const tokenAmount = parseFloat(tokenBalance);
+
+            // Format with appropriate precision
+            if (tokenAmount >= 1000000) {
+              tokenFormatted = `${(tokenAmount / 1000000).toFixed(2)}M ${
+                token.symbol
+              }`;
+            } else if (tokenAmount >= 1000) {
+              tokenFormatted = `${(tokenAmount / 1000).toFixed(2)}K ${
+                token.symbol
+              }`;
+            } else if (tokenAmount >= 1) {
+              tokenFormatted = `${tokenAmount.toFixed(2)} ${token.symbol}`;
+            } else {
+              tokenFormatted = `${tokenAmount.toFixed(6)} ${token.symbol}`;
+            }
+          } else {
+            tokenFormatted = `0 ${token.symbol}`;
+          }
+
+          return `<b>W${index + 1}:</b> ${tokenFormatted}`;
+        })
+        .join(" | ");
+
+      const walletBalances = `${ethBalanceLine}\n${tokenBalanceLine}`;
 
       // Different message format for buy vs sell
       const swapDirection = isSell ? "Sell" : "Buy";
