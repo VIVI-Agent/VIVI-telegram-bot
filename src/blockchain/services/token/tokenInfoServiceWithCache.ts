@@ -71,15 +71,15 @@ export class TokenInfoServiceWithCache {
           lastUpdated: cachedInfo.updatedAt,
         };
 
-        // Check if cache is stale (older than 1 hour)
-        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-        const needsUpdate = cachedInfo.updatedAt < oneHourAgo;
+        // Check if cache is stale (older than 1 second) - always update for fresh data
+        const oneSecondAgo = new Date(Date.now() - 1 * 1000);
+        const needsUpdate = cachedInfo.updatedAt < oneSecondAgo;
 
         logger.debug(
           `[TokenInfoServiceWithCache] Cache check for token ${tokenAddress}:`
         );
         logger.debug(`  - Current time: ${new Date().toISOString()}`);
-        logger.debug(`  - One hour ago: ${oneHourAgo.toISOString()}`);
+        logger.debug(`  - One second ago: ${oneSecondAgo.toISOString()}`);
         logger.debug(
           `  - Cache updated at: ${cachedInfo.updatedAt.toISOString()}`
         );
