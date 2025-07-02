@@ -21,10 +21,28 @@ export async function transferERC20(
   txHash: `0x${string}`;
   waitReceipt: Promise<TransactionReceipt>;
 }> {
+  const logPrefix = "[transferERC20]";
+  logger.info(
+    `${logPrefix} Transferring ${amount} ${tokenAddress} to ${toAddress}`
+  );
+  logger.info(
+    `${logPrefix} Transferring ${amount} ${tokenAddress} to ${toAddress}`
+  );
+  logger.info(
+    `${logPrefix} Transferring ${amount} ${tokenAddress} to ${toAddress}`
+  );
+  logger.info(
+    `${logPrefix} Transferring ${amount} ${tokenAddress} to ${toAddress}`
+  );
+
   try {
-    const walletClient = getUserWalletClientQuickNode(privateKey);
     const address = AddressValidator.parseEthereumAddress(tokenAddress);
     const to = AddressValidator.parseEthereumAddress(toAddress);
+    logger.info(`${logPrefix} address: ${address}`);
+    logger.info(`${logPrefix} to: ${to}`);
+
+    const walletClient = getUserWalletClientQuickNode(privateKey);
+
     if (address && to) {
       const txHash = await walletClient.writeContract({
         address,

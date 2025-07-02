@@ -3,6 +3,7 @@ import winston from "winston";
 import { Prisma, PrismaClient, SpeedEnum, User } from "@prisma/client";
 import {
   UserWithAll,
+  UserWithSelectedWalletAndHoldings,
   UserWithSettings,
   UserWithWallets,
   UserWithWalletsAndHolding,
@@ -334,5 +335,33 @@ export class UserService {
         totalVolumeSoldWei: { increment: ethInWeiDecimal }, // Usar Decimal
       },
     });
+  }
+
+  public async getUserWithSelectedWalletAndHoldingsByUserId(
+    userId: number
+  ): Promise<UserWithSelectedWalletAndHoldings | null> {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId },
+      include: {
+        wallets: {
+          where: { isSelected: true, isDeleted: false },
+          include: {
+            holdings: {
+              include: {
+                token: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!user) return null;
+
+    // Filtrar Holdings con balance > 0
+    for (const wallet of user.wallets) {
+      wallet.holdings = wallet.holdings.filter((h) => BigInt(h.balance) > 0n);
+    }
+
+    return user;
   }
 }

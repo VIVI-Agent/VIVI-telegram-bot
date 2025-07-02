@@ -1,4 +1,4 @@
-export * from "./erc20/erc20";
+export * from "./erc20";
 export * from "./bnsResolver/L2ResolverAbi";
 export * from "./uniswap/uniswapV2RouterAbi";
 export * from "./uniswap/uniswapV3QuoterAbi";

@@ -43,6 +43,7 @@ const envSchema = z.object({
   APESTORE_API_KEY: z.string().nonempty(),
   APESTORE_ROUTER_ADDRESS: z.string().nonempty(),
   ERC20_BATCH_ADDRESS: z.string().nonempty(),
+  ETH_BATCH_ADDRESS: z.string().nonempty(),
   VIVI_MIXED_BATCH_TRANSFER_CONTRACT_ADDRESS: z.string().nonempty(),
   ONBOARD_ETH_AMOUNT: z.string().default("0.00007"),
   MAX_SEND_RECIPIENTS: z.coerce.number().default(30),
@@ -85,6 +86,7 @@ export const contracts = {
   APESTORE_ROUTER_ADDRESS: parsedEnv.APESTORE_ROUTER_ADDRESS,
   FEE_SWAP_WRAPPER_APESTORE: parsedEnv.FEE_SWAP_WRAPPER_APESTORE,
   ERC20_BATCH_ADDRESS: parsedEnv.ERC20_BATCH_ADDRESS,
+  ETH_BATCH_ADDRESS: parsedEnv.ETH_BATCH_ADDRESS,
   VIVI_MIXED_BATCH_TRANSFER_CONTRACT_ADDRESS:
     parsedEnv.VIVI_MIXED_BATCH_TRANSFER_CONTRACT_ADDRESS,
   ONBOARD_ETH_AMOUNT: parsedEnv.ONBOARD_ETH_AMOUNT,

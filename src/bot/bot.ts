@@ -12,6 +12,7 @@ import { Redis } from "@telegraf/session/redis";
 import { logger } from "@logger";
 import { GENERIC_ERRORS } from "@texts";
 import { registerCommands } from "./commands";
+import { textManager } from "./textHandlers";
 
 // Create bot instance
 const bot = new Telegraf<GlobalSceneContext>(secrets.TELEGRAM_BOT_TOKEN || "");
@@ -137,8 +138,19 @@ bot.on(message("text"), async (ctx) => {
     if (text.startsWith("/")) {
       return;
     }
+
     logger.info(`Text received: ${text}`);
-    await sceneManager.routeText(ctx, text);
+
+    // First try textManager for natural language commands
+    const handledByTextManager = await textManager.routeText(ctx, text);
+
+    // If textManager didn't handle it, pass to sceneManager
+    if (!handledByTextManager) {
+      logger.debug("Text not handled by textManager, routing to sceneManager");
+      await sceneManager.routeText(ctx, text);
+    } else {
+      logger.debug("Text handled by textManager, skipping sceneManager");
+    }
   }
 });
 

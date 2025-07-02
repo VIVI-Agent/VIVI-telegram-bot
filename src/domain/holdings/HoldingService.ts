@@ -1,4 +1,5 @@
-import { Holding, PrismaClient, Token } from "@prisma/client";
+import { Holding, PrismaClient, Token, Wallet } from "@prisma/client";
+import { isAddress } from "viem";
 
 export type HoldingWithToken = Holding & { token: Token };
 export class HoldingService {
@@ -85,6 +86,68 @@ export class HoldingService {
         wallet: { isDeleted: false },
       },
       include: { token: true },
+    });
+  }
+
+  public getHoldingBySymbolOrAddress(
+    selectedWallet: Wallet & { holdings: (Holding & { token: Token })[] },
+    symbolOrCA: string
+  ): (Holding & { token: Token }) | undefined {
+    // Add safety check for selectedWallet
+    if (!selectedWallet || !selectedWallet.holdings) {
+      console.error(
+        "[HoldingService] selectedWallet is undefined or has no holdings"
+      );
+      return undefined;
+    }
+
+    const lowerValue = symbolOrCA.toLowerCase();
+
+    // 1. If it's an address, find by normalized address
+    if (isAddress(lowerValue)) {
+      return selectedWallet.holdings.find(
+        (h) => h.token.address.toLowerCase() === lowerValue
+      );
+    }
+
+    // 2. If it's a symbol, try multiple search strategies
+
+    // Direct match first
+    const directMatch = selectedWallet.holdings.find(
+      (h) => h.token.symbol.toLowerCase() === lowerValue
+    );
+
+    if (directMatch) return directMatch;
+
+    // Try with $ added if the input doesn't have it
+    if (!lowerValue.startsWith("$")) {
+      const withDollarMatch = selectedWallet.holdings.find(
+        (h) => h.token.symbol.toLowerCase() === `$${lowerValue}`
+      );
+
+      if (withDollarMatch) return withDollarMatch;
+    }
+
+    // Try with $ removed if the input has it
+    if (lowerValue.startsWith("$")) {
+      const withoutDollarMatch = selectedWallet.holdings.find(
+        (h) => h.token.symbol.toLowerCase() === lowerValue.substring(1)
+      );
+
+      if (withoutDollarMatch) return withoutDollarMatch;
+    }
+
+    // Case insensitive comparison with and without $
+    return selectedWallet.holdings.find((h) => {
+      const holdingSymbol = h.token.symbol.toLowerCase();
+      const withoutDollarSymbol = holdingSymbol.startsWith("$")
+        ? holdingSymbol.substring(1)
+        : holdingSymbol;
+      const withoutDollarInput = lowerValue.startsWith("$")
+        ? lowerValue.substring(1)
+        : lowerValue;
+
+      return withoutDollarSymbol === withoutDollarInput;
     });
   }
 }
