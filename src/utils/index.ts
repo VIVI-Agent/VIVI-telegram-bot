@@ -7,3 +7,4 @@ export * from "./normalizeAmount";
 export * from "./parseBNS";
 export * from "./sleep";
 export * from "./telegramLinkGenerator";
+export * from "./shareMessage";

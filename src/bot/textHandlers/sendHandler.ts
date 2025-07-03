@@ -18,7 +18,11 @@ import {
 } from "@services";
 import { getTokenBalance } from "@blockchain";
 import { publicClientQuickNode } from "@client";
-import { generateTradeLink, sleep } from "@utils";
+import {
+  generateTradeLink,
+  sleep,
+  generateShareableTransferMessage,
+} from "@utils";
 
 /**
  * Generate clickeable token link for buy mode
@@ -806,7 +810,7 @@ async function executeSendCommand(
 
     // Add invalid recipients if any
     if (invalidRecipients.length > 0) {
-      message += `\n❌ <b>Invalid:</b> ${invalidRecipients
+      message += `\n👥 <b>Invalid:</b> ${invalidRecipients
         .map((inv) => inv.original)
         .join(", ")}`;
     }
@@ -922,6 +926,26 @@ async function executeSendCommand(
           {
             parse_mode: "HTML",
             link_preview_options: { is_disabled: true },
+            reply_markup:
+              ctx.chat?.type === "private"
+                ? {
+                    inline_keyboard: [
+                      [
+                        {
+                          text: "⏩ Let 'Em Know",
+                          url: `https://t.me/share/url?url=${encodeURIComponent(
+                            generateShareableTransferMessage(
+                              parsed.amount,
+                              parsed.token,
+                              result.txHash,
+                              ctx.from?.username
+                            )
+                          )}`,
+                        },
+                      ],
+                    ],
+                  }
+                : undefined,
           }
         );
 

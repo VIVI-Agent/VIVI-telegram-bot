@@ -27,3 +27,9 @@ export function viviJoin(tgUsername?: string) {
 export function manageVIVI() {
   return `<a href="https://t.me/${secrets.TELEGRAM_BOT_USERNAME}?start">Manage Funds 🥃</a>`;
 }
+
+export function viviJoinPlain(tgUsername?: string) {
+  if (tgUsername)
+    return `https://t.me/${secrets.TELEGRAM_BOT_USERNAME}?start=ref_${tgUsername}`;
+  else return `https://t.me/${secrets.TELEGRAM_BOT_USERNAME}?start`;
+}

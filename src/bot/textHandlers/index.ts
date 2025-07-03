@@ -1,6 +1,5 @@
 export * from "./types";
 export * from "./TextManager";
-export * from "./balance";
 export * from "./balanceHandler";
 export * from "./inviteHandler";
 export * from "./sendHandler";
