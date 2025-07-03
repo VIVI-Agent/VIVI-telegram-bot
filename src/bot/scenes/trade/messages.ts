@@ -160,6 +160,7 @@ ${dexName}${tokenInfoSection}
 <b>👛 Bag:</b> ${totalHoldings} ${tokenSymbol}
 ${walletBalances}
 
+ℹ️ Press refresh to update the monitor
 ${socialLinks}`;
     },
   },

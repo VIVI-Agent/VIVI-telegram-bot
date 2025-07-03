@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "ExternalPoolInfo" ALTER COLUMN "liquidityUsd" SET DATA TYPE TEXT,
+ALTER COLUMN "volume24hUsd" SET DATA TYPE TEXT,
+ALTER COLUMN "priceUsd" SET DATA TYPE TEXT;

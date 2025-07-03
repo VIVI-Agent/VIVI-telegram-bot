@@ -170,9 +170,9 @@ model ExternalPoolInfo {
     token        Token?   @relation(fields: [tokenId], references: [id])
     dexName      String?
     feeTier      Int?
-    liquidityUsd Decimal? @db.Decimal(38, 18)
-    volume24hUsd Decimal? @db.Decimal(38, 18)
-    priceUsd     Decimal? @db.Decimal(38, 18)
+    liquidityUsd String?
+    volume24hUsd String?
+    priceUsd     String?
     lastUpdated  DateTime @default(now())
     createdAt    DateTime @default(now())
     updatedAt    DateTime @updatedAt
