@@ -4,11 +4,13 @@ export * from "./balance";
 export * from "./balanceHandler";
 export * from "./inviteHandler";
 export * from "./sendHandler";
+export * from "./burnHandler";
 
 import { TextManager } from "./TextManager";
 import { balanceTextHandler } from "./balanceHandler";
 import { inviteTextHandler } from "./inviteHandler";
 import { sendTextHandler } from "./sendHandler";
+import { burnTextHandler } from "./burnHandler";
 import { TextPattern } from "./types";
 
 // Create text manager instance
@@ -59,6 +61,22 @@ const sendPatterns: TextPattern[] = [
   },
 ];
 
+// Define burn patterns (flexible patterns to capture various formats)
+const burnPatterns: TextPattern[] = [
+  {
+    name: "burn_command",
+    pattern: /^burn\s+.+$/i,
+    handler: burnTextHandler,
+    description: "Burn tokens by sending them to dead address",
+    examples: [
+      "burn 100 BOBR",
+      "burn all of USDC",
+      "burn half bife",
+      "burn 50 baby sato",
+    ],
+  },
+];
+
 // Register all patterns
 balancePatterns.forEach((pattern) => {
   textManager.registerPattern(pattern);
@@ -72,5 +90,9 @@ sendPatterns.forEach((pattern) => {
   textManager.registerPattern(pattern);
 });
 
+burnPatterns.forEach((pattern) => {
+  textManager.registerPattern(pattern);
+});
+
 // Export for external use
-export { balancePatterns, invitePatterns, sendPatterns };
+export { balancePatterns, invitePatterns, sendPatterns, burnPatterns };

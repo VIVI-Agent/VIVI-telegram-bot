@@ -11,9 +11,14 @@ import {
 import { batchTransferService } from "../../blockchain/transactions/batchTransfer/batchTransferService";
 import { ethBatchTransferService } from "../../blockchain/transactions/batchTransfer/ethBatchTransferService";
 import { Wallet } from "@prisma/client";
-import { decryptPrivateKey } from "@services";
+import {
+  decryptPrivateKey,
+  getWalletBalance,
+  createBaseWallet,
+} from "@services";
+import { getTokenBalance } from "@blockchain";
 import { publicClientQuickNode } from "@client";
-import { generateTradeLink } from "@utils";
+import { generateTradeLink, sleep } from "@utils";
 
 /**
  * Generate clickeable token link for buy mode
@@ -89,6 +94,24 @@ interface ValidatedRecipient {
 }
 
 /**
+ * Validates if a string is a valid Telegram username
+ * Rules: a-z, 0-9, underscore only, minimum 5 characters
+ */
+function isValidTelegramUsername(username: string): boolean {
+  // Remove @ if present
+  const cleanUsername = username.replace(/^@/, "");
+
+  // Check length (minimum 5 characters)
+  if (cleanUsername.length < 5) {
+    return false;
+  }
+
+  // Check only allowed characters: a-z, 0-9, underscore
+  const validPattern = /^[a-zA-Z0-9_]+$/;
+  return validPattern.test(cleanUsername);
+}
+
+/**
  * Send text handler - adapted for TextManager
  * Handles complex send commands with multiple formats:
  * - send 1 BOBR @username
@@ -128,19 +151,28 @@ export const sendTextHandler: TextHandler = async (
     logger.info(`${logPrefix} Parsed command:`, parsed);
 
     // Validate and resolve recipients
-    const validatedRecipients = await validateAndResolveRecipients(
+    const recipientResult = await validateAndResolveRecipients(
       ctx,
       parsed.recipients
     );
 
+    const validatedRecipients = recipientResult.valid;
+    const invalidRecipients = recipientResult.invalid;
+
     if (validatedRecipients.length === 0) {
-      await ctx.reply(
-        "❌ No valid recipients found. Please check recipient formats and try again.",
-        {
-          parse_mode: "HTML",
-          reply_parameters: { message_id: ctx.message?.message_id! },
-        }
-      );
+      let errorMessage = "❌ No valid recipients found.";
+
+      if (invalidRecipients.length > 0) {
+        errorMessage += "\n\n❌ Invalid recipients:";
+        invalidRecipients.forEach((invalid) => {
+          errorMessage += `\n• ${invalid.original}: ${invalid.reason}`;
+        });
+      }
+
+      await ctx.reply(errorMessage, {
+        parse_mode: "HTML",
+        reply_parameters: { message_id: ctx.message?.message_id! },
+      });
       return true;
     }
 
@@ -199,8 +231,20 @@ export const sendTextHandler: TextHandler = async (
       parsed,
       validatedRecipients,
       senderWallet,
-      resolvedToken.decimals
+      resolvedToken.decimals,
+      invalidRecipients
     );
+
+    // Log invalid recipients if any
+    if (invalidRecipients.length > 0) {
+      logger.info(
+        `${logPrefix} Transaction completed with ${
+          invalidRecipients.length
+        } invalid recipients: ${invalidRecipients
+          .map((r) => r.original)
+          .join(", ")}`
+      );
+    }
 
     return true; // Successfully handled
   } catch (error) {
@@ -352,9 +396,13 @@ function findMultiWordToken(
 async function validateAndResolveRecipients(
   ctx: GlobalSceneContext,
   recipients: string[]
-): Promise<ValidatedRecipient[]> {
+): Promise<{
+  valid: ValidatedRecipient[];
+  invalid: { original: string; reason: string }[];
+}> {
   const logPrefix = "[validateAndResolveRecipients]";
   const validated: ValidatedRecipient[] = [];
+  const invalid: { original: string; reason: string }[] = [];
 
   for (const recipient of recipients) {
     try {
@@ -362,13 +410,27 @@ async function validateAndResolveRecipients(
 
       // Check if it's a BNS name
       if (isBNSName(recipient)) {
-        const address = await resolveBNSAddress(recipient);
-        if (address) {
-          validated.push({
+        try {
+          const address = await resolveBNSAddress(recipient);
+          if (address) {
+            validated.push({
+              original: recipient,
+              address,
+              displayName: recipient,
+              type: "bns",
+            });
+            continue;
+          } else {
+            invalid.push({
+              original: recipient,
+              reason: "BNS name could not be resolved",
+            });
+            continue;
+          }
+        } catch (error) {
+          invalid.push({
             original: recipient,
-            address,
-            displayName: recipient,
-            type: "bns",
+            reason: "BNS name resolution failed",
           });
           continue;
         }
@@ -385,17 +447,27 @@ async function validateAndResolveRecipients(
         continue;
       }
 
-      // Check if it's a Telegram username
-      if (
-        recipient.startsWith("@") ||
-        /^[a-zA-Z][a-zA-Z0-9_]{4,31}$/.test(recipient)
-      ) {
+      // Check if it's a Telegram username (MUST start with @)
+      if (recipient.startsWith("@")) {
         const username = recipient.replace(/^@/, "");
 
+        // Validate username format first
+        if (!isValidTelegramUsername(username)) {
+          logger.warn(
+            `${logPrefix} Invalid Telegram username format: ${username}`
+          );
+          invalid.push({
+            original: recipient,
+            reason: "Invalid Telegram username format",
+          });
+          continue;
+        }
+
         // Look up user in database
-        const targetUser = await ctx.services.userService.getUserByUsername(
+        let targetUser = await ctx.services.userService.getUserByUsername(
           username
         );
+
         if (targetUser) {
           // Get user with wallets
           const userWithWallets =
@@ -412,7 +484,64 @@ async function validateAndResolveRecipients(
             });
             continue;
           }
+        } else {
+          // User doesn't exist - create new user
+          try {
+            logger.info(
+              `${logPrefix} Creating new user for @${username} with referral from ${ctx.user.id}`
+            );
+
+            // Get sender's username to set as referrer
+            const senderUser = ctx.user;
+            const referralTgUsername = senderUser?.tgUsername;
+
+            const newUser =
+              await ctx.services.userService.createUserWithSettings({
+                tgUsername: username,
+                referralTgUsername: referralTgUsername, // Set sender as referrer
+              });
+
+            const { address, encryptedPrivKey } = await createBaseWallet();
+            await ctx.services.walletService.createUserWallet(
+              newUser.id,
+              address,
+              encryptedPrivKey,
+              true
+            );
+
+            logger.info(
+              `${logPrefix} Created user ${newUser.id} with wallet ${address}${
+                referralTgUsername ? ` referred by @${referralTgUsername}` : ""
+              }`
+            );
+
+            validated.push({
+              original: recipient,
+              address: address as Address,
+              userId: newUser.id,
+              displayName: `@${username}`,
+              type: "username",
+            });
+            continue;
+          } catch (error) {
+            logger.error(
+              `${logPrefix} Error creating user for @${username}:`,
+              error
+            );
+            invalid.push({
+              original: recipient,
+              reason: "Failed to create new user account",
+            });
+            continue;
+          }
         }
+      } else {
+        // Not a valid recipient format
+        invalid.push({
+          original: recipient,
+          reason:
+            "Invalid recipient format (must be address, BNS name, or @username)",
+        });
       }
 
       logger.warn(`${logPrefix} Could not resolve recipient: ${recipient}`);
@@ -421,10 +550,14 @@ async function validateAndResolveRecipients(
         `${logPrefix} Error validating recipient ${recipient}:`,
         error
       );
+      invalid.push({
+        original: recipient,
+        reason: "Validation error",
+      });
     }
   }
 
-  return validated;
+  return { valid: validated, invalid };
 }
 
 /**
@@ -649,7 +782,8 @@ async function executeSendCommand(
   parsed: ParsedSendCommand,
   recipients: ValidatedRecipient[],
   senderWallet: Wallet,
-  tokenDecimals: number = 18
+  tokenDecimals: number = 18,
+  invalidRecipients: { original: string; reason: string }[] = []
 ): Promise<void> {
   const logPrefix = "[executeSendCommand]";
   let statusMessage: any;
@@ -669,6 +803,13 @@ async function executeSendCommand(
     message += `👥 <b>Recipients:</b> ${recipients
       .map((r) => r.displayName)
       .join(", ")}`;
+
+    // Add invalid recipients if any
+    if (invalidRecipients.length > 0) {
+      message += `\n❌ <b>Invalid:</b> ${invalidRecipients
+        .map((inv) => inv.original)
+        .join(", ")}`;
+    }
 
     statusMessage = await ctx.reply(message, {
       parse_mode: "HTML",
@@ -724,8 +865,16 @@ async function executeSendCommand(
     )}\n`;
     message += `👥 <b>Recipients:</b> ${recipients
       .map((r) => r.displayName)
-      .join(", ")}\n`;
-    message += `🌐 <a href="https://basescan.org/tx/${result.txHash}">View on BaseScan</a>`;
+      .join(", ")}`;
+
+    // Add invalid recipients if any
+    if (invalidRecipients.length > 0) {
+      message += `\n❌ <b>Invalid:</b> ${invalidRecipients
+        .map((inv) => inv.original)
+        .join(", ")}`;
+    }
+
+    message += `\n🌐 <a href="https://basescan.org/tx/${result.txHash}">View on BaseScan</a>`;
 
     await ctx.telegram.editMessageText(
       statusMessage.chat.id,
@@ -742,32 +891,237 @@ async function executeSendCommand(
     try {
       const receipt = await result.waitReceipt;
 
-      // Final success message
-      message = `✅ <b>Transfer Successful!</b>\n`;
-      message += `💰 <b>Amount:</b> ${parsed.amount} ${generateClickeableToken(
-        parsed.token,
-        parsed.tokenAddress,
-        parsed.isEthTransfer
-      )}\n`;
-      message += `👥 <b>Recipients:</b> ${recipients
-        .map((r) => r.displayName)
-        .join(", ")}\n`;
-      message += `🌐 <a href="https://basescan.org/tx/${result.txHash}">View on BaseScan</a>`;
+      if (receipt.status === "success") {
+        // Final success message
+        message = `✅ <b>Transfer Successful!</b>\n`;
+        message += `💰 <b>Amount:</b> ${
+          parsed.amount
+        } ${generateClickeableToken(
+          parsed.token,
+          parsed.tokenAddress,
+          parsed.isEthTransfer
+        )}\n`;
+        message += `👥 <b>Recipients:</b> ${recipients
+          .map((r) => r.displayName)
+          .join(", ")}\n`;
 
-      await ctx.telegram.editMessageText(
-        statusMessage.chat.id,
-        statusMessage.message_id,
-        undefined,
-        message,
-        {
-          parse_mode: "HTML",
-          link_preview_options: { is_disabled: true },
+        // Add invalid recipients if any
+        if (invalidRecipients.length > 0) {
+          message += `❌ <b>Invalid:</b> ${invalidRecipients
+            .map((inv) => inv.original)
+            .join(", ")}\n`;
         }
-      );
 
-      logger.info(
-        `${logPrefix} Transfer completed successfully: ${result.txHash}`
-      );
+        message += `🌐 <a href="https://basescan.org/tx/${result.txHash}">View on BaseScan</a>`;
+
+        await ctx.telegram.editMessageText(
+          statusMessage.chat.id,
+          statusMessage.message_id,
+          undefined,
+          message,
+          {
+            parse_mode: "HTML",
+            link_preview_options: { is_disabled: true },
+          }
+        );
+
+        logger.info(
+          `${logPrefix} Transfer completed successfully: ${result.txHash}`
+        );
+
+        // Update balances in background
+        setImmediate(async () => {
+          try {
+            await sleep(2000);
+            logger.debug(
+              `${logPrefix} Starting background balance updates for ${result.txHash}`
+            );
+
+            // Get wallet record for sender
+            const walletRecord =
+              await ctx.services.walletService.getWalletWithHoldings(
+                senderWallet.id
+              );
+            if (!walletRecord) {
+              logger.error(
+                `${logPrefix} Sender wallet not found: ${senderWallet.id}`
+              );
+              return;
+            }
+
+            if (parsed.isEthTransfer) {
+              // ETH transfer - update ETH balances
+              const [newSenderEthBalance] = await Promise.all([
+                getWalletBalance(senderWallet.address as Address),
+              ]);
+
+              await ctx.services.walletService.updateWalletBalance(
+                senderWallet.id,
+                newSenderEthBalance
+              );
+
+              logger.debug(`${logPrefix} Updated sender ETH balance`);
+
+              // Update recipient balances for Telegram users
+              for (const recipient of recipients) {
+                if (recipient.userId && recipient.type === "username") {
+                  try {
+                    const recipientWallet =
+                      await ctx.services.walletService.getSelectedWallet(
+                        recipient.userId
+                      );
+                    if (recipientWallet) {
+                      const newRecipientEthBalance = await getWalletBalance(
+                        recipient.address
+                      );
+                      await ctx.services.walletService.updateWalletBalance(
+                        recipientWallet.id,
+                        newRecipientEthBalance
+                      );
+                      logger.debug(
+                        `${logPrefix} Updated recipient ETH balance for user ${recipient.userId}`
+                      );
+                    }
+                  } catch (err) {
+                    logger.error(
+                      `${logPrefix} Error updating recipient ETH balance for user ${recipient.userId}:`,
+                      err
+                    );
+                  }
+                }
+              }
+            } else {
+              // Token transfer - update both ETH and token balances
+              const tokenInfo =
+                await ctx.services.holdingService.getHoldingBySymbolOrAddress(
+                  walletRecord,
+                  parsed.token
+                );
+
+              if (!tokenInfo?.token) {
+                logger.error(
+                  `${logPrefix} Token info not found for ${parsed.token}`
+                );
+                return;
+              }
+
+              const [newSenderEthBalance, newSenderTokenBalance] =
+                await Promise.all([
+                  getWalletBalance(walletRecord.address as Address),
+                  getTokenBalance(
+                    tokenInfo.token.address as Address,
+                    walletRecord.address as Address
+                  ),
+                ]);
+
+              // Update sender balances
+              await ctx.services.walletService.updateWalletBalance(
+                walletRecord.id,
+                newSenderEthBalance
+              );
+
+              await ctx.services.holdingService.updateHoldingFromChain({
+                userId: walletRecord.userId,
+                tokenId: tokenInfo.token.id,
+                walletId: walletRecord.id,
+                newBalance: newSenderTokenBalance,
+              });
+
+              logger.debug(
+                `${logPrefix} Updated sender token and ETH balances`
+              );
+
+              // Update recipient balances for Telegram users
+              for (const recipient of recipients) {
+                if (recipient.userId && recipient.type === "username") {
+                  try {
+                    const recipientWallet =
+                      await ctx.services.walletService.getSelectedWallet(
+                        recipient.userId
+                      );
+                    if (recipientWallet) {
+                      const [newRecipientEthBalance, newRecipientTokenBalance] =
+                        await Promise.all([
+                          getWalletBalance(recipient.address),
+                          getTokenBalance(
+                            tokenInfo.token.address as Address,
+                            recipient.address
+                          ),
+                        ]);
+
+                      await ctx.services.walletService.updateWalletBalance(
+                        recipientWallet.id,
+                        newRecipientEthBalance
+                      );
+
+                      await ctx.services.holdingService.updateHoldingFromChain({
+                        userId: recipient.userId,
+                        tokenId: tokenInfo.token.id,
+                        walletId: recipientWallet.id,
+                        newBalance: newRecipientTokenBalance,
+                      });
+
+                      logger.debug(
+                        `${logPrefix} Updated recipient token and ETH balances for user ${recipient.userId}`
+                      );
+                    }
+                  } catch (err) {
+                    logger.error(
+                      `${logPrefix} Error updating recipient balances for user ${recipient.userId}:`,
+                      err
+                    );
+                  }
+                }
+              }
+            }
+
+            logger.debug(
+              `${logPrefix} Balance updates completed for ${result.txHash}`
+            );
+          } catch (err) {
+            logger.error(
+              `${logPrefix} Background balance update error: ${
+                err instanceof Error ? err.stack : err
+              }`
+            );
+          }
+        });
+      } else {
+        // Transaction failed
+        message = `❌ <b>Transfer Failed!</b>\n`;
+        message += `💰 <b>Amount:</b> ${
+          parsed.amount
+        } ${generateClickeableToken(
+          parsed.token,
+          parsed.tokenAddress,
+          parsed.isEthTransfer
+        )}\n`;
+        message += `👥 <b>Recipients:</b> ${recipients
+          .map((r) => r.displayName)
+          .join(", ")}\n`;
+
+        // Add invalid recipients if any
+        if (invalidRecipients.length > 0) {
+          message += `❌ <b>Invalid:</b> ${invalidRecipients
+            .map((inv) => inv.original)
+            .join(", ")}\n`;
+        }
+
+        message += `🌐 <a href="https://basescan.org/tx/${result.txHash}">View on BaseScan</a>`;
+
+        await ctx.telegram.editMessageText(
+          statusMessage.chat.id,
+          statusMessage.message_id,
+          undefined,
+          message,
+          {
+            parse_mode: "HTML",
+            link_preview_options: { is_disabled: true },
+          }
+        );
+
+        logger.error(`${logPrefix} Transfer failed: ${result.txHash}`);
+      }
     } catch (receiptError) {
       logger.warn(
         `${logPrefix} Could not get receipt confirmation:`,
@@ -784,6 +1138,14 @@ async function executeSendCommand(
       message += `👥 <b>Recipients:</b> ${recipients
         .map((r) => r.displayName)
         .join(", ")}\n`;
+
+      // Add invalid recipients if any
+      if (invalidRecipients.length > 0) {
+        message += `❌ <b>Invalid:</b> ${invalidRecipients
+          .map((inv) => inv.original)
+          .join(", ")}\n`;
+      }
+
       message += `🌐 <a href="https://basescan.org/tx/${result.txHash}">View on BaseScan</a>`;
 
       await ctx.telegram.editMessageText(
@@ -813,6 +1175,13 @@ async function executeSendCommand(
       errorMessage += `👥 <b>Recipients:</b> ${recipients
         .map((r) => r.displayName)
         .join(", ")}`;
+
+      // Add invalid recipients if any
+      if (invalidRecipients.length > 0) {
+        errorMessage += `\n❌ <b>Invalid:</b> ${invalidRecipients
+          .map((inv) => inv.original)
+          .join(", ")}`;
+      }
 
       if (error instanceof Error) {
         errorMessage += `\n💬 <b>Error:</b> <i>${error.message}</i>`;
