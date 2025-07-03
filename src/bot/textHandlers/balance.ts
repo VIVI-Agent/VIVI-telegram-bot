@@ -3,7 +3,7 @@ import { logger } from "@logger";
 import { GlobalSceneContext } from "@types";
 import { Address, formatUnits } from "viem";
 import { getWalletBalance } from "@services";
-import { viviJoin } from "@utils";
+import { viviJoin, generateTradeLink } from "@utils";
 import { secrets } from "config";
 
 /**
@@ -170,6 +170,7 @@ export async function balanceHandler(
 
         return {
           symbol: h.token.symbol,
+          address: h.token.address,
           balance: tokenBalance,
           balanceBN: balBN,
           decimals: decimals,
@@ -182,7 +183,26 @@ export async function balanceHandler(
       // Mostrar los tokens ordenados
       for (const token of sortedHoldings) {
         const tokenBalanceFormatted = token.balance.toFixed(4);
-        text += `• ${token.symbol}: <b>${tokenBalanceFormatted}</b>\n`;
+
+        // Generate buy and sell links for the token
+        try {
+          const buyLink = generateTradeLink({
+            tokenAddress: token.address as Address,
+            mode: "buy",
+          });
+          const sellLink = generateTradeLink({
+            tokenAddress: token.address as Address,
+            mode: "sell",
+          });
+          text += `• ${token.symbol} <a href="${buyLink}">[Buy]</a> <a href="${sellLink}">[Sell]</a>: <b>${tokenBalanceFormatted}</b>\n`;
+        } catch (error) {
+          // Fallback to non-clickeable if link generation fails
+          logger.warn(
+            `Failed to generate trade link for ${token.symbol}:`,
+            error
+          );
+          text += `• ${token.symbol}: <b>${tokenBalanceFormatted}</b>\n`;
+        }
       }
     } else {
       text += `<i>No tokens found in vault</i>`;

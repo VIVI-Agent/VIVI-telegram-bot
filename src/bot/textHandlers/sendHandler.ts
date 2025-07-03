@@ -13,6 +13,37 @@ import { ethBatchTransferService } from "../../blockchain/transactions/batchTran
 import { Wallet } from "@prisma/client";
 import { decryptPrivateKey } from "@services";
 import { publicClientQuickNode } from "@client";
+import { generateTradeLink } from "@utils";
+
+/**
+ * Generate clickeable token link for buy mode
+ */
+function generateClickeableToken(
+  tokenSymbol: string,
+  tokenAddress?: Address,
+  isEthTransfer?: boolean
+): string {
+  try {
+    // For ETH transfers or tokens without address, return plain text
+    if (
+      isEthTransfer ||
+      !tokenAddress ||
+      tokenAddress === "0x0000000000000000000000000000000000000000"
+    ) {
+      return tokenSymbol.toUpperCase();
+    }
+
+    const buyLink = generateTradeLink({
+      tokenAddress,
+      mode: "buy",
+    });
+    return `<a href="${buyLink}">${tokenSymbol.toUpperCase()}</a>`;
+  } catch (error) {
+    // Fallback to plain text if link generation fails
+    logger.warn(`Failed to generate trade link for ${tokenSymbol}:`, error);
+    return tokenSymbol.toUpperCase();
+  }
+}
 
 // Token aliases configuration
 const TOKEN_ALIASES: Record<string, Address> = {
@@ -630,9 +661,11 @@ async function executeSendCommand(
 
     // Send initial status message
     let message = `⏳ <b>Submitting Transfer!</b>\n`;
-    message += `💰 <b>Amount:</b> ${
-      parsed.amount
-    } ${parsed.token.toUpperCase()}\n`;
+    message += `💰 <b>Amount:</b> ${parsed.amount} ${generateClickeableToken(
+      parsed.token,
+      parsed.tokenAddress,
+      parsed.isEthTransfer
+    )}\n`;
     message += `👥 <b>Recipients:</b> ${recipients
       .map((r) => r.displayName)
       .join(", ")}`;
@@ -684,9 +717,11 @@ async function executeSendCommand(
 
     // Update message with transaction submitted
     message = `📤 <b>Transaction Submitted!</b>\n`;
-    message += `💰 <b>Amount:</b> ${
-      parsed.amount
-    } ${parsed.token.toUpperCase()}\n`;
+    message += `💰 <b>Amount:</b> ${parsed.amount} ${generateClickeableToken(
+      parsed.token,
+      parsed.tokenAddress,
+      parsed.isEthTransfer
+    )}\n`;
     message += `👥 <b>Recipients:</b> ${recipients
       .map((r) => r.displayName)
       .join(", ")}\n`;
@@ -709,9 +744,11 @@ async function executeSendCommand(
 
       // Final success message
       message = `✅ <b>Transfer Successful!</b>\n`;
-      message += `💰 <b>Amount:</b> ${
-        parsed.amount
-      } ${parsed.token.toUpperCase()}\n`;
+      message += `💰 <b>Amount:</b> ${parsed.amount} ${generateClickeableToken(
+        parsed.token,
+        parsed.tokenAddress,
+        parsed.isEthTransfer
+      )}\n`;
       message += `👥 <b>Recipients:</b> ${recipients
         .map((r) => r.displayName)
         .join(", ")}\n`;
@@ -739,9 +776,11 @@ async function executeSendCommand(
 
       // Update with partial success
       message = `⚠️ <b>Transfer Submitted!</b>\n`;
-      message += `💰 <b>Amount:</b> ${
-        parsed.amount
-      } ${parsed.token.toUpperCase()}\n`;
+      message += `💰 <b>Amount:</b> ${parsed.amount} ${generateClickeableToken(
+        parsed.token,
+        parsed.tokenAddress,
+        parsed.isEthTransfer
+      )}\n`;
       message += `👥 <b>Recipients:</b> ${recipients
         .map((r) => r.displayName)
         .join(", ")}\n`;
@@ -766,7 +805,11 @@ async function executeSendCommand(
       let errorMessage = `❌ <b>Transfer Failed!</b>\n`;
       errorMessage += `💰 <b>Amount:</b> ${
         parsed.amount
-      } ${parsed.token.toUpperCase()}\n`;
+      } ${generateClickeableToken(
+        parsed.token,
+        parsed.tokenAddress,
+        parsed.isEthTransfer
+      )}\n`;
       errorMessage += `👥 <b>Recipients:</b> ${recipients
         .map((r) => r.displayName)
         .join(", ")}`;

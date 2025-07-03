@@ -2,8 +2,7 @@ import { GENERIC_BUTTONS } from "@texts";
 import { BaseMenus, GlobalSceneContext, PositionsSceneData } from "../../types";
 import { CB } from "./callbacks";
 import { POSITIONS_TEXTS } from "./messages";
-import { formatPnl } from "@utils";
-import { secrets } from "@config";
+import { formatPnl, generateTradeLink } from "@utils";
 
 export class PositionsMenus extends BaseMenus {
   constructor(instanceId: string) {
@@ -23,7 +22,7 @@ export class PositionsMenus extends BaseMenus {
     try {
       const { positions } = sceneData;
 
-      const { text } = await this.buildPortfolioView(positions!);
+      const { text } = await this.buildPortfolioView(ctx, positions!);
 
       const keyboard = [
         [
@@ -58,7 +57,7 @@ export class PositionsMenus extends BaseMenus {
     }
   }
 
-  async buildPortfolioView(pnlSummary: any[]) {
+  async buildPortfolioView(ctx: GlobalSceneContext, pnlSummary: any[]) {
     // Sort tokens by total worth (highest first)
     pnlSummary.sort(
       (a, b) => parseFloat(b.totalPnlEth) - parseFloat(a.totalPnlEth)
@@ -102,12 +101,33 @@ export class PositionsMenus extends BaseMenus {
         else if (parseFloat(pctChange) < -20) emoji = "💩";
         else if (parseFloat(pctChange) < 0) emoji = "📉";
 
-        // Create sell link for the token symbol
-        const sellLink = `https://t.me/${secrets.TELEGRAM_BOT_USERNAME}?start=trade_sell_${item.token.address}`;
+        // Create buy and sell links for the token
+        try {
+          const buyLink = generateTradeLink({
+            tokenAddress: item.token.address,
+            mode: "buy",
+          });
+          const sellLink = generateTradeLink({
+            tokenAddress: item.token.address,
+            mode: "sell",
+          });
 
-        text += `${emoji} <b><a href="${sellLink}">${
-          item.token.symbol
-        }</a></b>: ${parseFloat(item.balance).toFixed(4)}\n`;
+          text += `${emoji} <b>${
+            item.token.symbol
+          }</b> <a href="${buyLink}">[Buy]</a> <a href="${sellLink}">[Sell]</a>: ${parseFloat(
+            item.balance
+          ).toFixed(4)}\n`;
+        } catch (error) {
+          // Fallback to non-clickeable if link generation fails
+          this.log(
+            "warn",
+            ctx,
+            `Failed to generate trade links for ${item.token.symbol}: ${error}`
+          );
+          text += `${emoji} <b>${item.token.symbol}</b>: ${parseFloat(
+            item.balance
+          ).toFixed(4)}\n`;
+        }
         text += `   ${POSITIONS_TEXTS.MESSAGES.TOTAL_VALUE} ${(
           parseFloat(item.unrealizedPnlEth) + parseFloat(item.realizedPnlEth)
         ).toFixed(6)} ETH\n`;

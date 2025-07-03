@@ -6,3 +6,4 @@ export * from "./feeDiscounts";
 export * from "./normalizeAmount";
 export * from "./parseBNS";
 export * from "./sleep";
+export * from "./telegramLinkGenerator";
