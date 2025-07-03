@@ -9,14 +9,19 @@ import { VIVIMixedBatchTransferABI } from "../../abis/erc20/VIVIMixedBatchTransf
 import { logger } from "logger/logger";
 import { AddressValidator } from "@utils";
 import { contracts } from "@config";
+import { ensureAllowanceLogic } from "blockchain/services/token";
+import { GlobalSceneContext } from "@types";
+import { Wallet } from "@prisma/client";
 
 export interface MixedBatchTransferParams {
+  ctx: GlobalSceneContext;
   privateKey: `0x${string}`;
   tokenAddress: Address;
   recipients: Address[];
   tokenAmountEach: bigint;
   ethAmountEach: string; // ETH amount as string (e.g., "0.0000069")
   confirmations: number;
+  senderWallet: Wallet;
 }
 
 /**
@@ -29,12 +34,14 @@ export async function mixedBatchTransfer(
   waitReceipt: Promise<TransactionReceipt>;
 }> {
   const {
+    ctx,
     privateKey,
     tokenAddress,
     recipients,
     tokenAmountEach,
     ethAmountEach,
     confirmations,
+    senderWallet,
   } = params;
 
   try {
@@ -66,8 +73,24 @@ export async function mixedBatchTransfer(
     const ethAmountEachBigInt = parseEther(ethAmountEach);
     const totalEthAmount = ethAmountEachBigInt * BigInt(recipients.length);
 
+    // Calculate total token amount needed
+    const totalTokenAmount = tokenAmountEach * BigInt(recipients.length);
+
     logger.info(
-      `[mixedBatchTransfer] Token: ${parsedTokenAddress}, Recipients: ${recipients.length}, TokenAmount: ${tokenAmountEach}, ETHAmount: ${ethAmountEach} (${ethAmountEachBigInt}), TotalETH: ${totalEthAmount}`
+      `[mixedBatchTransfer] Token: ${parsedTokenAddress}, Recipients: ${recipients.length}, TokenAmount: ${tokenAmountEach}, ETHAmount: ${ethAmountEach} (${ethAmountEachBigInt}), TotalETH: ${totalEthAmount}, TotalToken: ${totalTokenAmount}`
+    );
+
+    // Ensure allowance for mixed batch contract
+    await ensureAllowanceLogic(ctx, {
+      walletEntity: senderWallet,
+      tokenAddress: parsedTokenAddress,
+      requiredAmount: totalTokenAmount,
+      spender: mixedBatchContractAddress,
+      privateKey,
+    });
+
+    logger.info(
+      `[mixedBatchTransfer] Allowance ensured for mixed batch contract ${mixedBatchContractAddress}`
     );
 
     const txHash = await walletClient.writeContract({

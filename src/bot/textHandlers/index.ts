@@ -4,12 +4,14 @@ export * from "./balanceHandler";
 export * from "./inviteHandler";
 export * from "./sendHandler";
 export * from "./burnHandler";
+export * from "./onboardHandler";
 
 import { TextManager } from "./TextManager";
 import { balanceTextHandler } from "./balanceHandler";
 import { inviteTextHandler } from "./inviteHandler";
 import { sendTextHandler } from "./sendHandler";
 import { burnTextHandler } from "./burnHandler";
+import { onboardTextHandler } from "./onboardHandler";
 import { TextPattern } from "./types";
 
 // Create text manager instance
@@ -76,6 +78,23 @@ const burnPatterns: TextPattern[] = [
   },
 ];
 
+// Define onboard patterns (flexible patterns to capture various formats)
+const onboardPatterns: TextPattern[] = [
+  {
+    name: "onboard_command",
+    pattern: /^onboard\s+.+$/i,
+    handler: onboardTextHandler,
+    description:
+      "Onboard users with tokens + ETH (sends both tokens and 0.00007 ETH)",
+    examples: [
+      "onboard 10 BOBR @username",
+      "onboard 100 bife to @user1 @user2",
+      "onboard 50 baby sato @alice",
+      "onboard 25 tokens to bob.base.eth",
+    ],
+  },
+];
+
 // Register all patterns
 balancePatterns.forEach((pattern) => {
   textManager.registerPattern(pattern);
@@ -93,5 +112,15 @@ burnPatterns.forEach((pattern) => {
   textManager.registerPattern(pattern);
 });
 
+onboardPatterns.forEach((pattern) => {
+  textManager.registerPattern(pattern);
+});
+
 // Export for external use
-export { balancePatterns, invitePatterns, sendPatterns, burnPatterns };
+export {
+  balancePatterns,
+  invitePatterns,
+  sendPatterns,
+  burnPatterns,
+  onboardPatterns,
+};
