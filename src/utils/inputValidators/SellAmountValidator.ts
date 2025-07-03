@@ -26,8 +26,8 @@ export class SellAmountValidator {
     // Clean input (remove spaces, replace commas with dots)
     const cleanInput = input.trim().replace(/,/g, ".");
 
-    // Parse to number
-    const numValue = parseFloat(cleanInput);
+    // Parse to number - for sell percentages, only take integer part
+    const numValue = isSlippage ? parseFloat(cleanInput) : parseInt(cleanInput);
 
     // Check if it's a valid number
     if (isNaN(numValue)) {

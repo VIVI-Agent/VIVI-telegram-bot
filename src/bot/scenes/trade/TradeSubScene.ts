@@ -640,7 +640,9 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
       // Check if we're in sell mode (custom percentage) or buy mode (custom amount)
       if (sceneData.state === "trade_sell") {
         // Handle custom percentage for sell mode
-        const percentageNum = parseFloat(text);
+        const normalizedText = this.normalizeNumberInput(text);
+        // For sell mode, only take the integer part of the percentage
+        const percentageNum = parseInt(normalizedText);
         const isValidPercentage =
           !isNaN(percentageNum) && percentageNum >= 1 && percentageNum <= 100;
 
@@ -653,8 +655,10 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
 
         if (isValidPercentage) {
           // Establecer el custom percentage y también como selectedAmount
-          sceneData.customAmount = text;
-          sceneData.selectedAmount = text; // Importante: establecer también selectedAmount
+          // For sell mode, store only the integer part
+          const integerPercentage = percentageNum.toString();
+          sceneData.customAmount = integerPercentage;
+          sceneData.selectedAmount = integerPercentage; // Importante: establecer también selectedAmount
 
           // Borrar TODOS los mensajes temporales acumulados
           if (
@@ -704,7 +708,11 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
         }
       } else {
         // Handle custom amount for buy mode
-        const validationResult = BuyAmountValidator.validate(text, false);
+        const normalizedText = this.normalizeNumberInput(text);
+        const validationResult = BuyAmountValidator.validate(
+          normalizedText,
+          false
+        );
 
         // Guardar el messageId del usuario en el array temporal
         if (ctx.message?.message_id) {
@@ -715,8 +723,8 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
 
         if (validationResult.isValid) {
           // Establecer el custom amount y también como selectedAmount
-          sceneData.customAmount = text;
-          sceneData.selectedAmount = text; // Importante: establecer también selectedAmount
+          sceneData.customAmount = normalizedText;
+          sceneData.selectedAmount = normalizedText; // Importante: establecer también selectedAmount
 
           // Borrar TODOS los mensajes temporales acumulados
           if (
@@ -770,8 +778,12 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
     if (this.getSceneData(ctx).editMode?.customSlippage && text) {
       const sceneData = this.getSceneData(ctx);
       // Validar que el slippage esté entre 1 y 50
-      const slippageNum = parseFloat(text);
-      const validationResult = BuyAmountValidator.validate(text, false);
+      const normalizedText = this.normalizeNumberInput(text);
+      const slippageNum = parseFloat(normalizedText);
+      const validationResult = BuyAmountValidator.validate(
+        normalizedText,
+        false
+      );
 
       // Guardar el messageId del usuario en el array temporal
       if (ctx.message?.message_id) {
@@ -782,8 +794,8 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
 
       if (validationResult.isValid && slippageNum >= 1 && slippageNum <= 50) {
         // Establecer el custom slippage y también como selectedSlippage
-        sceneData.customSlippage = text;
-        sceneData.selectedSlippage = text; // Importante: establecer también selectedSlippage
+        sceneData.customSlippage = normalizedText;
+        sceneData.selectedSlippage = normalizedText; // Importante: establecer también selectedSlippage
 
         // Borrar TODOS los mensajes temporales acumulados
         if (
@@ -841,6 +853,13 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
     const sceneData = this.getSceneData(ctx);
     // Reset any temporary data if needed
     this.updateSceneData(ctx, sceneData);
+  }
+
+  /**
+   * Helper function to normalize number input (convert commas to dots)
+   */
+  private normalizeNumberInput(text: string): string {
+    return text.replace(/,/g, ".");
   }
 
   /**

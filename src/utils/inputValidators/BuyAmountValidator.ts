@@ -49,7 +49,7 @@ export class BuyAmountValidator {
       };
     }
 
-    if (numValue > 50) {
+    if (isSlippage && numValue > 50) {
       return {
         isValid: false,
         error: "Slippage must be less than 50",

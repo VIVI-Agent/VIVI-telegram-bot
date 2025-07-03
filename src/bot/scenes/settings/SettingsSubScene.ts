@@ -22,6 +22,13 @@ export class SettingsSubScene extends BaseSubScene<SettingsSceneData> {
 
   private services: SettingsService;
 
+  /**
+   * Helper function to normalize number input (convert commas to dots)
+   */
+  private normalizeNumberInput(text: string): string {
+    return text.replace(/,/g, ".");
+  }
+
   constructor(instanceId: string) {
     super(instanceId, "Settings");
     this.menus = new SettingsMenus(instanceId);
@@ -272,8 +279,9 @@ export class SettingsSubScene extends BaseSubScene<SettingsSceneData> {
           `✅ Updating buy settings for ${editField.fieldName} with value: ${text}`
         );
 
+        const normalizedBuyText = this.normalizeNumberInput(text);
         const validation = BuyAmountValidator.validate(
-          text,
+          normalizedBuyText,
           editField.fieldName === "slippage"
         );
         if (!validation.isValid) {
@@ -327,8 +335,9 @@ export class SettingsSubScene extends BaseSubScene<SettingsSceneData> {
           `📝 Updating sell settings for ${editField.fieldName} with value: ${text}`
         );
 
+        const normalizedSellText = this.normalizeNumberInput(text);
         const validationSell = SellAmountValidator.validate(
-          text,
+          normalizedSellText,
           editField.fieldName === "slippage"
         );
         if (!validationSell.isValid) {
