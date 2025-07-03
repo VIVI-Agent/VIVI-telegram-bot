@@ -151,6 +151,18 @@ export class TradeMenus extends BaseMenus {
     const selectedWallets = sceneData.selectedWallets || [];
     const keyboard = [];
 
+    // Navigation buttons (moved to top)
+    keyboard.push([
+      {
+        text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
+        callback_data: this.createCallback(CB.MAIN_MENU),
+      },
+      {
+        text: GENERIC_BUTTONS.DISMISS,
+        callback_data: this.createCallback(CB.DISMISS_TRADE),
+      },
+    ]);
+
     // Add switch to sell button if user has tokens to sell
     if (this.hasTokensToSell(sceneData)) {
       keyboard.push([
@@ -226,16 +238,6 @@ export class TradeMenus extends BaseMenus {
 
     // Wallet selection
     if (!wallets || wallets.length === 0) {
-      keyboard.push([
-        {
-          text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
-          callback_data: this.createCallback(CB.MAIN_MENU),
-        },
-        {
-          text: GENERIC_BUTTONS.DISMISS,
-          callback_data: this.createCallback(CB.DISMISS_TRADE),
-        },
-      ]);
       return keyboard;
     }
 
@@ -262,7 +264,15 @@ export class TradeMenus extends BaseMenus {
       },
     ]);
 
-    // Navigation buttons
+    return keyboard;
+  }
+
+  private getSellKeyboard(sceneData: TradeSceneData) {
+    const wallets = sceneData.userWithWallets?.wallets;
+    const selectedWallets = sceneData.selectedWallets || [];
+    const keyboard = [];
+
+    // Navigation buttons (moved to top)
     keyboard.push([
       {
         text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
@@ -273,13 +283,6 @@ export class TradeMenus extends BaseMenus {
         callback_data: this.createCallback(CB.DISMISS_TRADE),
       },
     ]);
-    return keyboard;
-  }
-
-  private getSellKeyboard(sceneData: TradeSceneData) {
-    const wallets = sceneData.userWithWallets?.wallets;
-    const selectedWallets = sceneData.selectedWallets || [];
-    const keyboard = [];
 
     // Add switch to buy button
     keyboard.push([
@@ -351,16 +354,6 @@ export class TradeMenus extends BaseMenus {
 
     // Wallet selection (only show wallets with tokens)
     if (!wallets || wallets.length === 0) {
-      keyboard.push([
-        {
-          text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
-          callback_data: this.createCallback(CB.MAIN_MENU),
-        },
-        {
-          text: GENERIC_BUTTONS.DISMISS,
-          callback_data: this.createCallback(CB.DISMISS_TRADE),
-        },
-      ]);
       return keyboard;
     }
 
@@ -388,17 +381,6 @@ export class TradeMenus extends BaseMenus {
       },
     ]);
 
-    // Navigation buttons
-    keyboard.push([
-      {
-        text: GENERIC_BUTTONS.BACK_TO_MAIN_MENU,
-        callback_data: this.createCallback(CB.MAIN_MENU),
-      },
-      {
-        text: GENERIC_BUTTONS.DISMISS,
-        callback_data: this.createCallback(CB.DISMISS_TRADE),
-      },
-    ]);
     return keyboard;
   }
 
