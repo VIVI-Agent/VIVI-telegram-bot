@@ -23,6 +23,6 @@
       "@blockchain": ["./blockchain"]
     }
   },
-  "include": ["src", "src/domain/initServices.ts"],
+  "include": ["src", "src/domain/initServices.ts", "src/_server/types"],
   "exclude": ["node_modules"]
 }

@@ -198,6 +198,14 @@ export class UserService {
     });
   }
 
+  public async getUserWithReferralInfoByTgUserId(tgUserId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { tgUserId },
+    });
+    if (!user) return null;
+    return this.getUserWithReferralInfo(user.id);
+  }
+
   public async getUserWithReferralInfo(userId: number) {
     // 1) Obtenemos el user + referrals
     const user = await this.prisma.user.findUnique({

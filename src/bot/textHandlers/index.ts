@@ -5,6 +5,8 @@ export * from "./inviteHandler";
 export * from "./sendHandler";
 export * from "./burnHandler";
 export * from "./onboardHandler";
+export * from "./buyHandler";
+export * from "./sellHandler";
 
 import { TextManager } from "./TextManager";
 import { balanceTextHandler } from "./balanceHandler";
@@ -12,6 +14,8 @@ import { inviteTextHandler } from "./inviteHandler";
 import { sendTextHandler } from "./sendHandler";
 import { burnTextHandler } from "./burnHandler";
 import { onboardTextHandler } from "./onboardHandler";
+import { buyTextHandler } from "./buyHandler";
+import { sellTextHandler } from "./sellHandler";
 import { TextPattern } from "./types";
 
 // Create text manager instance
@@ -95,6 +99,38 @@ const onboardPatterns: TextPattern[] = [
   },
 ];
 
+// Define buy patterns (flexible patterns to capture various formats)
+const buyPatterns: TextPattern[] = [
+  {
+    name: "buy_command",
+    pattern: /^buy\s+.+$/i,
+    handler: buyTextHandler,
+    description: "Buy tokens with ETH",
+    examples: [
+      "buy 0.1 BOBR",
+      "buy 100 bife",
+      "buy 50 baby sato",
+      "buy 0.01 of USDC",
+    ],
+  },
+];
+
+// Define sell patterns (flexible patterns to capture various formats)
+const sellPatterns: TextPattern[] = [
+  {
+    name: "sell_command",
+    pattern: /^sell\s+.+$/i,
+    handler: sellTextHandler,
+    description: "Sell tokens for ETH",
+    examples: [
+      "sell 50 BOBR",
+      "sell all bife",
+      "sell half baby sato",
+      "sell 25% of USDC",
+    ],
+  },
+];
+
 // Register all patterns
 balancePatterns.forEach((pattern) => {
   textManager.registerPattern(pattern);
@@ -116,6 +152,14 @@ onboardPatterns.forEach((pattern) => {
   textManager.registerPattern(pattern);
 });
 
+buyPatterns.forEach((pattern) => {
+  textManager.registerPattern(pattern);
+});
+
+sellPatterns.forEach((pattern) => {
+  textManager.registerPattern(pattern);
+});
+
 // Export for external use
 export {
   balancePatterns,
@@ -123,4 +167,6 @@ export {
   sendPatterns,
   burnPatterns,
   onboardPatterns,
+  buyPatterns,
+  sellPatterns,
 };

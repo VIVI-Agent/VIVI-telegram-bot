@@ -41,6 +41,8 @@ export const services = {
   externalTokenInfoService,
 };
 
+export { prisma };
+
 export interface MyServices {
   userService: UserService;
   walletService: WalletService;

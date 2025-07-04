@@ -109,6 +109,14 @@ export class BuyHandlers {
       // Update holding in background
       setImmediate(async () => {
         try {
+          // Validate tokenData has required fields
+          if (!tokenData.address || !wallet.address) {
+            logger.warn(
+              `Skipping balance update: missing token address (${tokenData.address}) or wallet address (${wallet.address})`
+            );
+            return;
+          }
+
           const newOnChainBalanceBN = await getTokenBalance(
             tokenData.address as Address,
             wallet.address as Address

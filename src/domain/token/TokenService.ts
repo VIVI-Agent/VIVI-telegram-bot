@@ -30,4 +30,20 @@ export class TokenService {
       },
     });
   }
+
+  public async getTokensByAddresses(addresses: Address[]): Promise<Token[]> {
+    if (addresses.length === 0) return [];
+
+    // Normalize addresses to lowercase for case-insensitive comparison
+    const normalizedAddresses = addresses.map((addr) => addr.toLowerCase());
+
+    return await this.prisma.token.findMany({
+      where: {
+        address: {
+          in: normalizedAddresses,
+          mode: "insensitive",
+        },
+      },
+    });
+  }
 }

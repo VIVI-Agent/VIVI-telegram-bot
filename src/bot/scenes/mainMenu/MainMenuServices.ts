@@ -4,6 +4,7 @@ import { GENERIC_ERRORS } from "@texts";
 import { BaseService, GlobalSceneContext } from "@types";
 import { getTokenBalance } from "@blockchain";
 import { Address } from "viem";
+import { loginHandler } from "../dashboard/login";
 
 /**
  * MainMenu business logic services
@@ -141,7 +142,8 @@ export class MainMenuServices extends BaseService {
     this.log("info", ctx, "Handling login");
 
     try {
-      await ctx.answerCbQuery("🔐 Dashboard access coming soon!");
+      await ctx.answerCbQuery();
+      await loginHandler(ctx);
     } catch (error) {
       this.logError(ctx, "handleLogin", error);
       ctx.reply(GENERIC_ERRORS.OLD_VERSION);
