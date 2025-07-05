@@ -8,6 +8,7 @@ import {
   BNSError,
   BNSErrorType,
 } from "../../blockchain/services/nameResolution/resolveBNSName";
+import { getBankrEVMAddress } from "../../blockchain/services/nameResolution/bankr";
 import { batchTransferService } from "../../blockchain/transactions/batchTransfer/batchTransferService";
 import { ethBatchTransferService } from "../../blockchain/transactions/batchTransfer/ethBatchTransferService";
 import { Wallet } from "@prisma/client";
@@ -143,7 +144,9 @@ export const sendTextHandler: TextHandler = async (
         "❌ Invalid send format. Examples:\n" +
           "• send 1 BOBR @username\n" +
           "• send 0.1 ETH to alice.base.eth\n" +
-          "• send 100 tokens to @user1 @user2",
+          "• send 100 tokens to @user1 @user2\n" +
+          "• send 50 BOBR bx@vitalik (Twitter)\n" +
+          "• send 25 BOBR bf@dwr (Farcaster)",
         {
           parse_mode: "HTML",
           reply_parameters: { message_id: ctx.message?.message_id! },
@@ -451,6 +454,48 @@ async function validateAndResolveRecipients(
         continue;
       }
 
+      // Check if it's a Bankr tag (bx@username for Twitter, bf@username for Farcaster)
+      if (recipient.startsWith("bx@") || recipient.startsWith("bf@")) {
+        const platform = recipient.startsWith("bx@") ? "twitter" : "farcaster";
+        const username = recipient.substring(3); // Remove "bx@" or "bf@"
+
+        logger.debug(
+          `${logPrefix} Resolving Bankr ${platform} username: ${username}`
+        );
+
+        try {
+          const address = await getBankrEVMAddress(ctx, username, platform);
+          if (address) {
+            validated.push({
+              original: recipient,
+              address: address as Address,
+              displayName:
+                platform === "twitter"
+                  ? `Bankr X <a href="https://x.com/${username}">@${username}</a>`
+                  : `Bankr Farcaster <a href="https://farcaster.xyz/${username}">${username}</a>`,
+              type: "bns", // Using bns type for Bankr addresses
+            });
+            continue;
+          } else {
+            invalid.push({
+              original: recipient,
+              reason: `Bankr ${platform} username not found`,
+            });
+            continue;
+          }
+        } catch (error) {
+          logger.error(
+            `${logPrefix} Error resolving Bankr ${platform} username ${username}:`,
+            error
+          );
+          invalid.push({
+            original: recipient,
+            reason: `Bankr ${platform} resolution failed`,
+          });
+          continue;
+        }
+      }
+
       // Check if it's a Telegram username (MUST start with @)
       if (recipient.startsWith("@")) {
         const username = recipient.replace(/^@/, "");
@@ -544,7 +589,7 @@ async function validateAndResolveRecipients(
         invalid.push({
           original: recipient,
           reason:
-            "Invalid recipient format (must be address, BNS name, or @username)",
+            "Invalid recipient format (must be address, BNS name, @username, bx@username, or bf@username)",
         });
       }
 

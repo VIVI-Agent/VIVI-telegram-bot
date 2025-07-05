@@ -13,6 +13,7 @@ import {
   AllowanceService,
   FeeWhitelistService,
   ExternalTokenInfoService,
+  BankrCacheService,
 } from "./index";
 
 const prisma = new PrismaClient();
@@ -27,6 +28,7 @@ const pnlCacheService = new PnlCacheService(prisma);
 const allowanceService = new AllowanceService(prisma);
 const feeWhitelistService = new FeeWhitelistService(prisma);
 const externalTokenInfoService = new ExternalTokenInfoService(prisma, logger);
+const bankrCacheService = new BankrCacheService(prisma);
 
 export const services = {
   userService,
@@ -39,6 +41,7 @@ export const services = {
   allowanceService,
   feeWhitelistService,
   externalTokenInfoService,
+  bankrCacheService,
 };
 
 export { prisma };
@@ -54,4 +57,5 @@ export interface MyServices {
   allowanceService: AllowanceService;
   feeWhitelistService: FeeWhitelistService;
   externalTokenInfoService: ExternalTokenInfoService;
+  bankrCacheService: BankrCacheService;
 }

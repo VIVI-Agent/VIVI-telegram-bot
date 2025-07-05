@@ -375,3 +375,29 @@ model PnlCache {
     @@index([userId, holdingId])
     @@index([isStale])
 }
+
+model BankrCache {
+    id Int @id @default(autoincrement())
+
+    // Cache key components
+    username String // The username being searched
+    platform String // "twitter" or "farcaster"
+
+    // Cached response data
+    accountId     String // Bankr account ID
+    evmAddress    String // EVM address
+    solanaAddress String // Solana address
+    bankrClub     Boolean // Bankr Club status
+
+    // Cache metadata
+    lastAccessed DateTime @default(now()) // Last time this entry was accessed
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    // Composite unique index on username + platform (case insensitive)
+    @@unique([username, platform])
+    @@index([username])
+    @@index([platform])
+    @@index([lastAccessed])
+}

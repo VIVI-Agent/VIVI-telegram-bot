@@ -28,6 +28,8 @@ The Text Manager system provides natural language command processing for the Tel
 - `send 0.1 ETH to alice.base.eth` - Send ETH to a BNS name
 - `send 100 bife @user1 @user2` - Send tokens to multiple recipients
 - `send 5 of baby sato to bob.base.eth` - Send multi-word tokens with connector words
+- `send 50 BOBR bx@vitalik` - Send tokens to Twitter user via Bankr
+- `send 25 BOBR bf@dwr` - Send tokens to Farcaster user via Bankr
 
 **Features:**
 
@@ -137,6 +139,8 @@ These words are automatically ignored during parsing: `of`, `from`, `to`, `for`,
 - **Telegram usernames**: `@username` or `username`
 - **BNS names**: `alice.base.eth` (resolved on-chain)
 - **Direct addresses**: `0x123...abc`
+- **Bankr Twitter**: `bx@username` (resolves Twitter username to wallet)
+- **Bankr Farcaster**: `bf@username` (resolves Farcaster username to wallet)
 
 ### Flexible Syntax Examples
 
@@ -144,6 +148,8 @@ These words are automatically ignored during parsing: `of`, `from`, `to`, `for`,
 - `send 1 of BOBR to @user`
 - `send 100 bife to @user1 @user2 bob.base.eth`
 - `send 5 baby sato @username`
+- `send 50 BOBR bx@vitalik`
+- `send 25 BOBR bf@dwr`
 
 ### Message States Format
 

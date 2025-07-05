@@ -8,4 +8,5 @@ export * from "./services/common";
 export * from "./services/gasEstimation";
 export * from "./services/swap";
 export * from "./services/nameResolution/resolveBNSName";
+export * from "./services/nameResolution/bankr";
 export * from "./services/pools";
