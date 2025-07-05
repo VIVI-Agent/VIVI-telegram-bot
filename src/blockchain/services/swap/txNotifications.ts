@@ -269,10 +269,12 @@ export async function replyTxNotifications({
   let lineInitial = "";
   if (swapType === "Buy") {
     // E.g. "Buy ⏳ 0.15 ETH for USDC" (sin enlace)
-    lineInitial = `Buy ⏳ ${amountIn} ETH for ${symbol}`;
+    lineInitial = `Buy ⏳ ${parseFloat(amountIn).toFixed(4)} ETH for ${symbol}`;
   } else {
     // E.g. "Sell ⏳ 100 USDC for ETH" (sin enlace)
-    lineInitial = `Sell ⏳ ${amountIn} ${symbol} for ETH`;
+    lineInitial = `Sell ⏳ ${parseFloat(amountIn).toFixed(
+      4
+    )} ${symbol} for ETH`;
   }
 
   // Enviamos / respondemos en el chat
@@ -318,7 +320,7 @@ export async function replyTxNotifications({
   }
 
   // parseLogsFn
-  let details = `<a href="${explorerLink}">${shortHash}</a>`;
+  let details = `<a href="${explorerLink}">${shortHash}</a>\n`;
   if (parseLogsFn) {
     try {
       details += await parseLogsFn(receipt);
@@ -349,7 +351,7 @@ export async function replyTxNotifications({
     ctx.chat!.id,
     initMsg.message_id,
     undefined,
-    `${lineFinal}\nHash: ${details}\n${viviJoin(ctx.from?.username)}`,
+    `${lineFinal}\nHash: ${details}${viviJoin(ctx.from?.username)}`,
     {
       parse_mode: "HTML",
       link_preview_options: { is_disabled: true },

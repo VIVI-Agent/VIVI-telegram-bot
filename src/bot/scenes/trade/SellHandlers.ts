@@ -59,17 +59,22 @@ export class SellHandlers {
           });
           const { tokensIn, ethOut } = parseEvent(event.args);
 
+          // Format amounts with max 4 decimal places
+          const tokensInFormatted = parseFloat(
+            formatUnits(tokensIn, tokenData.decimals)
+          ).toFixed(4);
+          const ethOutFormatted = parseFloat(formatUnits(ethOut, 18)).toFixed(
+            4
+          );
+
           if (isGroup) {
             // Summarized presentation for groups
-            details += `\nReceived: ${formatUnits(ethOut, 18)} ETH`;
+            details += `\nReceived: ${ethOutFormatted} ETH`;
           } else {
             // More detailed presentation for private chat
             details += `- Token: ${tokenData.name}`;
-            details += `\n- Tokens Sold: ${formatUnits(
-              tokensIn,
-              tokenData.decimals
-            )} ${tokenData.symbol}`;
-            details += `\n- Ξ Out: ${formatUnits(ethOut, 18)}\n`;
+            details += `\n- Tokens Sold: ${tokensInFormatted} ${tokenData.symbol}`;
+            details += `\n- Ξ Out: ${ethOutFormatted}\n`;
           }
         } catch {}
       }

@@ -59,20 +59,20 @@ export class BuyHandlers {
           });
           const { ethIn, tokensOut } = parseEvent(event.args);
 
+          // Format amounts with max 4 decimal places
+          const ethInFormatted = parseFloat(formatUnits(ethIn, 18)).toFixed(4);
+          const tokensOutFormatted = parseFloat(
+            formatUnits(tokensOut, tokenData.decimals)
+          ).toFixed(4);
+
           if (isGroup) {
             // Summarized presentation for groups
-            details += `\nReceived: ${formatUnits(
-              tokensOut,
-              tokenData.decimals
-            )} ${tokenData.symbol}`;
+            details += `\nReceived: ${tokensOutFormatted} ${tokenData.symbol}`;
           } else {
             // More detailed presentation for private chat
             details += `- Token: ${tokenData.name}`;
-            details += `\n- Ξ In: ${formatUnits(ethIn, 18)}`;
-            details += `\n- Received: ${formatUnits(
-              tokensOut,
-              tokenData.decimals
-            )} ${tokenData.symbol}\n`;
+            details += `\n- Ξ In: ${ethInFormatted}`;
+            details += `\n- Received: ${tokensOutFormatted} ${tokenData.symbol}\n`;
           }
         } catch {}
       }
