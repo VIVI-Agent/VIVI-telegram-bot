@@ -179,25 +179,24 @@ export function buildSocialLinks(
   bestDexName?: string
 ): string {
   const defaultLinks = [
-    `<a href="https://dexscreener.com/base/${address}">[Dexscreener]</a>`,
-    `<a href="https://basescan.org/token/${address}">[Basescan]</a>`,
+    `<a href="https://dexscreener.com/base/${address}">Dexscreener</a>`,
+    `<a href="https://basescan.org/token/${address}">Basescan</a>`,
   ];
 
   // Add Apestore link if bestDexName is "ApeStore"
   if (bestDexName === "ApeStore") {
     defaultLinks.push(
-      `<a href="https://ape.store/base/${address}">[Apestore]</a>`
+      `<a href="https://ape.store/base/${address}">Apestore</a>`
     );
   }
 
   if (!info) return defaultLinks.join(" | ");
 
   const links = [...defaultLinks];
-  if (info.website) links.push(`<a href="${info.website}">[Website]</a>`);
+  if (info.website) links.push(`<a href="${info.website}">Website</a>`);
   if (info.telegramLink)
-    links.push(`<a href="${info.telegramLink}">[Telegram]</a>`);
-  if (info.twitterLink)
-    links.push(`<a href="${info.twitterLink}">[Twitter]</a>`);
+    links.push(`<a href="${info.telegramLink}">Telegram</a>`);
+  if (info.twitterLink) links.push(`<a href="${info.twitterLink}">Twitter</a>`);
 
   return links.join(" | ");
 }

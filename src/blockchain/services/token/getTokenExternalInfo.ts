@@ -11,6 +11,7 @@ import {
   getCoingeckoEthPrice,
 } from "@services";
 import { getBestDexForSellTokenToEth, findOrCreateToken } from "@blockchain";
+import { getBestDexForBuyEthToToken } from "../priceComparison/priceComparisonService";
 
 import { GlobalSceneContext } from "@types";
 
@@ -68,28 +69,31 @@ export async function getTokenExternalInfo(
       throw new Error("Decimals not found");
     }
 
-    // Calculate exact price of 1 token in ETH by selling 1 token
+    // Calculate exact price of 1 token in ETH by buying 1 token (more accurate for market cap)
     // We'll use 1.0 token as our quote amount (scaled by decimals)
     const oneToken = BigInt(10) ** BigInt(decimals);
     const feeTiers = [100, 500, 3000, 10000];
 
     let ethPerToken: number;
     try {
-      const quoteResult = await getBestDexForSellTokenToEth({
+      // Use buy quote instead of sell quote for more accurate market cap calculation
+      const quoteResult = await getBestDexForBuyEthToToken({
         publicClient: publicClientDRPC,
-        tokenIn: tokenAddress,
+        tokenOut: tokenAddress,
+        decimalsOut: decimals,
         feeTiers,
-        amountTokenIn: oneToken, // Quote for exactly 1 token
+        amountEth: oneToken, // Quote for exactly 1 ETH worth
       });
 
       if (!quoteResult.best) {
         throw new Error("No liquidity pools found for token");
       }
 
-      // Direct ETH value for 1 token
-      ethPerToken = Number(quoteResult.best.formattedOut);
+      // Calculate ETH per token: 1 ETH / tokens received
+      const tokensReceived = Number(quoteResult.best.formattedOut);
+      ethPerToken = 1 / tokensReceived; // This gives us ETH per token
       logger.info(
-        `[calculateTokenMarketCap] Price of 1 token: ${ethPerToken} ETH`
+        `[calculateTokenMarketCap] Price of 1 token: ${ethPerToken} ETH (calculated from buy quote: 1 ETH = ${tokensReceived} tokens)`
       );
     } catch (error) {
       logger.error(
@@ -143,17 +147,37 @@ export async function getTokenExternalInfo(
     let supplyToUse: number | undefined;
     let supplyType: "circulating" | "total" = "total";
 
+    console.log(`🔍 [SUPPLY DEBUG] Supply selection for ${tokenAddress}:`);
+    console.log(
+      `   📊 Dextools circulatingSupply: ${dextoolsFinancialInfo?.circulatingSupply}`
+    );
+    console.log(
+      `   📜 Dextools totalSupply: ${dextoolsFinancialInfo?.totalSupply}`
+    );
+    console.log(
+      `   🔢 Dextools totalSupply type: ${typeof dextoolsFinancialInfo?.totalSupply}`
+    );
+
     // Prioritize circulating supply from Dextools if available
     if (dextoolsFinancialInfo?.circulatingSupply) {
       supplyToUse = dextoolsFinancialInfo.circulatingSupply;
       supplyType = "circulating";
+      console.log(
+        `✅ [SUPPLY DEBUG] Using Dextools circulating supply: ${supplyToUse}`
+      );
     }
     // Then try total supply from Dextools
     else if (dextoolsFinancialInfo?.totalSupply) {
       supplyToUse = dextoolsFinancialInfo.totalSupply;
+      console.log(
+        `✅ [SUPPLY DEBUG] Using Dextools total supply: ${supplyToUse}`
+      );
     }
     // Finally get total supply from blockchain if needed
     else {
+      console.log(
+        `⚠️ [SUPPLY DEBUG] No Dextools supply available, getting from blockchain`
+      );
       try {
         const totalSupply = await publicClientDRPC.readContract({
           address: tokenAddress,
@@ -161,6 +185,9 @@ export async function getTokenExternalInfo(
           functionName: "totalSupply",
         });
         supplyToUse = Number(formatUnits(totalSupply, decimals));
+        console.log(
+          `✅ [SUPPLY DEBUG] Using blockchain total supply: ${supplyToUse}`
+        );
       } catch (error) {
         logger.error(
           `[calculateTokenMarketCap] Error getting totalSupply: ${error}`
@@ -177,10 +204,26 @@ export async function getTokenExternalInfo(
       }
     }
 
+    console.log(
+      `🎯 [SUPPLY DEBUG] Final supply selection: ${supplyToUse} (${supplyType})`
+    );
+
     // Calculate market cap if we have a supply value
     if (supplyToUse) {
+      console.log(`🧮 [MARKET CAP DEBUG] Calculation details:`);
+      console.log(`   💰 Token price USD: ${tokenPriceUsd}`);
+      console.log(`   📊 Supply used: ${supplyToUse}`);
+      console.log(`   🔢 Supply type: ${supplyType}`);
+
       const marketCapNumber = tokenPriceUsd * supplyToUse;
       const marketCap = new Decimal(marketCapNumber.toString());
+
+      console.log(`   🎯 Calculated market cap: $${marketCapNumber}`);
+      console.log(
+        `   📈 Expected with Dextools supply: $${
+          tokenPriceUsd * 99990151333.5639
+        }`
+      );
 
       logger.info(
         `[calculateTokenMarketCap] Calculated market cap using ${supplyType} supply: $${marketCapNumber}`
