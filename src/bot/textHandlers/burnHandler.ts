@@ -6,20 +6,19 @@ import { Address, formatUnits, parseUnits } from "viem";
 import { decryptPrivateKey, getWalletBalance } from "@services";
 import { transferERC20, getTokenBalance } from "@blockchain";
 import { sleep, normalizeAmount, generateTradeLink } from "@utils";
+import { GENERIC_ERRORS } from "@texts";
 
 const DEAD_ADDRESS = "0x000000000000000000000000000000000000dEaD";
 
 // Token aliases configuration - same as sendHandler
 const TOKEN_ALIASES: Record<string, Address> = {
   bife: "0xD769d56f479E9E72a77bB1523e866A33098Feec5" as Address,
-  usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as Address,
   // Add more aliases as needed
 };
 
 // Multi-word token aliases - same as sendHandler
 const MULTI_WORD_ALIASES: Record<string, Address> = {
   "baby sato": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd" as Address, // Replace with actual address
-  "pepe coin": "0x1234567890123456789012345678901234567890" as Address, // Example
 };
 
 // Connector words to ignore in parsing
@@ -83,6 +82,15 @@ export const burnTextHandler: TextHandler = async (
   match: TextMatch
 ): Promise<boolean> => {
   const logPrefix = "[burnTextHandler]";
+  const messageId = ctx.message?.message_id;
+  const username = ctx.from?.username;
+  if (!username) {
+    await ctx.reply(GENERIC_ERRORS.USERNAME_NOT_SET, {
+      parse_mode: "HTML",
+      reply_parameters: { message_id: messageId! },
+    });
+    return true;
+  }
 
   try {
     logger.debug(
@@ -100,7 +108,7 @@ export const burnTextHandler: TextHandler = async (
           "• burn 100 (all, half, 100) Token (Symbol or CA)\n" +
           {
             parse_mode: "HTML",
-            reply_parameters: { message_id: ctx.message?.message_id! },
+            reply_parameters: { message_id: messageId! },
           }
       );
       return true;
@@ -112,32 +120,28 @@ export const burnTextHandler: TextHandler = async (
     if (parsed.token.toLowerCase() === "eth") {
       await ctx.reply("❌ Don't burn your ETH kiddo! 🔥⛽", {
         parse_mode: "HTML",
-        reply_parameters: { message_id: ctx.message?.message_id! },
+        reply_parameters: { message_id: messageId! },
       });
       return true;
     }
 
-    // Check if user has wallet
-    if (!ctx.walletCreated) {
-      await ctx.reply(
-        "❌ You need to create a wallet first. Use /start to get started.",
-        {
-          parse_mode: "HTML",
-          reply_parameters: { message_id: ctx.message?.message_id! },
-        }
-      );
+    const user = await ctx.services.userService.getUserByTgUsername(username);
+    if (!user) {
+      await ctx.reply(GENERIC_ERRORS.USER_NOT_FOUND, {
+        parse_mode: "HTML",
+        reply_parameters: { message_id: messageId! },
+      });
       return true;
     }
-
     // Get user's selected wallet with holdings
     const userWithWallet =
       await ctx.services.userService.getUserWithSelectedWalletAndHoldingsByUserId(
-        ctx.user.id
+        user.id
       );
     if (!userWithWallet?.wallets?.[0]) {
-      await ctx.reply("❌ No wallet found. Please create a wallet first.", {
+      await ctx.reply(GENERIC_ERRORS.NO_WALLETS_FOUND, {
         parse_mode: "HTML",
-        reply_parameters: { message_id: ctx.message?.message_id! },
+        reply_parameters: { message_id: messageId! },
       });
       return true;
     }
@@ -149,7 +153,7 @@ export const burnTextHandler: TextHandler = async (
     if (ethBalBN === 0n) {
       await ctx.reply("❌ You need ETH for gas fees to burn tokens! ⛽", {
         parse_mode: "HTML",
-        reply_parameters: { message_id: ctx.message?.message_id! },
+        reply_parameters: { message_id: messageId! },
       });
       return true;
     }
@@ -193,7 +197,7 @@ export const burnTextHandler: TextHandler = async (
       "❌ Sorry, there was an error processing your burn command. Please try again.",
       {
         parse_mode: "HTML",
-        reply_parameters: { message_id: ctx.message?.message_id! },
+        reply_parameters: { message_id: messageId! },
       }
     );
 
@@ -307,7 +311,7 @@ async function resolveTokenInfo(
   senderWallet: any
 ): Promise<{ tokenAddress: Address; symbol: string; decimals: number } | null> {
   const logPrefix = "[resolveTokenInfo]";
-
+  const messageId = ctx.message?.message_id;
   try {
     // If we already have a token address from aliases, use it
     if (parsed.tokenAddress) {
@@ -345,7 +349,7 @@ async function resolveTokenInfo(
         `❌ Token "${parsed.token}" not found in your wallet. Please check the symbol and try again.`,
         {
           parse_mode: "HTML",
-          reply_parameters: { message_id: ctx.message?.message_id! },
+          reply_parameters: { message_id: messageId! },
         }
       );
       return null;
@@ -366,7 +370,7 @@ async function resolveTokenInfo(
       `❌ Error resolving token "${parsed.token}". Please try again.`,
       {
         parse_mode: "HTML",
-        reply_parameters: { message_id: ctx.message?.message_id! },
+        reply_parameters: { message_id: messageId! },
       }
     );
     return null;
@@ -383,6 +387,7 @@ async function validateTokenBalance(
   resolvedToken: { tokenAddress: Address; symbol: string; decimals: number }
 ): Promise<boolean> {
   const logPrefix = "[validateTokenBalance]";
+  const messageId = ctx.message?.message_id;
 
   try {
     // Get user's holding for this token
@@ -396,7 +401,7 @@ async function validateTokenBalance(
         `❌ You don't have any ${resolvedToken.symbol} tokens to burn.`,
         {
           parse_mode: "HTML",
-          reply_parameters: { message_id: ctx.message?.message_id! },
+          reply_parameters: { message_id: messageId! },
         }
       );
       return false;
@@ -409,7 +414,7 @@ async function validateTokenBalance(
         `❌ You have zero ${resolvedToken.symbol} balance to burn.`,
         {
           parse_mode: "HTML",
-          reply_parameters: { message_id: ctx.message?.message_id! },
+          reply_parameters: { message_id: messageId! },
         }
       );
       return false;
@@ -428,7 +433,7 @@ async function validateTokenBalance(
       if (isNaN(Number(normalizedAmount))) {
         await ctx.reply(`❌ Invalid burn amount: ${parsed.amount}`, {
           parse_mode: "HTML",
-          reply_parameters: { message_id: ctx.message?.message_id! },
+          reply_parameters: { message_id: messageId! },
         });
         return false;
       }

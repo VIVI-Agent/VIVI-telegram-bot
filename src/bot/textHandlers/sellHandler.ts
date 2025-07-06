@@ -24,20 +24,20 @@ import { SellHandlers } from "../scenes/trade/SellHandlers";
 import { replyTxNotificationsWithLinks } from "../../blockchain/services/swap/txNotifications";
 import { normalizeAmount } from "@utils";
 import { calculateFinalFee } from "../../utils/feeDiscounts";
+import { GENERIC_ERRORS } from "@texts";
+import { User } from "@prisma/client";
 
 const logPrefix = "[sellTextHandler]";
 
 // Token aliases configuration - same as buyHandler
 const TOKEN_ALIASES: Record<string, Address> = {
   bife: "0xD769d56f479E9E72a77bB1523e866A33098Feec5" as Address,
-  usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as Address,
   // Add more aliases as needed
 };
 
 // Multi-word token aliases - same as buyHandler
 const MULTI_WORD_ALIASES: Record<string, Address> = {
   "baby sato": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd" as Address, // Replace with actual address
-  "pepe coin": "0x1234567890123456789012345678901234567890" as Address, // Example
 };
 
 // Connector words to ignore in parsing
@@ -188,13 +188,14 @@ async function resolveTokenInfo(
 async function validateTokenBalance(
   ctx: GlobalSceneContext,
   tokenAddress: Address,
-  wallet: any
+  wallet: any,
+  user: User
 ): Promise<{ holding: any; tokenData: any } | null> {
   try {
     // Get user's holdings
     const userWithWallet =
       await ctx.services.userService.getUserWithSelectedWalletAndHoldingsByUserId(
-        ctx.user.id
+        user.id
       );
 
     if (!userWithWallet?.wallets?.[0]) {
@@ -281,7 +282,8 @@ async function executeSellCommand(
   wallet: any,
   tokenInfo: { tokenAddress: Address; symbol: string; decimals: number },
   holding: any,
-  percentage: number
+  percentage: number,
+  user: User
 ): Promise<void> {
   try {
     // Set slippage
@@ -338,7 +340,7 @@ async function executeSellCommand(
     const feePercent = await calculateFinalFee(
       ctx,
       tokenInfo.tokenAddress,
-      ctx.user.id
+      user.id
     );
     logger.info(`${logPrefix} Final fee percent: ${feePercent}`);
 
@@ -351,7 +353,7 @@ async function executeSellCommand(
     if (bestDex === "UniswapV2") {
       const result = await sellToken({
         ctx,
-        userId: ctx.user.id,
+        userId: user.id,
         tokenAddress: tokenInfo.tokenAddress,
         tokenAmount: tokensToSell,
         slippagePercent,
@@ -365,7 +367,7 @@ async function executeSellCommand(
       const handlers = SellHandlers.buildUniV2SellHandlers(
         ctx,
         holding.token,
-        ctx.user.id,
+        user.id,
         wid,
         txHash,
         false // isGroup = false for individual sells
@@ -391,7 +393,7 @@ async function executeSellCommand(
       const stable = bestDex === "AerodromeStable";
       const result = await sellTokenAerodrome({
         ctx,
-        userId: ctx.user.id,
+        userId: user.id,
         tokenAddress: tokenInfo.tokenAddress,
         tokenAmount: tokensToSell,
         slippagePercent,
@@ -406,7 +408,7 @@ async function executeSellCommand(
       const handlers = SellHandlers.buildAeroSellHandlers(
         ctx,
         holding.token,
-        ctx.user.id,
+        user.id,
         wid,
         txHash,
         false
@@ -430,7 +432,7 @@ async function executeSellCommand(
 
       const result = await sellTokenV3({
         ctx,
-        userId: ctx.user.id,
+        userId: user.id,
         tokenAddress: tokenInfo.tokenAddress,
         tokenAmount: tokensToSell,
         feePercent,
@@ -444,7 +446,7 @@ async function executeSellCommand(
       const handlers = SellHandlers.buildUniV3SellHandlers(
         ctx,
         holding.token,
-        ctx.user.id,
+        user.id,
         wid,
         txHash,
         false
@@ -466,7 +468,7 @@ async function executeSellCommand(
     } else if (bestDex === "ZoraMultiHop") {
       const result = await sellTokenZoraMultiHop({
         ctx,
-        userId: ctx.user.id,
+        userId: user.id,
         tokenAddress: tokenInfo.tokenAddress,
         tokenAmount: tokensToSell,
         slippagePercent,
@@ -480,7 +482,7 @@ async function executeSellCommand(
       const handlers = SellHandlers.buildZoraSellHandlers(
         ctx,
         holding.token,
-        ctx.user.id,
+        user.id,
         wid,
         txHash,
         false
@@ -502,7 +504,7 @@ async function executeSellCommand(
     } else if (bestDex === "ApeStore") {
       const result = await sellTokenVIVIApeStore({
         ctx,
-        userId: ctx.user.id,
+        userId: user.id,
         walletId: wid,
         tokenAddress: tokenInfo.tokenAddress,
         tokenAmount: tokensToSell,
@@ -517,7 +519,7 @@ async function executeSellCommand(
       const handlers = SellHandlers.buildApeStoreSellHandlers(
         ctx,
         holding.token,
-        ctx.user.id,
+        user.id,
         wid,
         txHash,
         false
@@ -539,7 +541,7 @@ async function executeSellCommand(
     } else if (bestDex === "VirtualToken") {
       const result = await sellTokenVirtualToken({
         ctx,
-        userId: ctx.user.id,
+        userId: user.id,
         walletId: wid,
         tokenAddress: tokenInfo.tokenAddress,
         tokenAmount: tokensToSell,
@@ -554,7 +556,7 @@ async function executeSellCommand(
       const handlers = SellHandlers.buildVirtualTokenSellHandlers(
         ctx,
         holding.token,
-        ctx.user.id,
+        user.id,
         wid,
         txHash,
         false
@@ -577,7 +579,7 @@ async function executeSellCommand(
       throw new Error("Unsupported DEX");
     }
 
-    logger.info(`${logPrefix} Sell completed for ${ctx.user.id}`);
+    logger.info(`${logPrefix} Sell completed for ${user.id}`);
   } catch (error) {
     logger.error(`${logPrefix} Sell execution error:`, error);
     throw error;
@@ -658,6 +660,23 @@ export const sellTextHandler: TextHandler = async (
       match.params
     );
 
+    const tgUsername = ctx.from?.username;
+    if (!tgUsername) {
+      await ctx.reply(GENERIC_ERRORS.USERNAME_NOT_SET, {
+        parse_mode: "HTML",
+        reply_parameters: { message_id: ctx.message?.message_id! },
+      });
+      return true;
+    }
+    const user = await ctx.services.userService.getUserByTgUsername(tgUsername);
+    if (!user) {
+      await ctx.reply(GENERIC_ERRORS.USER_NOT_FOUND, {
+        parse_mode: "HTML",
+        reply_parameters: { message_id: ctx.message?.message_id! },
+      });
+      return true;
+    }
+
     // Parse the command from the full match
     const commandText = match.params.fullMatch as string;
     const parsed = parseSellCommand(commandText);
@@ -679,25 +698,13 @@ export const sellTextHandler: TextHandler = async (
 
     logger.info(`${logPrefix} Parsed command:`, parsed);
 
-    // Check if user has wallet
-    if (!ctx.walletCreated) {
-      await ctx.reply(
-        "❌ You need to create a wallet first. Use /start to get started.",
-        {
-          parse_mode: "HTML",
-          reply_parameters: { message_id: ctx.message?.message_id! },
-        }
-      );
-      return true;
-    }
-
     // Get user's selected wallet with holdings
     const userWithWallet =
       await ctx.services.userService.getUserWithSelectedWalletAndHoldingsByUserId(
-        ctx.user.id
+        user.id
       );
     if (!userWithWallet?.wallets?.[0]) {
-      await ctx.reply("❌ No wallet found. Please create a wallet first.", {
+      await ctx.reply(GENERIC_ERRORS.NO_WALLETS_FOUND, {
         parse_mode: "HTML",
         reply_parameters: { message_id: ctx.message?.message_id! },
       });
@@ -732,7 +739,8 @@ export const sellTextHandler: TextHandler = async (
     const balanceCheck = await validateTokenBalance(
       ctx,
       tokenInfo.tokenAddress,
-      wallet
+      wallet,
+      user
     );
     if (!balanceCheck) {
       return true; // Error message already sent
@@ -751,7 +759,8 @@ export const sellTextHandler: TextHandler = async (
       wallet,
       tokenInfo,
       holding,
-      percentage
+      percentage,
+      user
     );
 
     return true; // Successfully handled

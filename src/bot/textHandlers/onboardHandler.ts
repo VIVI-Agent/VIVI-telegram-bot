@@ -10,7 +10,7 @@ import {
 } from "../../blockchain/services/nameResolution/resolveBNSName";
 import { getBankrEVMAddress } from "../../blockchain/services/nameResolution/bankr";
 import { mixedBatchTransfer } from "../../blockchain/transactions/mixedBatchTransfer";
-import { Wallet } from "@prisma/client";
+import { User, Wallet } from "@prisma/client";
 import {
   decryptPrivateKey,
   getWalletBalance,
@@ -23,6 +23,7 @@ import {
   sleep,
   generateShareableTransferMessage,
 } from "@utils";
+import { GENERIC_ERRORS } from "@texts";
 
 /**
  * Generate clickeable token link for buy mode
@@ -134,6 +135,24 @@ export const onboardTextHandler: TextHandler = async (
       match.params
     );
 
+    const tgUsername = ctx.from?.username;
+    if (!tgUsername) {
+      await ctx.reply(GENERIC_ERRORS.USERNAME_NOT_SET, {
+        parse_mode: "HTML",
+        reply_parameters: { message_id: ctx.message?.message_id! },
+      });
+      return true;
+    }
+
+    const user = await ctx.services.userService.getUserByTgUsername(tgUsername);
+    if (!user) {
+      await ctx.reply(GENERIC_ERRORS.USER_NOT_FOUND, {
+        parse_mode: "HTML",
+        reply_parameters: { message_id: ctx.message?.message_id! },
+      });
+      return true;
+    }
+
     // Parse the command from the full match
     const commandText = match.params.fullMatch as string;
     const parsed = await parseSendCommand(commandText);
@@ -158,7 +177,8 @@ export const onboardTextHandler: TextHandler = async (
     // Validate and resolve recipients
     const recipientResult = await validateAndResolveRecipients(
       ctx,
-      parsed.recipients
+      parsed.recipients,
+      user
     );
 
     const validatedRecipients = recipientResult.valid;
@@ -181,22 +201,10 @@ export const onboardTextHandler: TextHandler = async (
       return true;
     }
 
-    // Check if user has wallet
-    if (!ctx.walletCreated) {
-      await ctx.reply(
-        "❌ You need to create a wallet first. Use /start to get started.",
-        {
-          parse_mode: "HTML",
-          reply_parameters: { message_id: ctx.message?.message_id! },
-        }
-      );
-      return true;
-    }
-
     // Get user's selected wallet with holdings
     const userWithWallet =
       await ctx.services.userService.getUserWithSelectedWalletAndHoldingsByUserId(
-        ctx.user.id
+        user.id
       );
     if (!userWithWallet?.wallets?.[0]) {
       await ctx.reply("❌ No wallet found. Please create a wallet first.", {
@@ -411,7 +419,8 @@ function findMultiWordToken(
  */
 async function validateAndResolveRecipients(
   ctx: GlobalSceneContext,
-  recipients: string[]
+  recipients: string[],
+  user: User
 ): Promise<{
   valid: ValidatedRecipient[];
   invalid: { original: string; reason: string }[];
@@ -546,12 +555,11 @@ async function validateAndResolveRecipients(
           // User doesn't exist - create new user
           try {
             logger.info(
-              `${logPrefix} Creating new user for @${username} with referral from ${ctx.user.id}`
+              `${logPrefix} Creating new user for @${username} with referral from ${user.id}`
             );
 
             // Get sender's username to set as referrer
-            const senderUser = ctx.user;
-            const referralTgUsername = senderUser?.tgUsername;
+            const referralTgUsername = user.tgUsername || undefined;
 
             const newUser =
               await ctx.services.userService.createUserWithSettings({

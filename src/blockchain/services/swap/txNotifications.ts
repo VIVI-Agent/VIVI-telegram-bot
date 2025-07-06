@@ -279,9 +279,9 @@ export async function replyTxNotifications({
 
   // Enviamos / respondemos en el chat
   const initMsg = await ctx.reply(
-    `${lineInitial}\nHash: <a href="${explorerLink}">${shortHash}</a>\n${viviJoin(
-      ctx.from?.username
-    )}`,
+    `${lineInitial}\nHash: <a href="${explorerLink}">${shortHash}</a>${
+      ctx.chat?.type === "private" ? `` : `\n${viviJoin(ctx.from?.username)}`
+    }`,
     {
       reply_parameters: { message_id: userMessageId },
       parse_mode: "HTML",
@@ -308,9 +308,9 @@ export async function replyTxNotifications({
       ctx.chat!.id,
       initMsg.message_id,
       undefined,
-      `${swapType} ❌ Transaction failed.\nHash: <a href="${explorerLink}">${shortHash}</a>\n${viviJoin(
-        ctx.from?.username
-      )}`,
+      `${swapType} ❌ Transaction failed.\nHash: <a href="${explorerLink}">${shortHash}</a>${
+        ctx.chat?.type === "private" ? `` : `\n${viviJoin(ctx.from?.username)}`
+      }`,
       {
         parse_mode: "HTML",
         link_preview_options: { is_disabled: true },
@@ -351,7 +351,9 @@ export async function replyTxNotifications({
     ctx.chat!.id,
     initMsg.message_id,
     undefined,
-    `${lineFinal}\nHash: ${details}${viviJoin(ctx.from?.username)}`,
+    `${lineFinal}\nHash: ${details}${
+      ctx.chat?.type === "private" ? `` : `\n${viviJoin(ctx.from?.username)}`
+    }`,
     {
       parse_mode: "HTML",
       link_preview_options: { is_disabled: true },

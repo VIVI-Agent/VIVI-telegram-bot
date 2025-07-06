@@ -25,7 +25,8 @@ import { BuyHandlers } from "../scenes/trade/BuyHandlers";
 import { replyTxNotificationsWithLinks } from "../../blockchain/services/swap/txNotifications";
 import { normalizeAmount } from "@utils";
 import { calculateFinalFee } from "../../utils/feeDiscounts";
-import { Token } from "@prisma/client";
+import { Token, User } from "@prisma/client";
+import { GENERIC_ERRORS } from "@texts";
 
 const logPrefix = "[buyTextHandler]";
 
@@ -243,7 +244,8 @@ async function executeBuyCommand(
   parsed: ParsedBuyCommand,
   wallet: any,
   tokenInfo: Token,
-  amountEth: bigint
+  amountEth: bigint,
+  user: User
 ): Promise<void> {
   try {
     // Set slippage
@@ -271,7 +273,7 @@ async function executeBuyCommand(
     );
 
     // Calculate fees
-    const feePercent = await calculateFinalFee(ctx, tokenAddress, ctx.user.id);
+    const feePercent = await calculateFinalFee(ctx, tokenAddress, user.id);
     logger.info(`${logPrefix} Final fee percent: ${feePercent}`);
 
     // Execute buy based on best DEX
@@ -283,7 +285,7 @@ async function executeBuyCommand(
     if (bestDex === "UniswapV2") {
       const result = await buyToken({
         ctx,
-        userId: ctx.user.id,
+        userId: user.id,
         tokenAddress,
         amountEth,
         slippagePercent,
@@ -296,7 +298,7 @@ async function executeBuyCommand(
       const handlers = BuyHandlers.buildUniV2BuyHandlers(
         ctx,
         tokenInfo,
-        ctx.user.id,
+        user.id,
         wid,
         txHash,
         false // isGroup = false for individual buys
@@ -319,7 +321,7 @@ async function executeBuyCommand(
       const stable = bestDex === "AerodromeStable";
       const result = await buyTokenAerodrome({
         ctx,
-        userId: ctx.user.id,
+        userId: user.id,
         tokenAddress,
         amountEth,
         slippagePercent,
@@ -333,7 +335,7 @@ async function executeBuyCommand(
       const handlers = BuyHandlers.buildAeroBuyHandlers(
         ctx,
         tokenInfo,
-        ctx.user.id,
+        user.id,
         wid,
         txHash,
         false
@@ -357,7 +359,7 @@ async function executeBuyCommand(
 
       const result = await buyTokenV3({
         ctx,
-        userId: ctx.user.id,
+        userId: user.id,
         tokenAddress,
         amountEth,
         bestDex: best,
@@ -370,7 +372,7 @@ async function executeBuyCommand(
       const handlers = BuyHandlers.buildUniV3BuyHandlers(
         ctx,
         tokenInfo,
-        ctx.user.id,
+        user.id,
         wid,
         txHash,
         false
@@ -392,7 +394,7 @@ async function executeBuyCommand(
     } else if (bestDex === "ZoraMultiHop") {
       const result = await buyTokenZoraMultiHop({
         ctx,
-        userId: ctx.user.id,
+        userId: user.id,
         tokenAddress,
         amountEth,
         slippagePercent,
@@ -405,7 +407,7 @@ async function executeBuyCommand(
       const handlers = BuyHandlers.buildZoraBuyHandlers(
         ctx,
         tokenInfo,
-        ctx.user.id,
+        user.id,
         wid,
         txHash,
         false
@@ -427,7 +429,7 @@ async function executeBuyCommand(
     } else if (bestDex === "ApeStore") {
       const result = await buyTokenVIVIApeStore({
         ctx,
-        userId: ctx.user.id,
+        userId: user.id,
         walletId: wid,
         tokenAddress,
         amountEth,
@@ -441,7 +443,7 @@ async function executeBuyCommand(
       const handlers = BuyHandlers.buildApeStoreBuyHandlers(
         ctx,
         { symbol: tokenInfo.symbol, decimals: tokenInfo.decimals } as any,
-        ctx.user.id,
+        user.id,
         wid,
         txHash,
         false
@@ -463,7 +465,7 @@ async function executeBuyCommand(
     } else if (bestDex === "VirtualToken") {
       const result = await buyTokenVirtualToken({
         ctx,
-        userId: ctx.user.id,
+        userId: user.id,
         walletId: wid,
         tokenAddress,
         amountEth,
@@ -477,7 +479,7 @@ async function executeBuyCommand(
       const handlers = BuyHandlers.buildVirtualTokenBuyHandlers(
         ctx,
         tokenInfo,
-        ctx.user.id,
+        user.id,
         wid,
         txHash,
         false
@@ -500,7 +502,7 @@ async function executeBuyCommand(
       throw new Error("Unsupported DEX");
     }
 
-    logger.info(`${logPrefix} Buy completed for ${ctx.user.id}`);
+    logger.info(`${logPrefix} Buy completed for ${user.id}`);
   } catch (error) {
     logger.error(`${logPrefix} Buy execution error:`, error);
     throw error;
@@ -580,6 +582,23 @@ export const buyTextHandler: TextHandler = async (
       `${logPrefix} Processing buy command with params:`,
       match.params
     );
+    const tgUsername = ctx.from?.username;
+    if (!tgUsername) {
+      await ctx.reply(GENERIC_ERRORS.USERNAME_NOT_SET, {
+        parse_mode: "HTML",
+        reply_parameters: { message_id: ctx.message?.message_id! },
+      });
+      return true;
+    }
+
+    const user = await ctx.services.userService.getUserByTgUsername(tgUsername);
+    if (!user) {
+      await ctx.reply(GENERIC_ERRORS.USER_NOT_FOUND, {
+        parse_mode: "HTML",
+        reply_parameters: { message_id: ctx.message?.message_id! },
+      });
+      return true;
+    }
 
     // Parse the command from the full match
     const commandText = match.params.fullMatch as string;
@@ -602,22 +621,10 @@ export const buyTextHandler: TextHandler = async (
 
     logger.info(`${logPrefix} Parsed command:`, parsed);
 
-    // Check if user has wallet
-    if (!ctx.walletCreated) {
-      await ctx.reply(
-        "❌ You need to create a wallet first. Use /start to get started.",
-        {
-          parse_mode: "HTML",
-          reply_parameters: { message_id: ctx.message?.message_id! },
-        }
-      );
-      return true;
-    }
-
     // Get user's selected wallet with holdings
     const userWithWallet =
       await ctx.services.userService.getUserWithSelectedWalletAndHoldingsByUserId(
-        ctx.user.id
+        user.id
       );
     if (!userWithWallet?.wallets?.[0]) {
       await ctx.reply("❌ No wallet found. Please create a wallet first.", {
@@ -661,7 +668,7 @@ export const buyTextHandler: TextHandler = async (
     }
 
     // Execute the buy transaction
-    await executeBuyCommand(ctx, parsed, wallet, tokenInfo, amountEth);
+    await executeBuyCommand(ctx, parsed, wallet, tokenInfo, amountEth, user);
 
     return true; // Successfully handled
   } catch (error) {

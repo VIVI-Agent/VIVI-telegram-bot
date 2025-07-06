@@ -131,25 +131,50 @@ bot.command("trade", async (ctx) => {
 
 // Handle text messages
 bot.on(message("text"), async (ctx) => {
+  // Skip All Commands
+  if (ctx.message.text?.startsWith("/")) {
+    return;
+  }
+
+  // Handle Text Messages In Private Chats (BOT DM)
   if (ctx.chat?.type === "private") {
     const text = ctx.message.text;
 
-    // Skip All Commands
-    if (text.startsWith("/")) {
-      return;
-    }
-
     logger.info(`Text received: ${text}`);
 
-    // First try textManager for natural language commands
-    const handledByTextManager = await textManager.routeText(ctx, text);
+    (async () => {
+      try {
+        await textManager.routeText(ctx, text);
+      } catch (error) {
+        logger.error("Error in textManager.routeText:", error);
+      }
+    })();
 
-    // If textManager didn't handle it, pass to sceneManager
-    if (!handledByTextManager) {
-      logger.debug("Text not handled by textManager, routing to sceneManager");
-      await sceneManager.routeText(ctx, text);
-    } else {
-      logger.debug("Text handled by textManager, skipping sceneManager");
+    (async () => {
+      try {
+        await sceneManager.routeText(ctx, text);
+      } catch (error) {
+        logger.error("Error in sceneManager.routeText:", error);
+      }
+    })();
+    return;
+  }
+  // Handle Text Messages In Group Chats
+  else if (ctx.chat?.type === "group" || ctx.chat?.type === "supergroup") {
+    const text = ctx.message.text;
+    logger.info(`Text received: ${text}`);
+    if (text.startsWith(`@${secrets.TELEGRAM_BOT_USERNAME}`)) {
+      (async () => {
+        try {
+          const textWithoutBotUsername = text.replace(
+            `@${secrets.TELEGRAM_BOT_USERNAME}`,
+            ""
+          );
+          await textManager.routeText(ctx, textWithoutBotUsername);
+        } catch (error) {
+          logger.error("Error in textManager.routeText:", error);
+        }
+      })();
     }
   }
 });
