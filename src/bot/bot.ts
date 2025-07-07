@@ -8,7 +8,7 @@ import { GlobalSceneContext, GlobalSessionData } from "@types";
 import { GlobalSceneManagerImpl } from "./core/GlobalSceneManager";
 
 import { createAuthMiddleware } from "./middlewares/AuthMiddleware";
-import { Redis } from "@telegraf/session/redis";
+// import { Redis } from "@telegraf/session/redis"; // ← DISABLED - Using memory for now
 import { logger } from "@logger";
 import { GENERIC_ERRORS } from "@texts";
 import { registerCommands } from "./commands";
@@ -20,15 +20,16 @@ const bot = new Telegraf<GlobalSceneContext>(secrets.TELEGRAM_BOT_TOKEN || "");
 // Create global scene manager
 const sceneManager = new GlobalSceneManagerImpl();
 
-const store = Redis<GlobalSessionData>({
-  url: redisStore.REDIS_STORE_URL,
-  config: { pingInterval: 30000 },
-});
+// ← REDIS DISABLED - Using memory storage
+// const store = Redis<GlobalSessionData>({
+//   url: redisStore.REDIS_STORE_URL,
+//   config: { pingInterval: 30000 },
+// });
 
-// Session middleware with Redis
+// Session middleware with MEMORY storage
 bot.use(
   session({
-    store,
+    // store, // ← DISABLED Redis store
     defaultSession: () => ({
       activeSubScenes: {},
       sceneOrder: [],
@@ -311,7 +312,7 @@ export { bot, sceneManager };
 
 // Start bot if this file is run directly
 if (require.main === module) {
-  logger.info("🤖 Starting VIVI Telegram Bot with Redis session...");
+  logger.info("🤖 Starting VIVI Telegram Bot with MEMORY session...");
 
   const webhookUrl = `${webhookServer.WEBHOOK_SERVER_URL}/webhook/${secrets.TELEGRAM_BOT_TOKEN}`;
 
@@ -325,19 +326,12 @@ if (require.main === module) {
     .then(async () => {
       await registerCommands(bot);
       logger.info("✅ Bot started successfully!");
-      logger.info("💾 Sessions are now stored in Redis");
-      logger.info("📈 Memory usage optimized for production");
+      logger.info("💾 Sessions are stored in MEMORY (Redis disabled)");
+      logger.info("⚠️  Session data will be lost on restart");
     })
     .catch((error) => {
       logger.error("❌ Failed to start bot:", error);
-      if (
-        error.message?.includes("redis") ||
-        error.message?.includes("Redis")
-      ) {
-        logger.error(
-          "🔴 Redis connection error. Please ensure Redis is running on:"
-        );
-      }
+      // Redis error handling disabled - using memory storage
       process.exit(1);
     });
 

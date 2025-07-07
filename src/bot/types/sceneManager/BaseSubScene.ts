@@ -58,7 +58,13 @@ export abstract class BaseSubScene<TSceneData = SceneData>
   protected getSceneData(ctx: GlobalSceneContext): TSceneData {
     const sceneState = ctx.session.activeSubScenes[this.instanceId];
     const data = (sceneState?.data as TSceneData) || ({} as TSceneData);
-
+    logger.debug(
+      `[BaseSubScene:${this.instanceId}] Scene data: ${JSON.stringify(
+        data,
+        undefined,
+        2
+      )}`
+    );
     return data;
   }
 
