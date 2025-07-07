@@ -20,7 +20,7 @@ export const logger = winston.createLogger({
 });
 
 export const apiLogger = winston.createLogger({
-  level: "info",
+  level: "debug",
   transports: [
     process.env.NODE_ENV === "production"
       ? new DatadogWinston({
