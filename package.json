@@ -10,8 +10,8 @@
     "dev:server": "NODE_ENV=development ts-node-dev -r tsconfig-paths/register --respawn --transpile-only --log-error src/_server/server.ts",
     "prebuild": "npx prisma migrate deploy",
     "build": "npx prisma generate && tsc && tsc-alias",
-    "start:bot": "NODE_ENV=production ts-node src/bot/bot.ts",
-    "start:server": "NODE_ENV=production ts-node src/_server/server.ts"
+    "start:bot": "NODE_ENV=production node dist/bot/bot.js",
+    "start:server": "NODE_ENV=production node dist/server/server.js"
   },
   "keywords": [],
   "author": "",
