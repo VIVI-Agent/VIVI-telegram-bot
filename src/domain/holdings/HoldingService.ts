@@ -89,6 +89,22 @@ export class HoldingService {
     });
   }
 
+  async getHoldingWithTokenByUserWalletToken(
+    userId: number,
+    walletId: number,
+    tokenId: number
+  ): Promise<HoldingWithToken | null> {
+    return await this.prisma.holding.findFirst({
+      where: {
+        userId,
+        walletId,
+        tokenId,
+        wallet: { isDeleted: false },
+      },
+      include: { token: true },
+    });
+  }
+
   public getHoldingBySymbolOrAddress(
     selectedWallet: Wallet & { holdings: (Holding & { token: Token })[] },
     symbolOrCA: string
@@ -148,6 +164,47 @@ export class HoldingService {
         : lowerValue;
 
       return withoutDollarSymbol === withoutDollarInput;
+    });
+  }
+
+  public async updateHoldingCostBasis(
+    holdingId: number,
+    ethSpent: bigint,
+    tokensBought: bigint,
+    currentCostBasis: bigint,
+    currentTokensBought: bigint
+  ): Promise<void> {
+    await this.prisma.holding.update({
+      where: { id: holdingId },
+      data: {
+        totalCostBasis: (currentCostBasis + ethSpent).toString(),
+        totalTokensBought: (currentTokensBought + tokensBought).toString(),
+      },
+    });
+  }
+
+  public async updateHoldingCostBasisSell(
+    holdingId: number,
+    ethReceived: bigint,
+    tokensSold: bigint,
+    currentCostBasis: bigint,
+    currentTokensBought: bigint,
+    currentRealizedPnl: bigint,
+    isCompletelyLiquidated: boolean
+  ): Promise<void> {
+    await this.prisma.holding.update({
+      where: { id: holdingId },
+      data: {
+        totalCostBasis: isCompletelyLiquidated
+          ? "0"
+          : (currentCostBasis - ethReceived).toString(),
+        totalTokensBought: isCompletelyLiquidated
+          ? "0"
+          : (currentTokensBought - tokensSold).toString(),
+        realizedPnlWei: isCompletelyLiquidated
+          ? "0"
+          : (currentRealizedPnl + ethReceived).toString(),
+      },
     });
   }
 }

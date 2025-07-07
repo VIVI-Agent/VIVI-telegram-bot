@@ -10,4 +10,6 @@ export * from "./allowance/AllowanceService";
 export * from "./feeWhitelist/FeeWhitelistService";
 export * from "./externalTokenInfo/ExternalTokenInfoService";
 export * from "./bankrCache/BankrCacheService";
+export * from "./buyEvent/BuyEventService";
+export * from "./trade/TradeService";
 export * from "./initServices";

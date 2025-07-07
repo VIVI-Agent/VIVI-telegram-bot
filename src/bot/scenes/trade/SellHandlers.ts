@@ -11,6 +11,7 @@ import {
   VIVIVirtualsHopABI,
   VIVIZoraMultiHopABI,
 } from "@abis";
+import { PnlServiceWithCache } from "blockchain/services/pnl/pnlServiceWithCache";
 
 /**
  * SellHandlers: Static class that provides "parseLogsFn" and "onMinedFn" functions for different DEX
@@ -108,8 +109,8 @@ export class SellHandlers {
         return;
       }
 
-      // Update holding in background
-      setImmediate(async () => {
+      // Update holding first (synchronously to avoid race conditions)
+      const holdingUpdatePromise = (async () => {
         try {
           const newOnChainBalanceBN = await getTokenBalance(
             tokenData.address as Address,
@@ -124,44 +125,84 @@ export class SellHandlers {
           logger.info(
             `Updated holding for token ${tokenData.symbol} in wallet ${walletId}`
           );
+          return true;
         } catch (err) {
           logger.error(
             `Background updateHoldingFromChain failed for wallet ${walletId}:`,
             err
           );
+          return false;
         }
-      });
+      })();
 
       // If ETH > 0 was received, update trade and user
       if (ethReceivedBN > 0n) {
+        // Wait for holding update before creating trade to avoid race conditions
         setImmediate(async () => {
           try {
-            // Create trade record - implement this method in your trade service
-            // const newTrade = await ctx.services.tradeService.createSellTrade({
-            //   userId,
-            //   tokenId: tokenData.id,
-            //   walletId: wallet.id,
-            //   txHash,
-            //   tokensSpent: tokensSoldBN,
-            //   ethReceived: ethReceivedBN,
-            // });
-            // await ctx.services.pnlService.updatePnlForTrade(newTrade.id);
+            // Wait for holding to be updated first
+            const holdingUpdated = await holdingUpdatePromise;
+
+            if (!holdingUpdated) {
+              logger.warn(
+                `Skipping trade creation due to holding update failure for user ${userId}`
+              );
+              return;
+            }
+
+            // Create trade record
+            const newTrade = await ctx.services.tradeService.createSellTrade({
+              userId,
+              tokenId: tokenData.id,
+              walletId: wallet.id,
+              txHash,
+              tokensSpent: tokensSoldBN,
+              ethReceived: ethReceivedBN,
+            });
+
+            // Now update PnL after holding is confirmed to be updated
+            await new PnlServiceWithCache().updatePnlForTrade(ctx, newTrade.id);
             logger.info(`User ${userId} sell transaction processed.`);
           } catch (err) {
             logger.error("createSellTrade failed in background:", err);
           }
         });
 
-        // Update user volume
-        try {
-          await ctx.services.userService.updateUserVolumeSell(
-            userId,
-            ethReceivedBN
-          );
-          logger.info(`Updated user ${userId} sell volume: ${ethReceivedBN}`);
-        } catch (error) {
-          logger.error(`Error updating user volume: ${error}`);
-        }
+        setImmediate(async () => {
+          // Update user volume
+
+          try {
+            const tokenWL =
+              await ctx.services.feeWhitelistService.getTokenWhitelist(
+                tokenData.address as Address
+              );
+            const bonusPercent = tokenWL?.bonusPointsPercent || 0;
+            const pointsEarned =
+              await ctx.services.userService.updateUserPoints({
+                userId,
+                ethVolumeWei: ethReceivedBN,
+                bonusPercent,
+              });
+            logger.info(
+              `[${eventName}] user ${userId} earned ${pointsEarned} points from Sell.`
+            );
+          } catch (error) {
+            logger.error(
+              `[${eventName}]ERROR updateUserPoints userId ${userId} ethReceivedBN ${ethReceivedBN} .`
+            );
+            logger.error(`[${eventName}]ERROR updateUserPoints  ${error} .`);
+          }
+
+          try {
+            await ctx.services.userService.updateUserVolumeSell(
+              userId,
+              ethReceivedBN
+            );
+            logger.info(`Updated user ${userId} sell volume: ${ethReceivedBN}`);
+          } catch (error) {
+            logger.error(`Error updating user volume: ${error}`);
+          }
+        });
 
         // Update local ETH balance
         const newEthBalanceBN = await getWalletBalance(

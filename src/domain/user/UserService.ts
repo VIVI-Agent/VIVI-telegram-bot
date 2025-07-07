@@ -372,4 +372,60 @@ export class UserService {
 
     return user;
   }
+
+  public async updateUserPoints(params: {
+    userId: number;
+    ethVolumeWei: bigint;
+    bonusPercent?: number;
+  }): Promise<number> {
+    const { userId, ethVolumeWei, bonusPercent = 0 } = params;
+
+    const { userPointsAdded } = await this.prisma.$transaction(
+      async (tx) => {
+        const weiDecimal = new Prisma.Decimal(ethVolumeWei.toString());
+        const basePoints = weiDecimal.div("1e18").mul("10000");
+        const bonusPoints = basePoints.mul(
+          new Prisma.Decimal(bonusPercent).div(100)
+        );
+        const totalPointsDecimal = basePoints.add(bonusPoints);
+
+        const user = await tx.user.update({
+          where: { id: userId },
+          data: {
+            points: { increment: totalPointsDecimal },
+          },
+          select: {
+            id: true,
+            referredById: true,
+          },
+        });
+
+        const userPointsAdded = parseFloat(totalPointsDecimal.toString());
+
+        if (user.referredById) {
+          const config = await tx.globalConfig.findUnique({ where: { id: 1 } });
+          const referralBonusPercent = config?.referralBonusPercent ?? 50;
+
+          const referralBonusDecimal = totalPointsDecimal
+            .mul(new Prisma.Decimal(referralBonusPercent))
+            .div("100");
+
+          await tx.user.update({
+            where: { id: user.referredById },
+            data: {
+              referralPoints: { increment: referralBonusDecimal },
+            },
+          });
+        }
+
+        return { userPointsAdded };
+      },
+      {
+        maxWait: 5000,
+        timeout: 10000,
+      }
+    );
+
+    return userPointsAdded;
+  }
 }

@@ -233,8 +233,6 @@ export class MainMenuServices extends BaseService {
     this.log("info", ctx, "Navigating to Limit Order");
     try {
       await ctx.answerCbQuery("Limit Orders feature coming soon!");
-      // TODO: Activate Holdings scene when implemented
-      // await ctx.sceneManager.activateScene(ctx, "Holdings");
     } catch (error) {
       this.logError(ctx, "navigateToLimitOrders", error);
       await ctx.reply(GENERIC_ERRORS.OLD_VERSION);
@@ -248,8 +246,6 @@ export class MainMenuServices extends BaseService {
     this.log("info", ctx, "Navigating to Snipe");
     try {
       await ctx.answerCbQuery("Snipe feature coming soon!");
-      // TODO: Activate Snipe scene when implemented
-      // await ctx.sceneManager.activateScene(ctx, "Snipe");
     } catch (error) {
       this.logError(ctx, "navigateToSnipe", error);
       await ctx.reply(GENERIC_ERRORS.OLD_VERSION);

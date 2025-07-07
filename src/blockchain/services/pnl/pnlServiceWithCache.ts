@@ -458,4 +458,97 @@ export class PnlServiceWithCache {
       throw error;
     }
   }
+
+  /**
+   * Update PNL data when a trade occurs
+   */
+  async updatePnlForTrade(
+    ctx: GlobalSceneContext,
+    tradeId: number
+  ): Promise<void> {
+    try {
+      const trade = await ctx.services.tradeService.getTradeById(tradeId);
+
+      if (!trade) {
+        logger.error(`[PnlService] Trade ${tradeId} not found`);
+        return;
+      }
+
+      const holding =
+        await ctx.services.holdingService.getHoldingWithTokenByUserWalletToken(
+          trade.userId,
+          trade.walletId,
+          trade.tokenId
+        );
+
+      if (!holding) {
+        logger.error(`[PnlService] Holding not found for trade ${tradeId}`);
+        return;
+      }
+
+      // Update cost basis based on trade type
+      if (trade.type === "BUY") {
+        // Add to cost basis
+        const ethSpent = BigInt(trade.ethSpent || "0");
+        const tokensBought = BigInt(trade.tokensReceived || "0");
+
+        const currentCostBasis = BigInt(holding.totalCostBasis || "0");
+        const currentTokensBought = BigInt(holding.totalTokensBought || "0");
+
+        await ctx.services.holdingService.updateHoldingCostBasis(
+          holding.id,
+          ethSpent,
+          tokensBought,
+          currentCostBasis,
+          currentTokensBought
+        );
+      } else if (trade.type === "SELL") {
+        // Calculate realized profit/loss
+        const ethReceived = BigInt(trade.ethReceived || "0");
+        const tokensSold = BigInt(trade.tokensSpent || "0");
+
+        const currentCostBasis = BigInt(holding.totalCostBasis || "0");
+        const currentTokensBought = BigInt(holding.totalTokensBought || "0");
+        const currentRealizedPnl = BigInt(holding.realizedPnlWei || "0");
+
+        if (currentTokensBought > 0n) {
+          // Calculate the portion of cost basis being realized
+          const costBasisPortion =
+            (currentCostBasis * tokensSold) / currentTokensBought;
+
+          // Calculate profit/loss for this sale
+          const tradePnl = ethReceived - costBasisPortion;
+
+          const newTotalCostBasis = currentCostBasis - costBasisPortion;
+          const newTotalTokensBought = currentTokensBought - tokensSold;
+          const newRealizedPnl = currentRealizedPnl + tradePnl;
+
+          // Check if this sale completely liquidates the position
+          // If so, reset all tracking fields to avoid stale data for future rebuys
+          const isCompletelyLiquidated = BigInt(holding.balance) === tokensSold;
+
+          await ctx.services.holdingService.updateHoldingCostBasisSell(
+            holding.id,
+            ethReceived,
+            tokensSold,
+            currentCostBasis,
+            currentTokensBought,
+            currentRealizedPnl,
+            isCompletelyLiquidated
+          );
+
+          if (isCompletelyLiquidated) {
+            logger.info(
+              `[PnlService] Position completely liquidated for holding ${holding.id}. Reset PnL tracking fields.`
+            );
+          }
+        }
+      }
+    } catch (error) {
+      logger.error(
+        `[PnlService] Error updating PNL for trade ${tradeId}:`,
+        error
+      );
+    }
+  }
 }

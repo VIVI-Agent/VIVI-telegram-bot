@@ -84,13 +84,11 @@ bot.start(async (ctx) => {
 
 // Handle callbacks
 bot.on("callback_query", async (ctx) => {
-  if (ctx.chat?.type === "private") {
-    const callbackQuery = ctx.callbackQuery;
-    if (callbackQuery && "data" in callbackQuery) {
-      const callback = callbackQuery.data;
-      logger.info(`Callback received: ${callback}`);
-      await sceneManager.routeCallback(ctx, callback);
-    }
+  const callbackQuery = ctx.callbackQuery;
+  if (callbackQuery && "data" in callbackQuery) {
+    const callback = callbackQuery.data;
+    logger.info(`Callback received: ${callback}`);
+    await sceneManager.routeCallback(ctx, callback);
   }
 });
 
@@ -129,7 +127,103 @@ bot.command("trade", async (ctx) => {
   }
 });
 
-// Handle text messages
+// Handle createbuyevent command (admin only in groups)
+bot.command("createbuyevent", async (ctx) => {
+  // Only allow in groups
+  logger.info(`Creating buy event in ${ctx.chat?.type}`);
+  logger.info(`creatingEvent ${ctx.session.creatingEvent}`);
+  if (ctx.chat?.type === "group" || ctx.chat?.type === "supergroup") {
+    // Check if user is admin
+    try {
+      const admins = await ctx.getChatAdministrators();
+      const isAdmin = admins.some((admin) => admin.user.id === ctx.from?.id);
+      if (!isAdmin) {
+        await ctx.reply("❌ Only group administrators can create buy events.");
+        return;
+      }
+    } catch (error) {
+      logger.error(`Error checking admin status: ${error}`);
+      await ctx.reply("❌ Error checking admin permissions. Please try again.");
+      return;
+    }
+
+    if (ctx.session.creatingEvent === true) {
+      logger.info("User is already creating an event.");
+      await ctx.reply(
+        "❌ You are already creating an event. Use /cancelcreation to cancel the current event first."
+      );
+      return;
+    }
+
+    await sceneManager.activateScene(ctx, "BuyEvent");
+  } else {
+    await ctx.reply("❌ This command is only available in groups.");
+  }
+});
+
+bot.command("cancelcreation", async (ctx) => {
+  if (
+    ctx.session.creatingEvent === true &&
+    ctx.session.buyEventSceneInstanceId
+  ) {
+    logger.info(`Cancelling buy event creation for user ${ctx.from?.id}`);
+
+    // Deactivate the scene
+    await sceneManager.deactivateScene(
+      ctx,
+      ctx.session.buyEventSceneInstanceId
+    );
+
+    // Reset flags
+    ctx.session.creatingEvent = false;
+    ctx.session.buyEventSceneInstanceId = undefined;
+
+    await ctx.reply("✅ Event creation cancelled successfully.");
+  } else {
+    await ctx.reply("❌ No event creation in progress to cancel.");
+  }
+});
+
+// Handle closebuyevent command (admin only in groups)
+bot.command("closebuyevent", async (ctx) => {
+  const { CloseBuyEventCommandHandler } = await import(
+    "./scenes/buyEvent/CloseBuyEventCommandHandler"
+  );
+  const handler = new CloseBuyEventCommandHandler();
+
+  const canExecute = await handler.canExecute(ctx);
+  if (canExecute) {
+    await handler.execute(ctx);
+  }
+});
+
+// Handle leaderboard command (groups only)
+bot.command("leaderboard", async (ctx) => {
+  const { LeaderboardCommandHandler } = await import(
+    "./scenes/buyEvent/LeaderboardCommandHandler"
+  );
+  const handler = new LeaderboardCommandHandler();
+
+  const canExecute = await handler.canExecute(ctx);
+  if (canExecute) {
+    await handler.execute(ctx);
+  }
+});
+
+// Handle myeventstat command (groups only)
+bot.command("myeventstat", async (ctx) => {
+  const { MyEventStatCommandHandler } = await import(
+    "./scenes/buyEvent/MyEventStatCommandHandler"
+  );
+  const handler = new MyEventStatCommandHandler();
+
+  const canExecute = await handler.canExecute(ctx);
+  if (canExecute) {
+    await handler.execute(ctx);
+  }
+});
+
+// Handle text messages and photos
 bot.on(message("text"), async (ctx) => {
   // Skip All Commands
   if (ctx.message.text?.startsWith("/")) {
@@ -163,6 +257,17 @@ bot.on(message("text"), async (ctx) => {
   else if (ctx.chat?.type === "group" || ctx.chat?.type === "supergroup") {
     const text = ctx.message.text;
     logger.info(`Text received: ${text}`);
+
+    // Handle scene routing in groups
+    (async () => {
+      try {
+        await sceneManager.routeText(ctx, text);
+      } catch (error) {
+        logger.error("Error in sceneManager.routeText:", error);
+      }
+    })();
+
+    // Handle text manager routing in groups (only for bot mentions)
     if (text.startsWith(`@${secrets.TELEGRAM_BOT_USERNAME}`)) {
       (async () => {
         try {
@@ -176,6 +281,22 @@ bot.on(message("text"), async (ctx) => {
         }
       })();
     }
+  }
+});
+
+// Handle photo messages
+bot.on(message("photo"), async (ctx) => {
+  if (ctx.chat?.type === "group" || ctx.chat?.type === "supergroup") {
+    logger.info(`Photo received in group chat`);
+
+    // Handle scene routing in groups for photos
+    (async () => {
+      try {
+        await sceneManager.routeText(ctx, ""); // Pass empty string for photo handling
+      } catch (error) {
+        logger.error("Error in sceneManager.routeText for photo:", error);
+      }
+    })();
   }
 });
 

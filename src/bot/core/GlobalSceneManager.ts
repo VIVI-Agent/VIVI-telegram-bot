@@ -62,6 +62,12 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
         const { TradeSubScene } = await import("../scenes/trade/TradeSubScene");
         scene = new TradeSubScene(instanceId);
         break;
+      case "BuyEvent":
+        const { BuyEventSubScene } = await import(
+          "../scenes/buyEvent/BuyEventSubScene"
+        );
+        scene = new BuyEventSubScene(instanceId);
+        break;
       default:
         logger.error(`Unknown scene type: ${sceneType}`);
         throw new Error(`Unknown scene type: ${sceneType}`);
@@ -163,6 +169,29 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
         const messageId = callback.split(":")[1];
         if (messageId && ctx.chat?.id) {
           await ctx.telegram.deleteMessage(ctx.chat?.id, parseInt(messageId));
+        }
+        return;
+      }
+
+      // Handle buy event close callbacks
+      if (callback.startsWith("confirm_close_event:")) {
+        const eventId = callback.split(":")[1];
+        if (eventId) {
+          const { BuyEventCallbackHandlers } = await import(
+            "../scenes/buyEvent/BuyEventCallbackHandlers"
+          );
+          await BuyEventCallbackHandlers.handleConfirmCloseEvent(ctx, eventId);
+        }
+        return;
+      }
+
+      if (callback.startsWith("cancel_close_event:")) {
+        const eventId = callback.split(":")[1];
+        if (eventId) {
+          const { BuyEventCallbackHandlers } = await import(
+            "../scenes/buyEvent/BuyEventCallbackHandlers"
+          );
+          await BuyEventCallbackHandlers.handleCancelCloseEvent(ctx, eventId);
         }
         return;
       }
@@ -292,13 +321,15 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
       }
     }
 
-    const tokenAddress = AddressValidator.parseEthereumAddress(text);
-    if (tokenAddress) {
-      await this.activateScene(ctx, "Trade", {
-        mode: "buy",
-        token: tokenAddress,
-      });
-      return;
+    if (ctx.chat?.type === "private") {
+      const tokenAddress = AddressValidator.parseEthereumAddress(text);
+      if (tokenAddress) {
+        await this.activateScene(ctx, "Trade", {
+          mode: "buy",
+          token: tokenAddress,
+        });
+        return;
+      }
     }
 
     logger.info(`❌ Unhandled text: ${text}`);
