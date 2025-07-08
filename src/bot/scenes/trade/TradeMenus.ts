@@ -154,7 +154,7 @@ export class TradeMenus extends BaseMenus {
     // Refresh button (solo at the top)
     keyboard.push([
       Markup.button.callback(
-        "🔄 Refresh",
+        "♻️ Refresh",
         this.createCallback(CB.REFRESH_QUOTE)
       ),
     ]);
@@ -267,7 +267,7 @@ export class TradeMenus extends BaseMenus {
     // Refresh button (solo at the top)
     keyboard.push([
       Markup.button.callback(
-        "🔄 Refresh",
+        "♻️ Refresh",
         this.createCallback(CB.REFRESH_QUOTE)
       ),
     ]);
