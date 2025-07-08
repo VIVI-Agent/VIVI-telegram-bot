@@ -10,6 +10,7 @@ export const CB = {
   // Trade actions
   SELECT_WALLET: "select_wallet",
   UNSELECT_WALLET: "unselect_wallet",
+  TOGGLE_ALL_WALLETS: "toggle_all_wallets",
 
   SELECT_AMOUNT: "select_amount",
   SELECT_PERCENTAGE: "select_percentage",
@@ -19,4 +20,9 @@ export const CB = {
   // Trade actions
   BUY_TOKEN: "buy_token",
   SELL_TOKEN: "sell_token",
+
+  // Gas speed buttons
+  SET_GAS_AUTO: "set_gas_auto",
+  SET_GAS_FAST: "set_gas_fast",
+  SET_GAS_TURBO: "set_gas_turbo",
 } as const;

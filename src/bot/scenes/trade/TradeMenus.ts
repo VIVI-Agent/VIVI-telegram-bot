@@ -215,7 +215,7 @@ export class TradeMenus extends BaseMenus {
     keyboard.push([amountButtons[2], amountButtons[3]]); // Amount3, Amount4
     keyboard.push([amountButtons[4], customButton]); // Amount5, Custom
 
-    // Slippage button (solo)
+    // Slippage and Gas buttons
     const slippageSettings = sceneData.userWithSettings?.buySettings;
     const slippageButtonText = sceneData.customSlippage
       ? `Slip ${sceneData.customSlippage}% 🟢`
@@ -226,6 +226,9 @@ export class TradeMenus extends BaseMenus {
         slippageButtonText,
         this.createCallback(CB.SELECT_SLIPPAGE)
       ),
+      Markup.button.callback("⛽️ ", this.createCallback(CB.SET_GAS_AUTO)),
+      Markup.button.callback("⚡", this.createCallback(CB.SET_GAS_FAST)),
+      Markup.button.callback("💨", this.createCallback(CB.SET_GAS_TURBO)),
     ]);
 
     // Wallet selection
@@ -242,6 +245,16 @@ export class TradeMenus extends BaseMenus {
           wallet.id.toString()
         ),
       };
+    });
+
+    // Add "All" toggle button
+    const allWalletsSelected = wallets.every((wallet) =>
+      selectedWallets.includes(wallet.id)
+    );
+    const allButtonText = allWalletsSelected ? "All 🟢" : "All";
+    walletButtons.push({
+      text: allButtonText,
+      callback_data: this.createCallback(CB.TOGGLE_ALL_WALLETS),
     });
 
     if (walletButtons.length > 0) {
@@ -335,7 +348,7 @@ export class TradeMenus extends BaseMenus {
     );
     keyboard.push(secondRow);
 
-    // Slippage button (solo)
+    // Slippage and Gas buttons
     const slippageSettings = sceneData.userWithSettings?.sellSettings;
     const slippageButtonText = sceneData.customSlippage
       ? `Slip ${sceneData.customSlippage}% 🟢`
@@ -346,6 +359,9 @@ export class TradeMenus extends BaseMenus {
         slippageButtonText,
         this.createCallback(CB.SELECT_SLIPPAGE)
       ),
+      Markup.button.callback("🚀", this.createCallback(CB.SET_GAS_AUTO)),
+      Markup.button.callback("⚡", this.createCallback(CB.SET_GAS_FAST)),
+      Markup.button.callback("💨", this.createCallback(CB.SET_GAS_TURBO)),
     ]);
 
     // Wallet selection (only show wallets with tokens)
@@ -363,6 +379,16 @@ export class TradeMenus extends BaseMenus {
           wallet.id.toString()
         ),
       };
+    });
+
+    // Add "All" toggle button
+    const allWalletsSelected = wallets.every((wallet) =>
+      selectedWallets.includes(wallet.id)
+    );
+    const allButtonText = allWalletsSelected ? "All 🟢" : "All";
+    walletButtons.push({
+      text: allButtonText,
+      callback_data: this.createCallback(CB.TOGGLE_ALL_WALLETS),
     });
 
     if (walletButtons.length > 0) {

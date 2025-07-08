@@ -95,30 +95,28 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
             sceneData.selectedSlippage =
               sceneData.userWithSettings.buySettings?.slippage?.toString();
             this.updateSceneData(ctx, sceneData);
-            // Check each wallet in sceneData.wallets eth balance to buy tokens and set walletSelected if the has enough eth.
-            // balance on eht is in wallet.balance field as string, set sceneData.selectedWallets with the wallet id if the has enough eth.
-            const ethAmount =
-              sceneData.userWithSettings.buySettings?.amount1 ?? 0.01;
-            // Convertir ETH a Wei para comparar con wallet.balance (que está en Wei)
-            const ethAmountInWei = BigInt(Math.floor(ethAmount * 10 ** 18));
+            // Select only the default wallet (the one with isSelected: true)
+            const defaultWallet = sceneData.userWithWallets.wallets.find(
+              (wallet) => wallet.isSelected
+            );
 
-            for (const wallet of sceneData.userWithWallets.wallets) {
-              if (wallet.balance && BigInt(wallet.balance) > ethAmountInWei) {
-                sceneData.selectedWallets?.push(wallet.id);
-                this.log(
-                  "info",
-                  ctx,
-                  `Wallet ${wallet.id} has enough ETH: ${
-                    wallet.balance
-                  } Wei > ${ethAmountInWei.toString()} Wei`
-                );
-              } else {
-                this.log(
-                  "debug",
-                  ctx,
-                  `Wallet ${wallet.id} insufficient ETH: ${
-                    wallet.balance || "0"
-                  } Wei <= ${ethAmountInWei.toString()} Wei`
+            if (defaultWallet) {
+              sceneData.selectedWallets?.push(defaultWallet.id);
+              this.log(
+                "info",
+                ctx,
+                `Selected default wallet for BUY: ${defaultWallet.id} (${defaultWallet.address})`
+              );
+            } else {
+              this.log(
+                "warn",
+                ctx,
+                "No default wallet found, selecting first wallet"
+              );
+              // Fallback: select first wallet if no default found
+              if (sceneData.userWithWallets.wallets.length > 0) {
+                sceneData.selectedWallets?.push(
+                  sceneData.userWithWallets.wallets[0].id
                 );
               }
             }
@@ -140,37 +138,36 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
               sceneData.userWithSettings.sellSettings?.slippage?.toString();
             this.updateSceneData(ctx, sceneData);
 
-            // Check if user has any tokens to sell
+            // Check if user has any tokens to sell and select only default wallet
             let hasAnyTokens = false;
-            for (const wallet of sceneData.userWithWallets.wallets) {
-              // Check if wallet has ETH balance > 0 (for gas fees)
-              const hasEthBalance =
-                wallet.balance && BigInt(wallet.balance) > BigInt(0);
+            const defaultWallet = sceneData.userWithWallets.wallets.find(
+              (wallet) => wallet.isSelected
+            );
 
-              // Check if wallet has token holdings > 0 (tokens to sell)
+            if (defaultWallet) {
+              // Check if default wallet has tokens to sell
               const hasTokenBalance =
-                wallet.holdings &&
-                wallet.holdings.balance &&
-                BigInt(wallet.holdings.balance) > BigInt(0);
+                defaultWallet.holdings &&
+                defaultWallet.holdings.balance &&
+                BigInt(defaultWallet.holdings.balance) > BigInt(0);
 
-              // Only select wallets that have both ETH and tokens
-              if (hasEthBalance && hasTokenBalance) {
-                sceneData.selectedWallets?.push(wallet.id);
+              if (hasTokenBalance) {
+                sceneData.selectedWallets?.push(defaultWallet.id);
                 hasAnyTokens = true;
                 this.log(
                   "info",
                   ctx,
-                  `Selected wallet ${wallet.address}: ETH=${wallet.balance}, Token=${wallet.holdings?.balance}`
+                  `Selected default wallet for SELL: ${defaultWallet.id} (${defaultWallet.address}): Token=${defaultWallet.holdings?.balance}`
                 );
               } else {
                 this.log(
                   "debug",
                   ctx,
-                  `Skipped wallet ${wallet.address}: ETH=${
-                    wallet.balance || "0"
-                  }, Token=${wallet.holdings?.balance || "0"}`
+                  `Default wallet has no tokens to sell: ${defaultWallet.address}`
                 );
               }
+            } else {
+              this.log("warn", ctx, "No default wallet found for sell mode");
             }
 
             this.log(
@@ -205,22 +202,27 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
                 sceneData.userWithSettings.buySettings?.slippage?.toString();
               sceneData.selectedWallets = [];
 
-              // Auto-select wallets with enough ETH for buy
-              const ethAmount =
-                sceneData.userWithSettings.buySettings?.amount1 ?? 0.01;
-              const ethAmountInWei = BigInt(Math.floor(ethAmount * 10 ** 18));
+              // Auto-select only the default wallet for buy
+              const defaultWallet = sceneData.userWithWallets.wallets.find(
+                (wallet) => wallet.isSelected
+              );
 
-              for (const wallet of sceneData.userWithWallets.wallets) {
-                if (wallet.balance && BigInt(wallet.balance) > ethAmountInWei) {
-                  sceneData.selectedWallets?.push(wallet.id);
-                  this.log(
-                    "info",
-                    ctx,
-                    `Wallet ${wallet.id} has enough ETH: ${
-                      wallet.balance
-                    } Wei > ${ethAmountInWei.toString()} Wei`
-                  );
-                }
+              if (defaultWallet) {
+                sceneData.selectedWallets?.push(defaultWallet.id);
+                this.log(
+                  "info",
+                  ctx,
+                  `Selected default wallet for switched BUY mode: ${defaultWallet.id} (${defaultWallet.address})`
+                );
+              } else if (sceneData.userWithWallets.wallets.length > 0) {
+                sceneData.selectedWallets?.push(
+                  sceneData.userWithWallets.wallets[0].id
+                );
+                this.log(
+                  "warn",
+                  ctx,
+                  "No default wallet found, selected first wallet"
+                );
               }
 
               this.log(
@@ -339,6 +341,47 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
           }
           return true;
 
+        case CB.TOGGLE_ALL_WALLETS:
+          await ctx.answerCbQuery();
+          const currentSceneData = this.getSceneData(ctx);
+          const wallets = currentSceneData.userWithWallets?.wallets || [];
+
+          if (wallets.length > 0) {
+            // Check if all wallets are currently selected
+            const allSelected = wallets.every((wallet) =>
+              currentSceneData.selectedWallets?.includes(wallet.id)
+            );
+
+            if (allSelected) {
+              // Deselect all and keep only the default selected wallet
+              const defaultWallet = wallets.find((wallet) => wallet.isSelected);
+              currentSceneData.selectedWallets = defaultWallet
+                ? [defaultWallet.id]
+                : [];
+              this.log(
+                "info",
+                ctx,
+                `Deselected all wallets, kept default: ${
+                  defaultWallet?.id || "none"
+                }`
+              );
+            } else {
+              // Select all wallets
+              currentSceneData.selectedWallets = wallets.map(
+                (wallet) => wallet.id
+              );
+              this.log(
+                "info",
+                ctx,
+                `Selected all wallets: ${currentSceneData.selectedWallets}`
+              );
+            }
+
+            this.updateSceneData(ctx, currentSceneData);
+            await this.menus.showTradeMenu(ctx, currentSceneData, messageId);
+          }
+          return true;
+
         case CB.SELECT_AMOUNT:
           await ctx.answerCbQuery();
           if (params && params[0]) {
@@ -445,6 +488,19 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
         case CB.REFRESH_QUOTE:
           await ctx.answerCbQuery();
           await this.refreshQuoteAndMenu(ctx);
+          return true;
+
+        // Gas speed selection (no functionality yet)
+        case CB.SET_GAS_AUTO:
+          await ctx.answerCbQuery("🚀 Auto gas selected (coming soon)");
+          return true;
+
+        case CB.SET_GAS_FAST:
+          await ctx.answerCbQuery("⚡ Fast gas selected (coming soon)");
+          return true;
+
+        case CB.SET_GAS_TURBO:
+          await ctx.answerCbQuery("💨 Turbo gas selected (coming soon)");
           return true;
 
         // Trade actions
@@ -555,22 +611,26 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
               sceneData.selectedSlippage =
                 userWithSettings.buySettings?.slippage?.toString();
 
-              // Auto-select wallets with enough ETH for buy
-              const ethAmount = userWithSettings.buySettings?.amount1 ?? 0.01;
-              const ethAmountInWei = BigInt(Math.floor(ethAmount * 10 ** 18));
+              // Auto-select only the default wallet for buy
               sceneData.selectedWallets = [];
+              const defaultWallet = wallets.wallets.find(
+                (wallet) => wallet.isSelected
+              );
 
-              for (const wallet of wallets.wallets) {
-                if (wallet.balance && BigInt(wallet.balance) > ethAmountInWei) {
-                  sceneData.selectedWallets.push(wallet.id);
-                  this.log(
-                    "info",
-                    ctx,
-                    `Wallet ${wallet.id} has enough ETH: ${
-                      wallet.balance
-                    } Wei > ${ethAmountInWei.toString()} Wei`
-                  );
-                }
+              if (defaultWallet) {
+                sceneData.selectedWallets.push(defaultWallet.id);
+                this.log(
+                  "info",
+                  ctx,
+                  `Selected default wallet for BUY (from text): ${defaultWallet.id} (${defaultWallet.address})`
+                );
+              } else if (wallets.wallets.length > 0) {
+                sceneData.selectedWallets.push(wallets.wallets[0].id);
+                this.log(
+                  "warn",
+                  ctx,
+                  "No default wallet found, selected first wallet"
+                );
               }
 
               // Get best dex quote
@@ -974,15 +1034,27 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
         sceneData.selectedSlippage =
           sceneData.userWithSettings?.buySettings?.slippage?.toString();
 
-        // Auto-select wallets with enough ETH for buy
-        const ethAmount =
-          sceneData.userWithSettings?.buySettings?.amount1 ?? 0.01;
-        const ethAmountInWei = BigInt(Math.floor(ethAmount * 10 ** 18));
+        // Auto-select only the default wallet for buy
+        const defaultWallet = sceneData.userWithWallets?.wallets?.find(
+          (wallet) => wallet.isSelected
+        );
 
-        for (const wallet of sceneData.userWithWallets?.wallets || []) {
-          if (wallet.balance && BigInt(wallet.balance) > ethAmountInWei) {
-            sceneData.selectedWallets?.push(wallet.id);
-          }
+        if (defaultWallet) {
+          sceneData.selectedWallets?.push(defaultWallet.id);
+          this.log(
+            "info",
+            ctx,
+            `Selected default wallet for switched BUY mode: ${defaultWallet.id}`
+          );
+        } else if (sceneData.userWithWallets?.wallets?.length) {
+          sceneData.selectedWallets?.push(
+            sceneData.userWithWallets.wallets[0].id
+          );
+          this.log(
+            "warn",
+            ctx,
+            "No default wallet found, selected first wallet"
+          );
         }
       } else {
         sceneData.selectedAmount =
@@ -990,18 +1062,38 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
         sceneData.selectedSlippage =
           sceneData.userWithSettings?.sellSettings?.slippage?.toString();
 
-        // Auto-select wallets with both ETH and tokens for sell
-        for (const wallet of sceneData.userWithWallets?.wallets || []) {
-          const hasEthBalance =
-            wallet.balance && BigInt(wallet.balance) > BigInt(0);
-          const hasTokenBalance =
-            wallet.holdings &&
-            wallet.holdings.balance &&
-            BigInt(wallet.holdings.balance) > BigInt(0);
+        // Auto-select only the default wallet for sell
+        const defaultWallet = sceneData.userWithWallets?.wallets?.find(
+          (wallet) => wallet.isSelected
+        );
 
-          if (hasEthBalance && hasTokenBalance) {
-            sceneData.selectedWallets?.push(wallet.id);
+        if (defaultWallet) {
+          // Check if default wallet has tokens to sell
+          const hasTokenBalance =
+            defaultWallet.holdings &&
+            defaultWallet.holdings.balance &&
+            BigInt(defaultWallet.holdings.balance) > BigInt(0);
+
+          if (hasTokenBalance) {
+            sceneData.selectedWallets?.push(defaultWallet.id);
+            this.log(
+              "info",
+              ctx,
+              `Selected default wallet for switched SELL mode: ${defaultWallet.id}`
+            );
+          } else {
+            this.log(
+              "debug",
+              ctx,
+              `Default wallet has no tokens to sell in switched mode`
+            );
           }
+        } else {
+          this.log(
+            "warn",
+            ctx,
+            "No default wallet found for switched sell mode"
+          );
         }
       }
 
