@@ -335,20 +335,8 @@ export class TradeMenus extends BaseMenus {
       sellSettings!.amount3,
     ];
 
-    // Percentage buttons (first 3)
-    const firstRow = userPercentages.slice(0, 3).map((percentage: number) => {
-      const isSelected =
-        !sceneData.customAmount &&
-        percentage === Number(sceneData.selectedAmount);
-      return Markup.button.callback(
-        `💰 ${percentage}%${isSelected ? " 🟢" : ""}`,
-        this.createCallback(CB.SELECT_PERCENTAGE, percentage?.toString() ?? "")
-      );
-    });
-    keyboard.push(firstRow);
-
-    // Percentage buttons (remaining 2 + custom)
-    const secondRow = userPercentages.slice(3).map((percentage: number) => {
+    // Create percentage buttons
+    const percentageButtons = userPercentages.map((percentage: number) => {
       const isSelected =
         !sceneData.customAmount &&
         percentage === Number(sceneData.selectedAmount);
@@ -363,13 +351,14 @@ export class TradeMenus extends BaseMenus {
       ? `💰 ${sceneData.customAmount}% 🟢`
       : `💰 Custom %`;
 
-    secondRow.push(
-      Markup.button.callback(
-        customButtonText,
-        this.createCallback(CB.SELECT_PERCENTAGE, "custom")
-      )
+    const customButton = Markup.button.callback(
+      customButtonText,
+      this.createCallback(CB.SELECT_PERCENTAGE, "custom")
     );
-    keyboard.push(secondRow);
+
+    // Organize percentage buttons in 2 columns: [1,2], [3,Custom]
+    keyboard.push([percentageButtons[0], percentageButtons[1]]); // Percentage1, Percentage2
+    keyboard.push([percentageButtons[2], customButton]); // Percentage3, Custom
 
     // Wallet selection (only show wallets with tokens)
     if (!wallets || wallets.length === 0) {
