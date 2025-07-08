@@ -72,13 +72,14 @@ export class WalletsMenus extends BaseMenus {
     const keyboard = this.buildListWalletsKeyboard(user!);
     let menuText = WALLET_TEXTS.MESSAGES.LIST_WALLETS_TITLE;
 
-    user.wallets.forEach((w) => {
+    user.wallets.forEach((w, index) => {
       const balanceBN = BigInt(w.balance || "0");
       const ethStr = formatEthBalanceWithSymbol(balanceBN);
       menuText += WALLET_TEXTS.FUNCTIONS.buildWalletBalanceLine(
         w.isSelected,
         w.address,
-        ethStr
+        ethStr,
+        index
       );
     });
 

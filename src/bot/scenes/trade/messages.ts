@@ -113,20 +113,16 @@ export const TRADE_TEXTS = {
 
               // Format with appropriate precision
               if (tokenAmount >= 1000000) {
-                tokenFormatted = `${(tokenAmount / 1000000).toFixed(2)}M ${
-                  token.symbol
-                }`;
+                tokenFormatted = `${(tokenAmount / 1000000).toFixed(2)}M`;
               } else if (tokenAmount >= 1000) {
-                tokenFormatted = `${(tokenAmount / 1000).toFixed(2)}K ${
-                  token.symbol
-                }`;
+                tokenFormatted = `${(tokenAmount / 1000).toFixed(2)}K`;
               } else if (tokenAmount >= 1) {
-                tokenFormatted = `${tokenAmount.toFixed(2)} ${token.symbol}`;
+                tokenFormatted = `${tokenAmount.toFixed(2)}`;
               } else {
-                tokenFormatted = `${tokenAmount.toFixed(6)} ${token.symbol}`;
+                tokenFormatted = `${tokenAmount.toFixed(6)}`;
               }
             } else {
-              tokenFormatted = `0 ${token.symbol}`; // No decimals for zero balance
+              tokenFormatted = `0`; // No decimals for zero balance
             }
 
             return `<b>W${globalIndex + 1}:</b> ${tokenFormatted}`;
@@ -136,7 +132,9 @@ export const TRADE_TEXTS = {
 
       const walletBalances = `${ethBalanceLines.join(
         "\n"
-      )}\n${tokenBalanceLines.join("\n")}`;
+      )}\n<b>👛 Bag:</b> ${totalHoldings} ${tokenSymbol}\n${tokenBalanceLines.join(
+        "\n"
+      )}`;
 
       // Different message format for buy vs sell
       const amountLabel = isSell ? "💸 <b>Sell:</b> " : "💸 <b>Buy:</b> ";
@@ -157,7 +155,7 @@ export const TRADE_TEXTS = {
 <b>Token Info:</b>
 👥 <b>Holders:</b> ${holders}
 📜 <b>Supply:</b> ${supply}
-📊 <b>MarketCap (USD):</b> ${marketCap}
+📊 <b>MarketCap:</b> ${marketCap}
 `;
       }
 
@@ -171,7 +169,6 @@ export const TRADE_TEXTS = {
 ${amountLabel}${amount}${amountSuffix}
 ${outputLabel}${outputValue}
 ${dexName}${tokenInfoSection}
-<b>👛 Bag:</b> ${totalHoldings} ${tokenSymbol}
 ${walletBalances}
 
 ℹ️ Press refresh to monitor

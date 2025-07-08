@@ -244,10 +244,13 @@ Are you sure you want to remove this wallet?
     buildWalletBalanceLine(
       isSelected: boolean,
       address: string,
-      balanceEth: string
+      balanceEth: string,
+      index: number
     ): string {
       return `
-<b>${isSelected ? "✅ Wallet:" : "Wallet:"}</b> <code>${address}</code>
+<b>${
+        isSelected ? `✅ W${index + 1}:` : `W${index + 1}:`
+      }</b> <code>${address}</code>
 <b>Balance:</b> ${balanceEth} 
 <a href="${explorerUrl}/address/${address}">🔗 Open in Basescan</a>
 `;
