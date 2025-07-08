@@ -215,24 +215,31 @@ export class TradeMenus extends BaseMenus {
     keyboard.push([amountButtons[2], amountButtons[3]]); // Amount3, Amount4
     keyboard.push([amountButtons[4], customButton]); // Amount5, Custom
 
-    // Slippage and Gas buttons
-    const slippageSettings = sceneData.userWithSettings?.buySettings;
-    const slippageButtonText = sceneData.customSlippage
-      ? `Slip ${sceneData.customSlippage}% 🟢`
-      : `Slip ${slippageSettings?.slippage || 30}%`;
-
-    keyboard.push([
-      Markup.button.callback(
-        slippageButtonText,
-        this.createCallback(CB.SELECT_SLIPPAGE)
-      ),
-      Markup.button.callback("⛽️ ", this.createCallback(CB.SET_GAS_AUTO)),
-      Markup.button.callback("⚡", this.createCallback(CB.SET_GAS_FAST)),
-      Markup.button.callback("💨", this.createCallback(CB.SET_GAS_TURBO)),
-    ]);
-
     // Wallet selection
     if (!wallets || wallets.length === 0) {
+      // Add slippage and gas buttons even if no wallets
+      const slippageSettings = sceneData.userWithSettings?.buySettings;
+      const slippageButtonText = sceneData.customSlippage
+        ? `Slip ${sceneData.customSlippage}% 🟢`
+        : `Slip ${slippageSettings?.slippage || 30}%`;
+
+      keyboard.push([
+        Markup.button.callback(
+          slippageButtonText,
+          this.createCallback(CB.SELECT_SLIPPAGE)
+        ),
+        Markup.button.callback("⛽️ ", this.createCallback(CB.SET_GAS_AUTO)),
+        Markup.button.callback("⚡", this.createCallback(CB.SET_GAS_FAST)),
+        Markup.button.callback("💨", this.createCallback(CB.SET_GAS_TURBO)),
+      ]);
+
+      keyboard.push([
+        {
+          text: "⚡ BUY",
+          callback_data: this.createCallback(CB.BUY_TOKEN),
+        },
+      ]);
+
       return keyboard;
     }
 
@@ -260,6 +267,22 @@ export class TradeMenus extends BaseMenus {
     if (walletButtons.length > 0) {
       keyboard.push(walletButtons);
     }
+
+    // Slippage and Gas buttons
+    const slippageSettings = sceneData.userWithSettings?.buySettings;
+    const slippageButtonText = sceneData.customSlippage
+      ? `Slip ${sceneData.customSlippage}% 🟢`
+      : `Slip ${slippageSettings?.slippage || 30}%`;
+
+    keyboard.push([
+      Markup.button.callback(
+        slippageButtonText,
+        this.createCallback(CB.SELECT_SLIPPAGE)
+      ),
+      Markup.button.callback("⛽️ ", this.createCallback(CB.SET_GAS_AUTO)),
+      Markup.button.callback("⚡", this.createCallback(CB.SET_GAS_FAST)),
+      Markup.button.callback("💨", this.createCallback(CB.SET_GAS_TURBO)),
+    ]);
 
     // Buy button
     keyboard.push([
@@ -348,24 +371,31 @@ export class TradeMenus extends BaseMenus {
     );
     keyboard.push(secondRow);
 
-    // Slippage and Gas buttons
-    const slippageSettings = sceneData.userWithSettings?.sellSettings;
-    const slippageButtonText = sceneData.customSlippage
-      ? `Slip ${sceneData.customSlippage}% 🟢`
-      : `Slip ${slippageSettings?.slippage || 30}%`;
-
-    keyboard.push([
-      Markup.button.callback(
-        slippageButtonText,
-        this.createCallback(CB.SELECT_SLIPPAGE)
-      ),
-      Markup.button.callback("🚀", this.createCallback(CB.SET_GAS_AUTO)),
-      Markup.button.callback("⚡", this.createCallback(CB.SET_GAS_FAST)),
-      Markup.button.callback("💨", this.createCallback(CB.SET_GAS_TURBO)),
-    ]);
-
     // Wallet selection (only show wallets with tokens)
     if (!wallets || wallets.length === 0) {
+      // Add slippage and gas buttons even if no wallets
+      const slippageSettings = sceneData.userWithSettings?.sellSettings;
+      const slippageButtonText = sceneData.customSlippage
+        ? `Slip ${sceneData.customSlippage}% 🟢`
+        : `Slip ${slippageSettings?.slippage || 30}%`;
+
+      keyboard.push([
+        Markup.button.callback(
+          slippageButtonText,
+          this.createCallback(CB.SELECT_SLIPPAGE)
+        ),
+        Markup.button.callback("🚀", this.createCallback(CB.SET_GAS_AUTO)),
+        Markup.button.callback("⚡", this.createCallback(CB.SET_GAS_FAST)),
+        Markup.button.callback("💨", this.createCallback(CB.SET_GAS_TURBO)),
+      ]);
+
+      keyboard.push([
+        {
+          text: "⚡ SELL",
+          callback_data: this.createCallback(CB.SELL_TOKEN),
+        },
+      ]);
+
       return keyboard;
     }
 
@@ -394,6 +424,22 @@ export class TradeMenus extends BaseMenus {
     if (walletButtons.length > 0) {
       keyboard.push(walletButtons);
     }
+
+    // Slippage and Gas buttons
+    const slippageSettings = sceneData.userWithSettings?.sellSettings;
+    const slippageButtonText = sceneData.customSlippage
+      ? `Slip ${sceneData.customSlippage}% 🟢`
+      : `Slip ${slippageSettings?.slippage || 30}%`;
+
+    keyboard.push([
+      Markup.button.callback(
+        slippageButtonText,
+        this.createCallback(CB.SELECT_SLIPPAGE)
+      ),
+      Markup.button.callback("🚀", this.createCallback(CB.SET_GAS_AUTO)),
+      Markup.button.callback("⚡", this.createCallback(CB.SET_GAS_FAST)),
+      Markup.button.callback("💨", this.createCallback(CB.SET_GAS_TURBO)),
+    ]);
 
     // Sell button
     keyboard.push([
