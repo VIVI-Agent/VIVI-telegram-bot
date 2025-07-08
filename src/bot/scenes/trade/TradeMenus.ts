@@ -182,22 +182,8 @@ export class TradeMenus extends BaseMenus {
       buySettings!.amount5,
     ];
 
-    // Amount buttons (first 3)
-    const firstRow = userAmounts
-      .slice(0, 3)
-      .map((amount: number, index: number) => {
-        const isSelected =
-          !sceneData.customAmount &&
-          amount === Number(sceneData.selectedAmount);
-        return Markup.button.callback(
-          `💰 ${amount} Ξ${isSelected ? " 🟢" : ""}`,
-          this.createCallback(CB.SELECT_AMOUNT, amount?.toString() ?? "")
-        );
-      });
-    keyboard.push(firstRow);
-
-    // Amount buttons (remaining 2 + custom)
-    const secondRow = userAmounts.slice(3).map((amount: number) => {
+    // Create amount buttons
+    const amountButtons = userAmounts.map((amount: number) => {
       const isSelected =
         !sceneData.customAmount && amount === Number(sceneData.selectedAmount);
       return Markup.button.callback(
@@ -211,13 +197,15 @@ export class TradeMenus extends BaseMenus {
       ? `💰 ${sceneData.customAmount} Ξ 🟢`
       : `💰 Custom Ξ`;
 
-    secondRow.push(
-      Markup.button.callback(
-        customButtonText,
-        this.createCallback(CB.SELECT_AMOUNT, "custom")
-      )
+    const customButton = Markup.button.callback(
+      customButtonText,
+      this.createCallback(CB.SELECT_AMOUNT, "custom")
     );
-    keyboard.push(secondRow);
+
+    // Organize buttons in rows of 2: [1,2], [3,4], [5,Custom]
+    keyboard.push([amountButtons[0], amountButtons[1]]); // Amount1, Amount2
+    keyboard.push([amountButtons[2], amountButtons[3]]); // Amount3, Amount4
+    keyboard.push([amountButtons[4], customButton]); // Amount5, Custom
 
     // Slippage button and refresh button
     const slippageSettings = sceneData.userWithSettings?.buySettings;
