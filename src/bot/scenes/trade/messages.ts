@@ -180,8 +180,8 @@ export function buildSocialLinks(
 ): string {
   const defaultLinks = [
     `<a href="https://basescan.org/token/${address}">Scan</a>`,
-    `<a href="https://www.geckoterminal.com/base/pools/${address}">GT</a>`,
-    `<a href="https://dexscreener.com/base/${address}">DexSx</a>`,
+    `<a href="https://www.geckoterminal.com/base/pools/${address}">CG</a>`,
+    `<a href="https://dexscreener.com/base/${address}">DexSc</a>`,
     `<a href="https://www.dextools.io/app/en/base/pair-explorer/${address}">DexT</a>`,
     `<a href="https://www.defined.fi/base/${address}">Def</a>`,
   ];
