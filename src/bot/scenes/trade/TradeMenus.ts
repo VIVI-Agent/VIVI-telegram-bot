@@ -151,6 +151,14 @@ export class TradeMenus extends BaseMenus {
     const selectedWallets = sceneData.selectedWallets || [];
     const keyboard = [];
 
+    // Refresh button (solo at the top)
+    keyboard.push([
+      Markup.button.callback(
+        "🔄 Refresh",
+        this.createCallback(CB.REFRESH_QUOTE)
+      ),
+    ]);
+
     // Navigation buttons (moved to top)
     keyboard.push([
       {
@@ -207,7 +215,7 @@ export class TradeMenus extends BaseMenus {
     keyboard.push([amountButtons[2], amountButtons[3]]); // Amount3, Amount4
     keyboard.push([amountButtons[4], customButton]); // Amount5, Custom
 
-    // Slippage button and refresh button
+    // Slippage button (solo)
     const slippageSettings = sceneData.userWithSettings?.buySettings;
     const slippageButtonText = sceneData.customSlippage
       ? `Slip ${sceneData.customSlippage}% 🟢`
@@ -217,10 +225,6 @@ export class TradeMenus extends BaseMenus {
       Markup.button.callback(
         slippageButtonText,
         this.createCallback(CB.SELECT_SLIPPAGE)
-      ),
-      Markup.button.callback(
-        "🔄 Refresh",
-        this.createCallback(CB.REFRESH_QUOTE)
       ),
     ]);
 
@@ -259,6 +263,14 @@ export class TradeMenus extends BaseMenus {
     const wallets = sceneData.userWithWallets?.wallets;
     const selectedWallets = sceneData.selectedWallets || [];
     const keyboard = [];
+
+    // Refresh button (solo at the top)
+    keyboard.push([
+      Markup.button.callback(
+        "🔄 Refresh",
+        this.createCallback(CB.REFRESH_QUOTE)
+      ),
+    ]);
 
     // Navigation buttons (moved to top)
     keyboard.push([
@@ -323,7 +335,7 @@ export class TradeMenus extends BaseMenus {
     );
     keyboard.push(secondRow);
 
-    // Slippage button and refresh button
+    // Slippage button (solo)
     const slippageSettings = sceneData.userWithSettings?.sellSettings;
     const slippageButtonText = sceneData.customSlippage
       ? `Slip ${sceneData.customSlippage}% 🟢`
@@ -333,10 +345,6 @@ export class TradeMenus extends BaseMenus {
       Markup.button.callback(
         slippageButtonText,
         this.createCallback(CB.SELECT_SLIPPAGE)
-      ),
-      Markup.button.callback(
-        "🔄 Refresh",
-        this.createCallback(CB.REFRESH_QUOTE)
       ),
     ]);
 

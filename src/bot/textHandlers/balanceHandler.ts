@@ -236,17 +236,12 @@ export async function balanceHandler(
       for (const token of sortedHoldings) {
         const tokenBalanceFormatted = token.balance.toFixed(4);
 
-        // Generate buy and sell links for the token
+        // Generate sell links for the token
         try {
-          const buyLink = generateTradeLink({
-            tokenAddress: token.address as Address,
-            mode: "buy",
-          });
-          const sellLink = generateTradeLink({
+          text += `• <b><a href="${generateTradeLink({
             tokenAddress: token.address as Address,
             mode: "sell",
-          });
-          text += `• ${token.symbol} <a href="${buyLink}">[Buy]</a> <a href="${sellLink}">[Sell]</a>: <b>${tokenBalanceFormatted}</b>\n`;
+          })}">${token.symbol}</a></b>: ${tokenBalanceFormatted}\n`;
         } catch (error) {
           // Fallback to non-clickeable if link generation fails
           logger.warn(

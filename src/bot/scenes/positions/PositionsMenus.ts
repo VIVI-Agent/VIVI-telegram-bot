@@ -95,28 +95,20 @@ export class PositionsMenus extends BaseMenus {
         const pctFormatted = formatPnl(pctChange);
 
         // Determine emoji based on profit/loss
-        let emoji = "⚖️";
-        if (parseFloat(pctChange) > 20) emoji = "🔥";
-        else if (parseFloat(pctChange) > 0) emoji = "📈";
-        else if (parseFloat(pctChange) < -20) emoji = "💩";
-        else if (parseFloat(pctChange) < 0) emoji = "📉";
+        let emoji = "⚪️";
+        if (parseFloat(pctChange) > 20) emoji = "🟩";
+        else if (parseFloat(pctChange) > 0) emoji = "🟩";
+        else if (parseFloat(pctChange) < -20) emoji = "🟥";
+        else if (parseFloat(pctChange) < 0) emoji = "🟧";
 
         // Create buy and sell links for the token
         try {
-          const buyLink = generateTradeLink({
-            tokenAddress: item.token.address,
-            mode: "buy",
-          });
-          const sellLink = generateTradeLink({
+          text += `${emoji} <b><a href="${generateTradeLink({
             tokenAddress: item.token.address,
             mode: "sell",
-          });
-
-          text += `${emoji} <b>${
-            item.token.symbol
-          }</b> <a href="${buyLink}">[Buy]</a> <a href="${sellLink}">[Sell]</a>: ${parseFloat(
-            item.balance
-          ).toFixed(4)}\n`;
+          })}">${item.token.symbol}</a></b>: ${parseFloat(item.balance).toFixed(
+            4
+          )}\n`;
         } catch (error) {
           // Fallback to non-clickeable if link generation fails
           this.log(
