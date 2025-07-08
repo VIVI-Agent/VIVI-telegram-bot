@@ -149,11 +149,13 @@ export const TRADE_TEXTS = {
       // Token info section
       let tokenInfoSection = "";
       if (tokenInfo) {
+        const holders = formatHolders(tokenInfo.holders);
         const marketCap = formatMarketCap(tokenInfo.marketCap);
         const supply = formatSupply(tokenInfo.totalSupply);
 
         tokenInfoSection = `
 <b>Token Info:</b>
+👥 <b>Holders:</b> ${holders}
 📜 <b>Supply:</b> ${supply}
 📊 <b>MarketCap (USD):</b> ${marketCap}
 `;
