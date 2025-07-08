@@ -758,7 +758,7 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
         } else {
           // Valor inválido: mostrar error y guardar su messageId
           const errorMessage = await ctx.reply(
-            "❌ Invalid amount. Please try again."
+            validationResult.error || "❌ Invalid amount. Please try again."
           );
           sceneData.tempCustomAmountMessageIds =
             sceneData.tempCustomAmountMessageIds || [];

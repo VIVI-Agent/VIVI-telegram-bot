@@ -49,6 +49,18 @@ export class BuyAmountValidator {
       };
     }
 
+    // Check minimum amount for buy (0.001 ETH) - only in production
+    if (
+      !isSlippage &&
+      process.env.NODE_ENV === "production" &&
+      numValue < 0.001
+    ) {
+      return {
+        isValid: false,
+        error: "ETH amount must be at least 0.001 ETH",
+      };
+    }
+
     if (isSlippage && numValue > 50) {
       return {
         isValid: false,
