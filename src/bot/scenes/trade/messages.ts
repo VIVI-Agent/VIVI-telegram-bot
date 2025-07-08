@@ -138,17 +138,7 @@ export const TRADE_TEXTS = {
       }
 
       // Social links section
-      const socialLinks = buildSocialLinks(
-        tokenAddress,
-        tokenInfo
-          ? {
-              website: tokenInfo.website,
-              telegramLink: tokenInfo.telegramLink,
-              twitterLink: tokenInfo.twitterLink,
-            }
-          : undefined,
-        bestDex.dexName
-      );
+      const socialLinks = buildSocialLinks(tokenAddress, bestDex.dexName);
 
       return `<b>${tokenSymbol}</b> <a href="https://basescan.org/token/${tokenAddress}">🔗BASE</a>
 <code>${tokenAddress}</code>
@@ -171,15 +161,10 @@ ${socialLinks}`;
  */
 export function buildSocialLinks(
   address: string,
-  info?: {
-    website?: string;
-    telegramLink?: string;
-    twitterLink?: string;
-  },
   bestDexName?: string
 ): string {
   const defaultLinks = [
-    `<a href="https://basescan.org/token/${address}">Scan</a>`,
+    `<a href="https://basescan.org/token/${address}">BScan</a>`,
     `<a href="https://www.geckoterminal.com/base/pools/${address}">CG</a>`,
     `<a href="https://dexscreener.com/base/${address}">DexSc</a>`,
     `<a href="https://www.dextools.io/app/en/base/pair-explorer/${address}">DexT</a>`,
@@ -188,20 +173,10 @@ export function buildSocialLinks(
 
   // Add Apestore link if bestDexName is "ApeStore"
   if (bestDexName === "ApeStore") {
-    defaultLinks.push(
-      `<a href="https://ape.store/base/${address}">Apestore</a>`
-    );
+    defaultLinks.push(`<a href="https://ape.store/base/${address}">Ape</a>`);
   }
 
-  if (!info) return defaultLinks.join(" | ");
-
-  const links = [...defaultLinks];
-  if (info.website) links.push(`<a href="${info.website}">Website</a>`);
-  if (info.telegramLink)
-    links.push(`<a href="${info.telegramLink}">Telegram</a>`);
-  if (info.twitterLink) links.push(`<a href="${info.twitterLink}">Twitter</a>`);
-
-  return links.join(" | ");
+  return defaultLinks.join(" | ");
 }
 
 /**
