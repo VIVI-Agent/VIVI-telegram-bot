@@ -12,17 +12,17 @@ export const WALLET_TEXTS = {
   ERRORS: {
     WALLET_NOT_FOUND: "Wallet not found or already deleted.",
     NO_WALLETS_TO_REMOVE: "No wallets to remove.",
-    INVALID_PRIVATE_KEY: `<b>👛 Wallets > 📥 Import Wallet</b>
+    INVALID_PRIVATE_KEY: `<b>💼 Wallets > 📥 Import Wallet</b>
 
 ⚠️ <b>Invalid private key format.</b> Please enter a valid 64-character hexadecimal string (with or without 0x prefix).
 
 <b>Go Back and try again.</b>`,
-    CANT_IMPORT_DELETED_WALLET: `<b>👛 Wallets > 📥 Import Wallet</b>
+    CANT_IMPORT_DELETED_WALLET: `<b>💼 Wallets > 📥 Import Wallet</b>
 
 ⚠️ <b>This wallet has been deleted.</b> Please import a different wallet.
 
 <b>Go Back and try again.</b>`,
-    CANT_IMPORT_EXISTING_WALLET: `<b>👛 Wallets > 📥 Import Wallet</b>
+    CANT_IMPORT_EXISTING_WALLET: `<b>💼 Wallets > 📥 Import Wallet</b>
 
 ⚠️ <b>This wallet has already been imported.</b> Please import a different wallet.
 
@@ -33,11 +33,11 @@ export const WALLET_TEXTS = {
 
   MESSAGES: {
     ASK_FOR_TOKEN_TITLE:
-      "<b>👛 Wallets > 📥 Import Token</b>\n\nEnter the token address:",
-    LIST_WALLETS_TITLE: "<b>👛 Wallets > 📜 List Wallets</b> \n",
-    CREATE_WALLET_TITLE: "<b>👛 Wallets > ➕ Create Wallet</b>",
-    IMPORT_WALLET_TITLE: "<b>👛 Wallets > 📥 Import Wallet</b>",
-    EXPORT_WALLET_TITLE: `<b>👛 Wallets > 📤 Export Wallet</b>
+      "<b>💼 Wallets > 📥 Import Token</b>\n\nEnter the token address:",
+    LIST_WALLETS_TITLE: "<b>💼 Wallets > 📜 List Wallets</b> \n",
+    CREATE_WALLET_TITLE: "<b>💼 Wallets > ➕ Create Wallet</b>",
+    IMPORT_WALLET_TITLE: "<b>💼 Wallets > 📥 Import Wallet</b>",
+    EXPORT_WALLET_TITLE: `<b>💼 Wallets > 📤 Export Wallet</b>
 
 💡 Exporting a wallet will reveal your private key. Make sure you have securely saved it before proceeding.
 
@@ -52,13 +52,13 @@ Select the wallet you want to remove:`,
 Select the wallet you want to Withdraw from:`,
     SAVED_PRIVATE_KEY_BUTTON: "I have securely saved my private key",
     // Main Menu  Buttons
-    LIST_WALLETS_BUTTON: "📜 List Wallets",
-    CREATE_WALLET_BUTTON: "➕ Create Wallet",
-    IMPORT_WALLET_BUTTON: "📥 Import Wallet",
-    EXPORT_WALLET: "📤 Export Wallet",
-    REMOVE_WALLET: "🗑️ Remove Wallet",
+    LIST_WALLETS_BUTTON: "💼 List Wallets",
+    CREATE_WALLET_BUTTON: "🔨 Create",
+    IMPORT_WALLET_BUTTON: "➕ Import",
+    EXPORT_WALLET: "🗝 Export",
+    REMOVE_WALLET: "🗑️ Remove",
     TRANSFERS_BUTTON: "💸 Transfers",
-    IMPORT_TOKEN_BUTTON: "📥 Import Token",
+    IMPORT_TOKEN_BUTTON: "💲 Import Token",
     // Create Wallet messages
     MAX_WALLETS_REACHED: "You have reached the maximum number of wallets.",
     // Transfer messages
@@ -72,7 +72,7 @@ Select the wallet you want to Withdraw from:`,
     CANCEL_REMOVE_WALLET: "⚠️ Cancel, I'm not sure",
     // Import Wallet messages
     ENTER_PRIVATE_KEY_PROMPT: `
-<b>👛 Wallets > 📥 Import Wallet</b>
+<b>💼 Wallets > 📥 Import Wallet</b>
 
 💡 <i>Expected format: 64-character hexadecimal string (with or without 0x prefix)</i>
 
@@ -83,7 +83,7 @@ Please enter your Ethereum private key:
     // Transfers messages
     ETH: "ETH",
     TRANFER_SELECT_TOKEN: `
-<b>👛 Wallets > 💸 Transfers</b>
+<b>💼 Wallets > 💸 Transfers</b>
 
 Select the token you want to transfer:`,
     CANCEL_TRANSFER_CONFIRMATION: "⚠️ Cancel Transfer",
@@ -97,7 +97,7 @@ Select the token you want to transfer:`,
       wallets: { address: string; balance: bigint }[],
       token: Token
     ): string {
-      return `<b>👛 Wallets > 📥 Import Token</b>\n\n✅ ${success}\n\n<b>${
+      return `<b>💼 Wallets > 📥 Import Token</b>\n\n✅ ${success}\n\n<b>${
         token.symbol
       } Balance:</b> ${formatTokenBalance(
         totalBalance,
@@ -110,7 +110,7 @@ Select the token you want to transfer:`,
         .join("\n")}`;
     },
     getImportTokenFailedMessage(error: string): string {
-      return `<b>👛 Wallets > 📥 Import Token</b>\n\n❌ ${error} \n\n<b>Go Back and try again.</b>`;
+      return `<b>💼 Wallets > 📥 Import Token</b>\n\n❌ ${error} \n\n<b>Go Back and try again.</b>`;
     },
     getErrorTransferMsg(error: Error): string {
       return `❌ ${error.message}`;
@@ -120,7 +120,7 @@ Select the token you want to transfer:`,
     },
     getTransferCustomAmountMessage(): string {
       return `
-<b>👛 Wallets > 💸 Transfers</b>
+<b>💼 Wallets > 💸 Transfers</b>
 
 Enter the amount you want to transfer:
 `;
@@ -135,7 +135,7 @@ Enter the amount you want to transfer:
       const recipient = transferMode.recipient || "Not specified";
 
       return `
-<b>👛 Wallets > 💸 Transfers</b>
+<b>💼 Wallets > 💸 Transfers</b>
 
 <b>${isETH ? "ETH Transfer" : "Token Transfer"}</b>
 ${!isETH ? `<b>Token:</b> ${tokenSymbol}` : ""}
@@ -150,7 +150,7 @@ ${!isETH ? `<b>Token:</b> ${tokenSymbol}` : ""}
     },
     getInvalidAmountMessage(amount: string): string {
       return `
-<b>👛 Wallets > 💸 Transfers</b>
+<b>💼 Wallets > 💸 Transfers</b>
 
 ⚠️ <b>Invalid amount:</b> ${amount}
 
@@ -159,7 +159,7 @@ ${!isETH ? `<b>Token:</b> ${tokenSymbol}` : ""}
     },
     getInvalidAddressMessage(address: string): string {
       return `
-<b>👛 Wallets > 💸 Transfers</b>
+<b>💼 Wallets > 💸 Transfers</b>
 
 ⚠️ <b>Invalid address:</b> ${address}
 
@@ -168,14 +168,14 @@ ${!isETH ? `<b>Token:</b> ${tokenSymbol}` : ""}
     },
     getTransferRecipientMessage(): string {
       return `
-<b>👛 Wallets > 💸 Transfers</b>
+<b>💼 Wallets > 💸 Transfers</b>
 
 Enter the recipient address:
 `;
     },
     getETHTransferMessage(wallet: WalletWithHoldings): string {
       return `
-<b>👛 Wallets > 💸 Transfers</b>
+<b>💼 Wallets > 💸 Transfers</b>
 
 <b>Wallet:</b>
 <code>${wallet.address}</code>
@@ -187,7 +187,7 @@ Select the amount of ETH you want to transfer:
     },
     getTokenTransferMessage(wallet: WalletWithHoldings, token: Token): string {
       return `
-<b>👛 Wallets > 💸 Transfers</b>
+<b>💼 Wallets > 💸 Transfers</b>
 
 <b>Wallet:</b>
 <code>${wallet.address}</code>
@@ -207,9 +207,9 @@ Address: ${token.address}
 
     getExportWalletDataMsg(address: string, privateKey: string): string {
       return `
-<b>👛 Wallets > 📤 Export Wallet</b>
+<b>💼 Wallets > 📤 Export Wallet</b>
 
-<b>👛 Wallet:</b>
+<b>💼 Wallet:</b>
 <code>${address}</code>
 
 <b>🔑 PRIVATE KEY</b> 
@@ -277,7 +277,7 @@ ${walletInfo}
       balanceStr: string
     ): string {
       return `
-<b>👛 Wallets</b>\n
+<b>💼 Wallets</b>\n
 <b>✅ Public Wallet</b>
 <a href="${explorerUrl}/address/${currentWalletAddress}">
 ${currentWalletAddress}</a>

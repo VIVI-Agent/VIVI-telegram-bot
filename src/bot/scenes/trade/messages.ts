@@ -62,59 +62,81 @@ export const TRADE_TEXTS = {
         const emoji = bestDex.dexName.includes("Uniswap") ? "🦄" : "✈️";
         dexName += `${emoji} ${bestDex.dexName} ${feeTier}\n`;
       }
-      // Format wallet balances in two separate lines: ETH line and Token line
-      const ethBalanceLine = wallets
-        .map((wallet, index) => {
-          const ethBalance = wallet.balance || "0.000001"; // Default fallback
-          const ethFormatted = formatEthBalanceWithSymbol(ethBalance).replace(
-            " ETH",
-            " Ξ"
-          );
-          return `<b>W${index + 1}:</b> ${ethFormatted}`;
-        })
-        .join(" | ");
+      // Format wallet balances in chunks of 3 wallets per line
+      const chunkSize = 3;
+      const walletChunks: TradeWallet[][] = [];
+      for (let i = 0; i < wallets.length; i += chunkSize) {
+        walletChunks.push(wallets.slice(i, i + chunkSize));
+      }
 
-      const tokenBalanceLine = wallets
-        .map((wallet, index) => {
-          // Check if wallet has holding for this specific token (holdings is a single object, not array)
-          const tokenHolding =
-            wallet.holdings?.tokenId === token.id ? wallet.holdings : null;
-          let tokenFormatted = "";
+      // Create ETH balance lines (3 wallets per line)
+      const ethBalanceLines = walletChunks.map((chunk, chunkIndex) =>
+        chunk
+          .map((wallet, index) => {
+            const globalIndex = chunkIndex * chunkSize + index;
+            const ethBalance = wallet.balance || "0.000001"; // Default fallback
 
-          if (
-            tokenHolding &&
-            tokenHolding.balance &&
-            BigInt(tokenHolding.balance) > 0n
-          ) {
-            const tokenBalance = formatUnits(
-              BigInt(tokenHolding.balance),
-              token.decimals
-            );
-            const tokenAmount = parseFloat(tokenBalance);
+            // Check if balance is 0 to format without decimals
+            const balanceNum = BigInt(ethBalance);
+            const isZeroBalance = balanceNum === 0n;
+            const decimals = isZeroBalance ? 0 : 4;
 
-            // Format with appropriate precision
-            if (tokenAmount >= 1000000) {
-              tokenFormatted = `${(tokenAmount / 1000000).toFixed(2)}M ${
-                token.symbol
-              }`;
-            } else if (tokenAmount >= 1000) {
-              tokenFormatted = `${(tokenAmount / 1000).toFixed(2)}K ${
-                token.symbol
-              }`;
-            } else if (tokenAmount >= 1) {
-              tokenFormatted = `${tokenAmount.toFixed(2)} ${token.symbol}`;
+            const ethFormatted = formatEthBalanceWithSymbol(
+              ethBalance,
+              decimals
+            ).replace(" ETH", " Ξ");
+            return `<b>W${globalIndex + 1}:</b> ${ethFormatted}`;
+          })
+          .join(" | ")
+      );
+
+      // Create token balance lines (3 wallets per line)
+      const tokenBalanceLines = walletChunks.map((chunk, chunkIndex) =>
+        chunk
+          .map((wallet, index) => {
+            const globalIndex = chunkIndex * chunkSize + index;
+            // Check if wallet has holding for this specific token (holdings is a single object, not array)
+            const tokenHolding =
+              wallet.holdings?.tokenId === token.id ? wallet.holdings : null;
+            let tokenFormatted = "";
+
+            if (
+              tokenHolding &&
+              tokenHolding.balance &&
+              BigInt(tokenHolding.balance) > 0n
+            ) {
+              const tokenBalance = formatUnits(
+                BigInt(tokenHolding.balance),
+                token.decimals
+              );
+              const tokenAmount = parseFloat(tokenBalance);
+
+              // Format with appropriate precision
+              if (tokenAmount >= 1000000) {
+                tokenFormatted = `${(tokenAmount / 1000000).toFixed(2)}M ${
+                  token.symbol
+                }`;
+              } else if (tokenAmount >= 1000) {
+                tokenFormatted = `${(tokenAmount / 1000).toFixed(2)}K ${
+                  token.symbol
+                }`;
+              } else if (tokenAmount >= 1) {
+                tokenFormatted = `${tokenAmount.toFixed(2)} ${token.symbol}`;
+              } else {
+                tokenFormatted = `${tokenAmount.toFixed(6)} ${token.symbol}`;
+              }
             } else {
-              tokenFormatted = `${tokenAmount.toFixed(6)} ${token.symbol}`;
+              tokenFormatted = `0 ${token.symbol}`; // No decimals for zero balance
             }
-          } else {
-            tokenFormatted = `0 ${token.symbol}`;
-          }
 
-          return `<b>W${index + 1}:</b> ${tokenFormatted}`;
-        })
-        .join(" | ");
+            return `<b>W${globalIndex + 1}:</b> ${tokenFormatted}`;
+          })
+          .join(" | ")
+      );
 
-      const walletBalances = `${ethBalanceLine}\n${tokenBalanceLine}`;
+      const walletBalances = `${ethBalanceLines.join(
+        "\n"
+      )}\n${tokenBalanceLines.join("\n")}`;
 
       // Different message format for buy vs sell
       const amountLabel = isSell ? "💸 <b>Sell:</b> " : "💸 <b>Buy:</b> ";
