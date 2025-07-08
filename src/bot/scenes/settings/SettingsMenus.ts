@@ -170,7 +170,7 @@ export class SettingsMenus extends BaseMenus {
           this.createCallback(CB.MAIN_MENU)
         ),
         Markup.button.callback(
-          GENERIC_BUTTONS.BACK,
+          SETTINGS_TEXTS.BUTTONS.BACK,
           this.createCallback(CB.SETTINGS_ROOT)
         ),
         Markup.button.callback(
@@ -217,7 +217,7 @@ export class SettingsMenus extends BaseMenus {
           this.createCallback(CB.MAIN_MENU)
         ),
         Markup.button.callback(
-          GENERIC_BUTTONS.BACK,
+          SETTINGS_TEXTS.BUTTONS.BACK,
           this.createCallback(CB.SETTINGS_ROOT)
         ),
         Markup.button.callback(
@@ -250,7 +250,7 @@ export class SettingsMenus extends BaseMenus {
           this.createCallback(CB.MAIN_MENU)
         ),
         Markup.button.callback(
-          GENERIC_BUTTONS.BACK,
+          SETTINGS_TEXTS.BUTTONS.BACK,
           this.createCallback(CB.SETTINGS_ROOT)
         ),
         Markup.button.callback(

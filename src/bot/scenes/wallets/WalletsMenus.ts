@@ -225,7 +225,7 @@ export class WalletsMenus extends BaseMenus {
         callback_data: this.createCallback(CB.MAIN_MENU),
       },
       {
-        text: GENERIC_BUTTONS.BACK,
+        text: WALLET_TEXTS.BUTTONS.BACK,
         callback_data: this.createCallback(CB.WALLETS_ROOT),
       },
       {
@@ -274,7 +274,7 @@ export class WalletsMenus extends BaseMenus {
           callback_data: this.createCallback(CB.MAIN_MENU),
         },
         {
-          text: GENERIC_BUTTONS.BACK,
+          text: WALLET_TEXTS.BUTTONS.BACK,
           callback_data: this.createCallback(CB.WALLETS_ROOT),
         },
         {
@@ -397,7 +397,7 @@ export class WalletsMenus extends BaseMenus {
           callback_data: this.createCallback(CB.MAIN_MENU),
         },
         {
-          text: GENERIC_BUTTONS.BACK,
+          text: WALLET_TEXTS.BUTTONS.BACK,
           callback_data: this.createCallback(CB.WALLETS_ROOT),
         },
         {
@@ -426,7 +426,7 @@ export class WalletsMenus extends BaseMenus {
           callback_data: this.createCallback(CB.MAIN_MENU),
         },
         {
-          text: GENERIC_BUTTONS.BACK,
+          text: WALLET_TEXTS.BUTTONS.BACK_TO_TRANSFERS,
           callback_data: this.createCallback(CB.TRANSFERS),
         },
         {
@@ -444,7 +444,7 @@ export class WalletsMenus extends BaseMenus {
           callback_data: this.createCallback(CB.MAIN_MENU),
         },
         {
-          text: GENERIC_BUTTONS.BACK,
+          text: WALLET_TEXTS.BUTTONS.BACK_TO_TRANSFERS,
           callback_data: this.createCallback(CB.TRANSFERS),
         },
         {
@@ -487,7 +487,7 @@ export class WalletsMenus extends BaseMenus {
           callback_data: this.createCallback(CB.MAIN_MENU),
         },
         {
-          text: GENERIC_BUTTONS.BACK,
+          text: WALLET_TEXTS.BUTTONS.BACK_TO_TRANSFERS,
           callback_data: this.createCallback(CB.TRANSFERS),
         },
         {
@@ -525,7 +525,7 @@ export class WalletsMenus extends BaseMenus {
         callback_data: this.createCallback(CB.MAIN_MENU),
       },
       {
-        text: GENERIC_BUTTONS.BACK,
+        text: WALLET_TEXTS.BUTTONS.BACK_TO_TRANSFERS,
         callback_data: this.createCallback(CB.TRANSFERS),
       },
       {
@@ -548,7 +548,7 @@ export class WalletsMenus extends BaseMenus {
           callback_data: this.createCallback(CB.MAIN_MENU),
         },
         {
-          text: GENERIC_BUTTONS.BACK,
+          text: WALLET_TEXTS.BUTTONS.BACK,
           callback_data: this.createCallback(CB.WALLETS_ROOT),
         },
         {
@@ -569,7 +569,7 @@ export class WalletsMenus extends BaseMenus {
           callback_data: this.createCallback(CB.MAIN_MENU),
         },
         {
-          text: GENERIC_BUTTONS.BACK,
+          text: WALLET_TEXTS.BUTTONS.BACK,
           callback_data: this.createCallback(CB.WALLETS_ROOT),
         },
         {
@@ -587,7 +587,7 @@ export class WalletsMenus extends BaseMenus {
           callback_data: this.createCallback(CB.MAIN_MENU),
         },
         {
-          text: GENERIC_BUTTONS.BACK,
+          text: WALLET_TEXTS.BUTTONS.EXPORT_WALLET,
           callback_data: this.createCallback(CB.EXPORT_WALLET),
         },
         {
@@ -615,7 +615,7 @@ export class WalletsMenus extends BaseMenus {
         callback_data: this.createCallback(CB.MAIN_MENU),
       },
       {
-        text: GENERIC_BUTTONS.BACK,
+        text: WALLET_TEXTS.BUTTONS.BACK,
         callback_data: this.createCallback(CB.WALLETS_ROOT),
       },
       {
@@ -674,7 +674,7 @@ export class WalletsMenus extends BaseMenus {
             callback_data: this.createCallback(CB.MAIN_MENU),
           },
           {
-            text: GENERIC_BUTTONS.BACK,
+            text: WALLET_TEXTS.BUTTONS.BACK,
             callback_data: this.createCallback(CB.WALLETS_ROOT),
           },
           {
@@ -700,7 +700,7 @@ export class WalletsMenus extends BaseMenus {
         callback_data: this.createCallback(CB.MAIN_MENU),
       },
       {
-        text: GENERIC_BUTTONS.BACK,
+        text: WALLET_TEXTS.BUTTONS.BACK,
         callback_data: this.createCallback(CB.WALLETS_ROOT),
       },
       {
@@ -723,7 +723,7 @@ export class WalletsMenus extends BaseMenus {
         callback_data: this.createCallback(CB.MAIN_MENU),
       },
       {
-        text: GENERIC_BUTTONS.BACK,
+        text: WALLET_TEXTS.BUTTONS.BACK,
         callback_data: this.createCallback(CB.WALLETS_ROOT),
       },
       {

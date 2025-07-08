@@ -9,6 +9,11 @@ import {
 } from "@utils";
 
 export const WALLET_TEXTS = {
+  BUTTONS: {
+    BACK: "💼 Wallets",
+    BACK_TO_TRANSFERS: "💸 Transfers",
+    EXPORT_WALLET: "🗝 Export",
+  },
   ERRORS: {
     WALLET_NOT_FOUND: "Wallet not found or already deleted.",
     NO_WALLETS_TO_REMOVE: "No wallets to remove.",
@@ -42,12 +47,12 @@ export const WALLET_TEXTS = {
 💡 Exporting a wallet will reveal your private key. Make sure you have securely saved it before proceeding.
 
 To export your wallet, select the wallet you want to export:`,
-    REMOVE_WALLET_TITLE: `<b>Wallets > 🗑️ Remove Wallet</b>\n
+    REMOVE_WALLET_TITLE: `<b>💼 Wallets > 🗑️ Remove Wallet</b>\n
 ⚠️ WARNING: Removing a wallet will delete it from the bot. If you have not backed up the private key, you will permanently lose access to any funds in this wallet.
 
 ⚠️ To remove you public wallet select another using the <b>List Wallets Menu</b>\n
 Select the wallet you want to remove:`,
-    TRANSFERS_TITLE: `<b>Wallets > 💸 Transfers</b>
+    TRANSFERS_TITLE: `<b>💼 Wallets > 💸 Transfers</b>
 
 Select the wallet you want to Withdraw from:`,
     SAVED_PRIVATE_KEY_BUTTON: "I have securely saved my private key",

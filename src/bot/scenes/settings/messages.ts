@@ -27,6 +27,9 @@ export const SETTINGS_TEXTS = {
     SELL_SETTINGS_MSG_TEXT: `<b>⚙️ Settings > Sell Buttons:</b> \n\nTap below to set your sell buttons values.`,
     SPEED_SETTINGS_MSG_TEXT: `<b>⚙️ Settings > Speed Settings:</b> \n\nTap below to set your speed settings.`,
   },
+  BUTTONS: {
+    BACK: "⚙️ Settings",
+  },
 
   FUNCTIONS: {
     speedMenuBtn(symbol: string, speedKey: string, currentSpeed: string) {
