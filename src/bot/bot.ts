@@ -288,7 +288,7 @@ bot.on(message("text"), async (ctx) => {
 // Handle photo messages
 bot.on(message("photo"), async (ctx) => {
   if (ctx.chat?.type === "group" || ctx.chat?.type === "supergroup") {
-    logger.info(`Photo received in group chat`);
+    logger.debug(`Photo received in group chat`);
 
     // Handle scene routing in groups for photos
     (async () => {
