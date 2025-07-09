@@ -11,7 +11,8 @@
     "prebuild": "npx prisma migrate deploy",
     "build": "npx prisma generate && tsc && tsc-alias",
     "start:bot": "NODE_ENV=production node dist/bot/bot.js",
-    "start:server": "NODE_ENV=production node dist/server/server.js"
+    "start:server": "NODE_ENV=production node dist/server/server.js",
+    "script:broadcast": "npx ts-node src/_scripts/batchMessages/broadcast.ts"
   },
   "keywords": [],
   "author": "",

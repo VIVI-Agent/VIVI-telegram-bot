@@ -32,9 +32,9 @@ async function notifyUsersAboutPNLFeature(): Promise<void> {
     console.info(`Found ${users.length} active users to notify.`);
 
     // 2. Create message about new PNL feature
-    const message = `<b>🆕 <a href="https://vivi.win/changelog">v0.4.9</a>:</b> PNL tracking system (MVP). Check the <a href="https://vivi.win/changelog">Changelog</a> for details.
+    const message = `<b>🆕 <a href="https://vivi.win/changelog">v0.6.9</a>:</b> Check the <a href="https://vivi.win/changelog">Changelog</a> for details.
 
-<i>💡 Click button below to continue with the new version.</i>`;
+<i>💡 Click /start to continue with the new version.</i>`;
 
     // 3. Tracking counters
     let successCount = 0;
@@ -51,16 +51,6 @@ async function notifyUsersAboutPNLFeature(): Promise<void> {
         // Send text message with button
         await bot.telegram.sendMessage(Number(user.tgUserId), message, {
           parse_mode: "HTML",
-          reply_markup: {
-            inline_keyboard: [
-              [
-                {
-                  text: "⚡️Start",
-                  callback_data: "GO_TO_MAIN_MENU",
-                },
-              ],
-            ],
-          },
         });
 
         successCount++;
