@@ -7,6 +7,7 @@ export * from "./burnHandler";
 export * from "./onboardHandler";
 export * from "./buyHandler";
 export * from "./sellHandler";
+export * from "./boostHandler";
 
 import { TextManager } from "./TextManager";
 import { balanceTextHandler } from "./balanceHandler";
@@ -16,6 +17,7 @@ import { burnTextHandler } from "./burnHandler";
 import { onboardTextHandler } from "./onboardHandler";
 import { buyTextHandler } from "./buyHandler";
 import { sellTextHandler } from "./sellHandler";
+import { boostTextHandler } from "./boostHandler";
 import { TextPattern } from "./types";
 
 // Create text manager instance
@@ -131,6 +133,17 @@ const sellPatterns: TextPattern[] = [
   },
 ];
 
+// Define boost patterns (flexible patterns to capture various formats)
+const boostPatterns: TextPattern[] = [
+  {
+    name: "boost_command",
+    pattern: /^boost\s+.+$/i,
+    handler: boostTextHandler,
+    description: "Boost VIVI with ETH",
+    examples: ["boost vivi 0.001", "boost vivi 0.1", "boost vivi 1"],
+  },
+];
+
 // Register all patterns
 balancePatterns.forEach((pattern) => {
   textManager.registerPattern(pattern);
@@ -160,6 +173,10 @@ sellPatterns.forEach((pattern) => {
   textManager.registerPattern(pattern);
 });
 
+boostPatterns.forEach((pattern) => {
+  textManager.registerPattern(pattern);
+});
+
 // Export for external use
 export {
   balancePatterns,
@@ -169,4 +186,5 @@ export {
   onboardPatterns,
   buyPatterns,
   sellPatterns,
+  boostPatterns,
 };

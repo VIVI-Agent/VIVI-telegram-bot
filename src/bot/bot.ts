@@ -303,8 +303,12 @@ bot.on(message("photo"), async (ctx) => {
 
 // Error handling
 bot.catch((err, ctx) => {
-  logger.error("Bot error:", err);
-  ctx.reply(GENERIC_ERRORS.OLD_VERSION);
+  try {
+    logger.error("Bot error:", err);
+    ctx.reply(GENERIC_ERRORS.OLD_VERSION);
+  } catch (error) {
+    logger.error("Error in bot.catch:");
+  }
 });
 
 // Export bot for external use
