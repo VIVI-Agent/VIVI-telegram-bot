@@ -9,7 +9,7 @@ import { GENERIC_ERRORS } from "@texts";
 import { AddressValidator } from "@utils";
 
 export class GlobalSceneManagerImpl implements GlobalSceneManager {
-  private readonly MAX_SCENES_PER_USER = 5;
+  private readonly MAX_SCENES_PER_USER = 15;
 
   constructor() {
     // No more scenes map - everything is dynamic from Redis session
