@@ -197,6 +197,7 @@ export class MainMenuServices extends BaseService {
                   );
 
                   if (chainBalance !== BigInt(holding.balance)) {
+                    this.log("info", ctx, "Updating holding");
                     await ctx.services.holdingService.updateHoldingFromChain({
                       userId: ctx.user.id,
                       tokenId: token.id,
