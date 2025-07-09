@@ -38,6 +38,7 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
         customAmount: false,
         customSlippage: false,
       },
+      gasSpeed: "auto", // Set gas speed to auto by default
     };
 
     // Handle data parameters
@@ -490,17 +491,29 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
           await this.refreshQuoteAndMenu(ctx);
           return true;
 
-        // Gas speed selection (no functionality yet)
+        // Gas speed selection
         case CB.SET_GAS_AUTO:
-          await ctx.answerCbQuery("🚀 Auto gas selected (coming soon)");
+          sceneData.gasSpeed = "auto";
+          this.updateSceneData(ctx, sceneData);
+          await ctx.answerCbQuery();
+          // Update menu to show new selection
+          await this.menus.showTradeMenu(ctx, sceneData, messageId);
           return true;
 
         case CB.SET_GAS_FAST:
-          await ctx.answerCbQuery("⚡ Fast gas selected (coming soon)");
+          sceneData.gasSpeed = "fast";
+          this.updateSceneData(ctx, sceneData);
+          await ctx.answerCbQuery();
+          // Update menu to show new selection
+          await this.menus.showTradeMenu(ctx, sceneData, messageId);
           return true;
 
         case CB.SET_GAS_TURBO:
-          await ctx.answerCbQuery("💨 Turbo gas selected (coming soon)");
+          sceneData.gasSpeed = "turbo";
+          this.updateSceneData(ctx, sceneData);
+          await ctx.answerCbQuery();
+          // Update menu to show new selection
+          await this.menus.showTradeMenu(ctx, sceneData, messageId);
           return true;
 
         // Trade actions
@@ -610,6 +623,9 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
                 userWithSettings.buySettings?.amount1?.toString();
               sceneData.selectedSlippage =
                 userWithSettings.buySettings?.slippage?.toString();
+
+              // Initialize gas speed if not already set
+              sceneData.gasSpeed = sceneData.gasSpeed || "auto";
 
               // Auto-select only the default wallet for buy
               sceneData.selectedWallets = [];
@@ -1026,6 +1042,9 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
       sceneData.tempCustomAmountMessageIds = [];
       sceneData.tempCustomPercentageMessageIds = [];
       sceneData.tempCustomSlippageMessageIds = [];
+
+      // Keep gas speed setting when switching modes
+      sceneData.gasSpeed = sceneData.gasSpeed || "auto";
 
       // Set appropriate amounts and slippage for the new mode
       if (newMode === "trade_buy") {

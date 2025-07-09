@@ -149,4 +149,5 @@ export interface TradeSceneData {
   tempCustomAmountMessageIds?: number[];
   tempCustomPercentageMessageIds?: number[];
   tempCustomSlippageMessageIds?: number[];
+  gasSpeed?: "auto" | "fast" | "turbo";
 }

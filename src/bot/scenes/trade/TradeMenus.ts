@@ -223,14 +223,24 @@ export class TradeMenus extends BaseMenus {
         ? `Slip ${sceneData.customSlippage}% 🟢`
         : `Slip ${slippageSettings?.slippage || 30}%`;
 
+      const gasSpeed = sceneData.gasSpeed || "auto";
       keyboard.push([
         Markup.button.callback(
           slippageButtonText,
           this.createCallback(CB.SELECT_SLIPPAGE)
         ),
-        Markup.button.callback("⛽️ ", this.createCallback(CB.SET_GAS_AUTO)),
-        Markup.button.callback("⚡", this.createCallback(CB.SET_GAS_FAST)),
-        Markup.button.callback("💨", this.createCallback(CB.SET_GAS_TURBO)),
+        Markup.button.callback(
+          `⛽️ 0.1${gasSpeed === "auto" ? " 🟢" : ""}`,
+          this.createCallback(CB.SET_GAS_AUTO)
+        ),
+        Markup.button.callback(
+          `⛽️ 1${gasSpeed === "fast" ? " 🟢" : ""}`,
+          this.createCallback(CB.SET_GAS_FAST)
+        ),
+        Markup.button.callback(
+          `⛽️ 5${gasSpeed === "turbo" ? " 🟢" : ""}`,
+          this.createCallback(CB.SET_GAS_TURBO)
+        ),
       ]);
 
       keyboard.push([
@@ -274,14 +284,24 @@ export class TradeMenus extends BaseMenus {
       ? `Slip ${sceneData.customSlippage}% 🟢`
       : `Slip ${slippageSettings?.slippage || 30}%`;
 
+    const gasSpeed = sceneData.gasSpeed || "auto";
     keyboard.push([
       Markup.button.callback(
         slippageButtonText,
         this.createCallback(CB.SELECT_SLIPPAGE)
       ),
-      Markup.button.callback("⛽️ ", this.createCallback(CB.SET_GAS_AUTO)),
-      Markup.button.callback("⚡", this.createCallback(CB.SET_GAS_FAST)),
-      Markup.button.callback("💨", this.createCallback(CB.SET_GAS_TURBO)),
+      Markup.button.callback(
+        `⛽️ 0.1${gasSpeed === "auto" ? " 🟢" : ""}`,
+        this.createCallback(CB.SET_GAS_AUTO)
+      ),
+      Markup.button.callback(
+        `⛽️ 1${gasSpeed === "fast" ? " 🟢" : ""}`,
+        this.createCallback(CB.SET_GAS_FAST)
+      ),
+      Markup.button.callback(
+        `⛽️ 5${gasSpeed === "turbo" ? " 🟢" : ""}`,
+        this.createCallback(CB.SET_GAS_TURBO)
+      ),
     ]);
 
     // Buy button
@@ -368,14 +388,24 @@ export class TradeMenus extends BaseMenus {
         ? `Slip ${sceneData.customSlippage}% 🟢`
         : `Slip ${slippageSettings?.slippage || 30}%`;
 
+      const gasSpeed = sceneData.gasSpeed || "auto";
       keyboard.push([
         Markup.button.callback(
           slippageButtonText,
           this.createCallback(CB.SELECT_SLIPPAGE)
         ),
-        Markup.button.callback("🚀", this.createCallback(CB.SET_GAS_AUTO)),
-        Markup.button.callback("⚡", this.createCallback(CB.SET_GAS_FAST)),
-        Markup.button.callback("💨", this.createCallback(CB.SET_GAS_TURBO)),
+        Markup.button.callback(
+          `⛽️ 0.1${gasSpeed === "auto" ? " 🟢" : ""}`,
+          this.createCallback(CB.SET_GAS_AUTO)
+        ),
+        Markup.button.callback(
+          `⛽️ 1${gasSpeed === "fast" ? " 🟢" : ""}`,
+          this.createCallback(CB.SET_GAS_FAST)
+        ),
+        Markup.button.callback(
+          `⛽️ 5${gasSpeed === "turbo" ? " 🟢" : ""}`,
+          this.createCallback(CB.SET_GAS_TURBO)
+        ),
       ]);
 
       keyboard.push([
@@ -420,14 +450,24 @@ export class TradeMenus extends BaseMenus {
       ? `Slip ${sceneData.customSlippage}% 🟢`
       : `Slip ${slippageSettings?.slippage || 30}%`;
 
+    const gasSpeed = sceneData.gasSpeed || "auto";
     keyboard.push([
       Markup.button.callback(
         slippageButtonText,
         this.createCallback(CB.SELECT_SLIPPAGE)
       ),
-      Markup.button.callback("🚀", this.createCallback(CB.SET_GAS_AUTO)),
-      Markup.button.callback("⚡", this.createCallback(CB.SET_GAS_FAST)),
-      Markup.button.callback("💨", this.createCallback(CB.SET_GAS_TURBO)),
+      Markup.button.callback(
+        `⛽️ 0.1${gasSpeed === "auto" ? " 🟢" : ""}`,
+        this.createCallback(CB.SET_GAS_AUTO)
+      ),
+      Markup.button.callback(
+        `⛽️ 1${gasSpeed === "fast" ? " 🟢" : ""}`,
+        this.createCallback(CB.SET_GAS_FAST)
+      ),
+      Markup.button.callback(
+        `⛽️ 5${gasSpeed === "turbo" ? " 🟢" : ""}`,
+        this.createCallback(CB.SET_GAS_TURBO)
+      ),
     ]);
 
     // Sell button
