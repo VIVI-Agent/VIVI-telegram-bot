@@ -1,12 +1,12 @@
-import { BaseSubScene, GlobalSceneContext, SceneData } from "@types";
+import { BaseSubScene, GlobalSceneContext } from "@types";
 import { BuyEventServices } from "./BuyEventServices";
 import { CB } from "./callbacks";
 import { GENERIC_ERRORS } from "@texts";
 import { logger } from "@logger";
 import { AddressValidator, validateImageDimensions } from "@utils";
-import { buyEventStateService, BuyEventState } from "./BuyEventStateService";
+import { BuyEventSceneData } from "@types";
 
-export class BuyEventSubScene extends BaseSubScene<any> {
+export class BuyEventSubScene extends BaseSubScene<BuyEventSceneData> {
   private services: BuyEventServices;
 
   constructor(instanceId: string) {
@@ -18,6 +18,13 @@ export class BuyEventSubScene extends BaseSubScene<any> {
   async onActivate(ctx: GlobalSceneContext, data?: any): Promise<void> {
     console.log(`[BuyEventSubScene] Activating instance: ${this.instanceId}`);
     this.log("info", ctx, "Activating BuyEvent scene");
+
+    // Initialize scene data
+    const sceneData: BuyEventSceneData = {
+      step: 1,
+      tempMessageIds: [],
+    };
+    this.updateSceneData(ctx, sceneData);
 
     // Check if user is admin in group
     if (ctx.chat?.type === "group" || ctx.chat?.type === "supergroup") {
@@ -109,28 +116,16 @@ export class BuyEventSubScene extends BaseSubScene<any> {
   async handleText(ctx: GlobalSceneContext, text: string): Promise<boolean> {
     this.log("debug", ctx, `Handling text: ${text}`);
 
-    // Use custom state service instead of session to avoid context issues
-    const chatId = ctx.chat?.id;
-    if (!chatId) {
-      this.log("error", ctx, "No chat ID available");
-      return false;
-    }
-
-    const state = (await buyEventStateService.getState(
-      chatId,
-      this.instanceId
-    )) || {
-      step: 1,
-      tempMessageIds: [],
-    };
-    const currentStep = state.step;
+    // Get scene data from memory session
+    const sceneData = this.getSceneData(ctx);
+    const currentStep = sceneData.step;
 
     this.log(
       "debug",
       ctx,
       `Current step: ${currentStep}, instanceId: ${this.instanceId}`
     );
-    this.log("debug", ctx, `State data: ${JSON.stringify(state)}`);
+    this.log("debug", ctx, `State data: ${JSON.stringify(sceneData)}`);
 
     // Log all active scenes for debugging
     if (ctx.session?.activeSubScenes) {
@@ -168,7 +163,7 @@ export class BuyEventSubScene extends BaseSubScene<any> {
         await this.remindCurrentStep(ctx);
         return true;
       default:
-        this.log("debug", ctx, `Unknown step: ${state.step}`);
+        this.log("debug", ctx, `Unknown step: ${sceneData.step}`);
         return false;
     }
   }
@@ -176,37 +171,31 @@ export class BuyEventSubScene extends BaseSubScene<any> {
   async cleanup(ctx: GlobalSceneContext): Promise<void> {
     this.log("info", ctx, "Cleaning up BuyEvent scene");
 
-    // Clean up temp messages
-    await this.cleanupTempMessages(ctx);
-
-    // Clean up main message
-    await this.cleanupMainMessage(ctx);
-
-    // Clean up custom state
-    const chatId = ctx.chat?.id;
-    if (chatId) {
-      await buyEventStateService.deleteState(chatId, this.instanceId);
-    }
-
     // Reset creating event flag
     ctx.session.creatingEvent = false;
     ctx.session.buyEventSceneInstanceId = undefined;
+
+    // Parent cleanup will handle scene data removal and temp message cleanup
+    await super.cleanup(ctx);
   }
 
   // Private methods for wizard flow
   private async startWizard(ctx: GlobalSceneContext): Promise<void> {
     const sent = await ctx.reply(
       "What's the event name, dear? 🧵\n\n" +
-        "Type /cancelcreation at any time to abort this wizard."
+        "Type /cancelcreation at any time to abort this wizard.",
+      {
+        reply_markup: {
+          force_reply: true,
+          input_field_placeholder: "Enter event name...",
+        },
+      }
     );
 
-    const chatId = ctx.chat?.id;
-    if (chatId) {
-      await buyEventStateService.updateState(chatId, this.instanceId, {
-        step: 1,
-        tempMessageIds: [sent.message_id],
-      });
-    }
+    const sceneData = this.getSceneData(ctx);
+    sceneData.step = 1;
+    sceneData.tempMessageIds = [sent.message_id];
+    this.updateSceneData(ctx, sceneData);
   }
 
   private async handleNameInput(
@@ -216,40 +205,38 @@ export class BuyEventSubScene extends BaseSubScene<any> {
     // Validate name
     if (text.length < 3 || text.length > 50) {
       const err = await ctx.reply(
-        "Event name must be between 3 and 50 characters."
+        "Event name must be between 3 and 50 characters.",
+        {
+          reply_markup: {
+            force_reply: true,
+            input_field_placeholder: "Enter event name...",
+          },
+        }
       );
       this.addTempMessageId(ctx, err.message_id);
       return true;
     }
 
     // Store name and move to next step
-    const chatId = ctx.chat?.id;
-    if (chatId) {
-      await buyEventStateService.updateState(chatId, this.instanceId, {
-        step: 2,
-        name: text,
-      });
-      this.log("debug", ctx, `Updated state to step 2, name: ${text}`);
+    const sceneData = this.getSceneData(ctx);
+    sceneData.step = 2;
+    sceneData.name = text;
+    this.log("debug", ctx, `Updated state to step 2, name: ${text}`);
 
-      const sent = await ctx.reply(
-        "Now send the banner image, sweetie (1280x360 recommended) 🖼️\n\n" +
-          "Type /cancelcreation to abort."
-      );
+    const sent = await ctx.reply(
+      "Now send the banner image, sweetie (1280x360 recommended) 🖼️\n\n" +
+        "Type /cancelcreation to abort.",
+      {
+        reply_markup: {
+          force_reply: true,
+          input_field_placeholder: "Send banner image...",
+        },
+      }
+    );
 
-      // Add temp message IDs
-      const currentState = await buyEventStateService.getState(
-        chatId,
-        this.instanceId
-      );
-      const tempIds = [
-        ...(currentState?.tempMessageIds || []),
-        ctx.message?.message_id!,
-        sent.message_id,
-      ];
-      await buyEventStateService.updateState(chatId, this.instanceId, {
-        tempMessageIds: tempIds,
-      });
-    }
+    // Add temp message IDs
+    this.addTempMessageId(ctx, ctx.message?.message_id!);
+    this.addTempMessageId(ctx, sent.message_id);
 
     return true;
   }
@@ -266,7 +253,12 @@ export class BuyEventSubScene extends BaseSubScene<any> {
 
     const photo = ctx.message.photo?.pop();
     if (!photo) {
-      const err = await ctx.reply("Need a proper image, kiddo. ❌");
+      const err = await ctx.reply("Need a proper image, kiddo. ❌", {
+        reply_markup: {
+          force_reply: true,
+          input_field_placeholder: "Send banner image...",
+        },
+      });
       this.addTempMessageId(ctx, err.message_id);
       return true;
     }
@@ -292,7 +284,12 @@ export class BuyEventSubScene extends BaseSubScene<any> {
         );
         let errorMessage = "Sorry kiddo, this image will not fit. ";
         errorMessage += "Try around 1280x360. 🖼️";
-        const err = await ctx.reply(errorMessage);
+        const err = await ctx.reply(errorMessage, {
+          reply_markup: {
+            force_reply: true,
+            input_field_placeholder: "Send banner image...",
+          },
+        });
         this.addTempMessageId(ctx, err.message_id);
         return true;
       }
@@ -305,53 +302,47 @@ export class BuyEventSubScene extends BaseSubScene<any> {
     } catch (error) {
       this.log("error", ctx, `Error validating image: ${error}`);
       const err = await ctx.reply(
-        "Error processing image. Please try again or type /cancelcreation."
+        "Error processing image. Please try again or type /cancelcreation.",
+        {
+          reply_markup: {
+            force_reply: true,
+            input_field_placeholder: "Send banner image...",
+          },
+        }
       );
       this.addTempMessageId(ctx, err.message_id);
       return true;
     }
 
-    // Store image and move to next step using custom state service
-    const chatId = ctx.chat?.id;
-    if (chatId) {
-      await buyEventStateService.updateState(chatId, this.instanceId, {
-        step: 3,
-        bannerFileId: photo.file_id,
-      });
-      this.log(
-        "debug",
-        ctx,
-        `Updated state to step 3, bannerFileId: ${photo.file_id}`
-      );
+    // Store image and move to next step using scene data
+    const sceneData = this.getSceneData(ctx);
+    sceneData.step = 3;
+    sceneData.bannerFileId = photo.file_id;
+    this.log(
+      "debug",
+      ctx,
+      `Updated state to step 3, bannerFileId: ${photo.file_id}`
+    );
 
-      const sent = await ctx.reply(
-        "Token address, please? 🔍\n\n" + "Type /cancelcreation to abort."
-      );
+    const sent = await ctx.reply(
+      "Token address, please? 🔍\n\n" + "Type /cancelcreation to abort.",
+      {
+        reply_markup: {
+          force_reply: true,
+          input_field_placeholder: "Enter token address...",
+        },
+      }
+    );
 
-      // Add temp message IDs
-      const currentState = await buyEventStateService.getState(
-        chatId,
-        this.instanceId
-      );
-      const tempIds = [
-        ...(currentState?.tempMessageIds || []),
-        ctx.message.message_id,
-        sent.message_id,
-      ];
-      await buyEventStateService.updateState(chatId, this.instanceId, {
-        tempMessageIds: tempIds,
-      });
+    // Add temp message IDs
+    this.addTempMessageId(ctx, ctx.message.message_id);
+    this.addTempMessageId(ctx, sent.message_id);
 
-      this.log("info", ctx, `Moved to step 3, bannerFileId: ${photo.file_id}`);
+    this.log("info", ctx, `Moved to step 3, bannerFileId: ${photo.file_id}`);
 
-      const updatedState = await buyEventStateService.getState(
-        chatId,
-        this.instanceId
-      );
-      logger.info(
-        `[BuyEventSubScene] Updated state: ${JSON.stringify(updatedState)}`
-      );
-    }
+    logger.info(
+      `[BuyEventSubScene] Updated state: ${JSON.stringify(sceneData)}`
+    );
 
     return true;
   }
@@ -363,17 +354,17 @@ export class BuyEventSubScene extends BaseSubScene<any> {
     this.log("debug", ctx, "handleTokenAddressInput called");
     this.log("info", ctx, `Processing token address input: "${text}"`);
 
-    const chatId = ctx.chat?.id;
-    if (!chatId) {
-      this.log("error", ctx, "No chat ID available");
-      return false;
-    }
-
     // Validate address
     const address = AddressValidator.parseEthereumAddress(text.trim());
     if (!address) {
       const err = await ctx.reply(
-        "Not a valid address, kiddo. Try again ❌ or type /cancelcreation to abort."
+        "Not a valid address, kiddo. Try again ❌ or type /cancelcreation to abort.",
+        {
+          reply_markup: {
+            force_reply: true,
+            input_field_placeholder: "Enter token address...",
+          },
+        }
       );
       this.addTempMessageId(ctx, err.message_id);
       return true;
@@ -390,27 +381,26 @@ export class BuyEventSubScene extends BaseSubScene<any> {
       );
 
       if (!token) {
-        const err = await ctx.reply("Token not in my books, dear. ❌");
+        const err = await ctx.reply("Token not in my books, dear. ❌", {
+          reply_markup: {
+            force_reply: true,
+            input_field_placeholder: "Enter token address...",
+          },
+        });
         this.addTempMessageId(ctx, err.message_id);
         return true;
       }
 
       this.log("info", ctx, `Token found in whitelist: ${token.symbol}`);
 
-      // Store token and show confirmation using custom state service
-      await buyEventStateService.updateState(chatId, this.instanceId, {
-        step: 4,
-        tokenId: token.id,
-      });
+      // Store token and show confirmation using scene data
+      const sceneData = this.getSceneData(ctx);
+      sceneData.step = 4;
+      sceneData.tokenId = token.id;
       this.log("debug", ctx, `Updated state to step 4, tokenId: ${token.id}`);
 
-      // Get current state from custom service
-      const currentState = await buyEventStateService.getState(
-        chatId,
-        this.instanceId
-      );
       const summary = `✅ <b>Ready to launch your buy event?</b>
-I'm about to start a buying event for <b>${token.symbol}</b> called "${currentState?.name}"!
+I'm about to start a buying event for <b>${token.symbol}</b> called "${sceneData.name}"!
 <code>${token.address}</code>.
       `;
 
@@ -431,7 +421,13 @@ I'm about to start a buying event for <b>${token.symbol}</b> called "${currentSt
     } catch (error) {
       this.log("error", ctx, `Error fetching token: ${error}`);
       const err = await ctx.reply(
-        "Error checking token. Please try again or type /cancelcreation."
+        "Error checking token. Please try again or type /cancelcreation.",
+        {
+          reply_markup: {
+            force_reply: true,
+            input_field_placeholder: "Enter token address...",
+          },
+        }
       );
       this.addTempMessageId(ctx, err.message_id);
       return true;
@@ -439,15 +435,9 @@ I'm about to start a buying event for <b>${token.symbol}</b> called "${currentSt
   }
 
   private async confirmEvent(ctx: GlobalSceneContext): Promise<void> {
-    const chatId = ctx.chat?.id;
-    if (!chatId) {
-      await ctx.reply("Error: Could not determine group chat ID.");
-      await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
-      return;
-    }
+    const sceneData = this.getSceneData(ctx);
 
-    const state = await buyEventStateService.getState(chatId, this.instanceId);
-    if (!state || !state.name || !state.bannerFileId || !state.tokenId) {
+    if (!sceneData.name || !sceneData.bannerFileId || !sceneData.tokenId) {
       await ctx.reply("Missing information. Event creation cancelled.");
       await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
       return;
@@ -465,11 +455,18 @@ I'm about to start a buying event for <b>${token.symbol}</b> called "${currentSt
         return;
       }
 
+      const chatId = ctx.chat?.id;
+      if (!chatId) {
+        await ctx.reply("Error: Could not determine group chat ID.");
+        await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
+        return;
+      }
+
       // Create the event in the database
       const event = await ctx.services.buyEventService.createBuyEvent(
-        state.name,
-        state.bannerFileId,
-        state.tokenId,
+        sceneData.name,
+        sceneData.bannerFileId,
+        sceneData.tokenId,
         chatId.toString(),
         userId.id
       );
@@ -480,10 +477,10 @@ I'm about to start a buying event for <b>${token.symbol}</b> called "${currentSt
       await this.cleanupTempMessages(ctx);
 
       // Send final confirmation
-      await ctx.replyWithPhoto(state.bannerFileId, {
+      await ctx.replyWithPhoto(sceneData.bannerFileId, {
         caption:
           `🎉 <b>Buy Event Started!</b> 🚀\n\n` +
-          `Launched the "${state.name}" buying event!\n\n` +
+          `Launched the "${sceneData.name}" buying event!\n\n` +
           `🏆 The leaderboard is now active!\n` +
           `Use /leaderboard@${ctx.botInfo?.username} 💰`,
         parse_mode: "HTML",
@@ -506,23 +503,17 @@ I'm about to start a buying event for <b>${token.symbol}</b> called "${currentSt
   private async cancelWizard(ctx: GlobalSceneContext): Promise<void> {
     this.log("info", ctx, "User cancelled event creation");
 
-    const chatId = ctx.chat?.id;
+    const sceneData = this.getSceneData(ctx);
     let cancelMessage = "❌ <b>Event Creation Cancelled</b>\n\n";
 
-    if (chatId) {
-      const state = await buyEventStateService.getState(
-        chatId,
-        this.instanceId
-      );
-      if (state?.name) {
-        cancelMessage += `📝 Event name: "${state.name}"\n`;
-      }
-      if (state?.bannerFileId) {
-        cancelMessage += `🖼️ Banner image: Uploaded\n`;
-      }
-      if (state?.tokenId) {
-        cancelMessage += `🔗 Token: Selected\n`;
-      }
+    if (sceneData.name) {
+      cancelMessage += `📝 Event name: "${sceneData.name}"\n`;
+    }
+    if (sceneData.bannerFileId) {
+      cancelMessage += `🖼️ Banner image: Uploaded\n`;
+    }
+    if (sceneData.tokenId) {
+      cancelMessage += `🔗 Token: Selected\n`;
     }
 
     await ctx.replyWithHTML(cancelMessage);
@@ -541,42 +532,47 @@ I'm about to start a buying event for <b>${token.symbol}</b> called "${currentSt
     ctx: GlobalSceneContext,
     isCommand = false
   ): Promise<void> {
-    const chatId = ctx.chat?.id;
     let reminderMessage = isCommand
       ? "Sorry, I can't process that command right now because you're in the middle of creating a buy event. "
       : "You're in the middle of creating a buy event. ";
 
-    let currentStep = 1;
-    if (chatId) {
-      const state = await buyEventStateService.getState(
-        chatId,
-        this.instanceId
-      );
-      currentStep = state?.step || 1;
-    }
+    const sceneData = this.getSceneData(ctx);
+    const currentStep = sceneData.step;
 
+    let placeholder = "";
     switch (currentStep) {
       case 1:
         reminderMessage += "Please provide a name for the event:";
+        placeholder = "Enter event name...";
         break;
       case 2:
         reminderMessage += "Please send a banner image (1280x360 recommended):";
+        placeholder = "Send banner image...";
         break;
       case 3:
         reminderMessage += "Please provide the token address:";
+        placeholder = "Enter token address...";
         break;
       case 4:
         reminderMessage += "Please confirm or cancel the event creation:";
+        placeholder = "Use buttons above...";
         break;
       default:
         reminderMessage +=
           "Please complete the current step or type /cancelcreation to abort.";
+        placeholder = "Follow instructions...";
     }
 
     reminderMessage +=
       "\n\nType /cancelcreation if you want to abort the event creation.";
 
-    const sent = await ctx.reply(reminderMessage);
+    const sent = await ctx.reply(reminderMessage, {
+      reply_markup: {
+        force_reply: true,
+        input_field_placeholder: placeholder,
+      },
+    });
+
     this.addTempMessageId(ctx, sent.message_id);
   }
 }

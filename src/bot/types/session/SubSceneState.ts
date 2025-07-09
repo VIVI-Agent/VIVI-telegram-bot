@@ -27,7 +27,8 @@ export type SceneData =
   | WalletsSceneData
   | ReferralSceneData
   | PositionsSceneData
-  | TradeSceneData;
+  | TradeSceneData
+  | BuyEventSceneData;
 
 // InitUserSceneData: Data for the init user scene,
 export interface InitUserSceneData {
@@ -110,6 +111,15 @@ export interface PositionsSceneData {
   menuMessageId?: number;
   state: "loading_cache" | "loading_from_chain" | "loaded";
   positions?: any[];
+}
+
+// BuyEventSceneData interface
+export interface BuyEventSceneData {
+  step: number;
+  name?: string;
+  bannerFileId?: string;
+  tokenId?: number;
+  tempMessageIds: number[];
 }
 
 export interface TradeSceneData {
