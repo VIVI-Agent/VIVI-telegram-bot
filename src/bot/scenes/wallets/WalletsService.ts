@@ -280,9 +280,15 @@ export class WalletsService extends BaseService {
         amountInWei = parseEther(customAmount);
       } else if (amount) {
         // Calculate percentage of wallet balance
-        const percentage = BigInt(amount);
+
         const balanceInWei = BigInt(wallet.balance);
-        amountInWei = (balanceInWei * percentage) / BigInt(100);
+        // For 100%, use 99.5% (995/1000)
+        if (amount === "100") {
+          amountInWei = (balanceInWei * BigInt(995)) / BigInt(1000);
+        } else {
+          const percentage = BigInt(amount);
+          amountInWei = (balanceInWei * percentage) / BigInt(100);
+        }
       } else {
         throw new Error("No amount specified for transfer");
       }
