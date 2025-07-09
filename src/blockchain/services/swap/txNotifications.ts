@@ -341,9 +341,13 @@ export async function replyTxNotifications({
   // Construimos el texto final (✅) - ahora SÍ con enlaces
   let lineFinal = "";
   if (swapType === "Buy") {
-    lineFinal = `Buy ✅ ${amountIn} ETH for ${formattedSymbol}`;
+    lineFinal = `Buy ✅ ${parseFloat(amountIn).toFixed(
+      4
+    )} ETH for ${formattedSymbol}`;
   } else {
-    lineFinal = `Sell ✅ ${amountIn} ${formattedSymbol} for ETH`;
+    lineFinal = `Sell ✅ ${parseFloat(amountIn).toFixed(
+      4
+    )} ${formattedSymbol} for ETH`;
   }
 
   // Editamos el mensaje inicial para reflejar la confirmación (status=1)

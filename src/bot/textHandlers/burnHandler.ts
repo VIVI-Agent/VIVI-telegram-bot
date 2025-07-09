@@ -1,72 +1,28 @@
 // src/bot/handlers/groupSwap/groupBurnHandler.ts
 import { logger } from "@logger";
 import { GlobalSceneContext } from "@types";
-import { TextHandler, TextMatch } from "./types";
 import { Address, formatUnits, parseUnits } from "viem";
+import {
+  TOKEN_ALIASES,
+  MULTI_WORD_ALIASES,
+  CONNECTOR_WORDS,
+  findMultiWordToken,
+  generateClickeableToken,
+  normalizeAmount,
+} from "@utils";
+import { TextHandler, TextMatch } from "./types";
+import { publicClientQuickNode } from "@client";
 import { decryptPrivateKey, getWalletBalance } from "@services";
 import { transferERC20, getTokenBalance } from "@blockchain";
-import { sleep, normalizeAmount, generateTradeLink } from "@utils";
+import { sleep } from "@utils";
 import { GENERIC_ERRORS } from "@texts";
 
 const DEAD_ADDRESS = "0x000000000000000000000000000000000000dEaD";
-
-// Token aliases configuration - same as sendHandler
-const TOKEN_ALIASES: Record<string, Address> = {
-  bife: "0xD769d56f479E9E72a77bB1523e866A33098Feec5" as Address,
-  // Add more aliases as needed
-};
-
-// Multi-word token aliases - same as sendHandler
-const MULTI_WORD_ALIASES: Record<string, Address> = {
-  "baby sato": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd" as Address, // Replace with actual address
-};
-
-// Connector words to ignore in parsing
-const CONNECTOR_WORDS = [
-  "of",
-  "from",
-  "for",
-  "at",
-  "into",
-  "and",
-  "tokens",
-  "token",
-  "coins",
-  "coin",
-];
 
 interface ParsedBurnCommand {
   amount: string;
   token: string;
   tokenAddress?: Address;
-}
-
-/**
- * Generate clickeable token link for buy mode
- */
-function generateClickeableToken(
-  tokenSymbol: string,
-  tokenAddress?: Address
-): string {
-  try {
-    // For tokens without address, return plain text
-    if (
-      !tokenAddress ||
-      tokenAddress === "0x0000000000000000000000000000000000000000"
-    ) {
-      return tokenSymbol.toUpperCase();
-    }
-
-    const buyLink = generateTradeLink({
-      tokenAddress,
-      mode: "buy",
-    });
-    return `<a href="${buyLink}">${tokenSymbol.toUpperCase()}</a>`;
-  } catch (error) {
-    // Fallback to plain text if link generation fails
-    logger.warn(`Failed to generate trade link for ${tokenSymbol}:`, error);
-    return tokenSymbol.toUpperCase();
-  }
 }
 
 /**
@@ -277,29 +233,6 @@ function parseBurnCommand(commandText: string): ParsedBurnCommand | null {
     token,
     tokenAddress,
   };
-}
-
-/**
- * Find multi-word tokens in the word array
- */
-function findMultiWordToken(
-  words: string[]
-): { token: string; address: Address; wordCount: number } | null {
-  // Check 2-word combinations first, then 3-word, etc.
-  for (let wordCount = 3; wordCount >= 2; wordCount--) {
-    if (words.length >= wordCount) {
-      const tokenCandidate = words.slice(0, wordCount).join(" ").toLowerCase();
-      const address = MULTI_WORD_ALIASES[tokenCandidate];
-      if (address) {
-        return {
-          token: tokenCandidate,
-          address,
-          wordCount,
-        };
-      }
-    }
-  }
-  return null;
 }
 
 /**

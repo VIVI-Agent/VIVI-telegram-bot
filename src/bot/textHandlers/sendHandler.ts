@@ -20,68 +20,17 @@ import {
 import { getTokenBalance } from "@blockchain";
 import { publicClientQuickNode } from "@client";
 import {
-  generateTradeLink,
   sleep,
   generateShareableTransferMessage,
+  TOKEN_ALIASES,
+  MULTI_WORD_ALIASES,
+  CONNECTOR_WORDS,
+  findMultiWordToken,
+  generateClickeableToken,
+  generateTradeLink,
 } from "@utils";
 import { GENERIC_ERRORS } from "@texts";
-
-/**
- * Generate clickeable token link for buy mode
- */
-function generateClickeableToken(
-  tokenSymbol: string,
-  tokenAddress?: Address,
-  isEthTransfer?: boolean
-): string {
-  try {
-    // For ETH transfers or tokens without address, return plain text
-    if (
-      isEthTransfer ||
-      !tokenAddress ||
-      tokenAddress === "0x0000000000000000000000000000000000000000"
-    ) {
-      return tokenSymbol.toUpperCase();
-    }
-
-    const buyLink = generateTradeLink({
-      tokenAddress,
-      mode: "buy",
-    });
-    return `<a href="${buyLink}">${tokenSymbol.toUpperCase()}</a>`;
-  } catch (error) {
-    // Fallback to plain text if link generation fails
-    logger.warn(`Failed to generate trade link for ${tokenSymbol}:`, error);
-    return tokenSymbol.toUpperCase();
-  }
-}
-
-// Token aliases configuration
-const TOKEN_ALIASES: Record<string, Address> = {
-  // Single word aliases that resolve to specific addresses
-  bife: "0x1234567890123456789012345678901234567890" as Address, // Replace with actual BIFE address
-  usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as Address,
-  // Note: ETH is handled specially as native ETH, not WETH
-};
-
-// Multi-word token aliases
-const MULTI_WORD_ALIASES: Record<string, Address> = {
-  "baby sato": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd" as Address, // Replace with actual address
-  "pepe coin": "0x1234567890123456789012345678901234567890" as Address, // Example
-};
-
-// Connector words to ignore in parsing
-const CONNECTOR_WORDS = [
-  "of",
-  "from",
-  "to",
-  "for",
-  "->",
-  "→",
-  "at",
-  "into",
-  "and",
-];
+import { secrets } from "@config";
 
 interface ParsedSendCommand {
   amount: string;
@@ -184,6 +133,28 @@ export const sendTextHandler: TextHandler = async (
 
     const validatedRecipients = recipientResult.valid;
     const invalidRecipients = recipientResult.invalid;
+    const botDetected = recipientResult.botDetected;
+
+    // Handle bot detection
+    if (botDetected) {
+      await ctx.reply(
+        "Appreciate the gesture, kiddo — but grandma don't take bribes.",
+        {
+          parse_mode: "HTML",
+          reply_parameters: { message_id: ctx.message?.message_id! },
+        }
+      );
+
+      // If the bot was the only recipient, stop execution here
+      if (parsed.recipients.length === 1) {
+        return true;
+      }
+
+      // If there were other recipients besides the bot, continue with the flow
+      logger.info(
+        `${logPrefix} Bot was excluded from recipients, continuing with ${validatedRecipients.length} valid recipients`
+      );
+    }
 
     if (validatedRecipients.length === 0) {
       let errorMessage = "❌ No valid recipients found.";
@@ -382,29 +353,6 @@ async function parseSendCommand(
 }
 
 /**
- * Find multi-word tokens in the word array
- */
-function findMultiWordToken(
-  words: string[]
-): { token: string; address: Address; wordCount: number } | null {
-  // Check 2-word combinations first, then 3-word, etc.
-  for (let wordCount = 3; wordCount >= 2; wordCount--) {
-    if (words.length >= wordCount) {
-      const tokenCandidate = words.slice(0, wordCount).join(" ").toLowerCase();
-      const address = MULTI_WORD_ALIASES[tokenCandidate];
-      if (address) {
-        return {
-          token: tokenCandidate,
-          address,
-          wordCount,
-        };
-      }
-    }
-  }
-  return null;
-}
-
-/**
  * Validate and resolve recipients to addresses
  */
 async function validateAndResolveRecipients(
@@ -414,10 +362,12 @@ async function validateAndResolveRecipients(
 ): Promise<{
   valid: ValidatedRecipient[];
   invalid: { original: string; reason: string }[];
+  botDetected?: boolean;
 }> {
   const logPrefix = "[validateAndResolveRecipients]";
   const validated: ValidatedRecipient[] = [];
   const invalid: { original: string; reason: string }[] = [];
+  let botDetected = false;
 
   for (const recipient of recipients) {
     try {
@@ -507,6 +457,15 @@ async function validateAndResolveRecipients(
       // Check if it's a Telegram username (MUST start with @)
       if (recipient.startsWith("@")) {
         const username = recipient.replace(/^@/, "");
+
+        // Check if this is the bot itself
+        if (
+          username.toLowerCase() === secrets.TELEGRAM_BOT_USERNAME.toLowerCase()
+        ) {
+          botDetected = true;
+          logger.info(`${logPrefix} Bot detected as recipient: @${username}`);
+          continue; // Skip adding the bot to recipients list
+        }
 
         // Validate username format first
         if (!isValidTelegramUsername(username)) {
@@ -613,7 +572,7 @@ async function validateAndResolveRecipients(
     }
   }
 
-  return { valid: validated, invalid };
+  return { valid: validated, invalid, botDetected };
 }
 
 /**

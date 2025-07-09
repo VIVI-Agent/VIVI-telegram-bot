@@ -1,15 +1,23 @@
 // src/bot/textHandlers/sellHandler.ts
 import { logger } from "@logger";
 import { GlobalSceneContext } from "@types";
-import { TextHandler, TextMatch } from "./types";
 import {
   Address,
   Hash,
   isAddress,
+  parseEther,
   TransactionReceipt,
   formatEther,
-  formatUnits,
 } from "viem";
+import {
+  SellAmountValidator,
+  CONNECTOR_WORDS,
+  MULTI_WORD_ALIASES,
+  TOKEN_ALIASES,
+  normalizeAmount,
+} from "@utils";
+import { TextHandler, TextMatch } from "./types";
+import { GENERIC_ERRORS } from "@texts";
 import { publicClientQuickNode } from "../../client/viemClient";
 import { getBestDexForSellTokenToEth } from "../../blockchain/services/priceComparison/priceComparisonServiceSell";
 import {
@@ -20,45 +28,13 @@ import {
   sellTokenVIVIApeStore,
   sellTokenVirtualToken,
 } from "../../blockchain/services/swap";
-import { SellHandlers } from "../scenes/trade/SellHandlers";
+import { findOrCreateToken } from "../../blockchain/services/token";
 import { replyTxNotificationsWithLinks } from "../../blockchain/services/swap/txNotifications";
-import { normalizeAmount } from "@utils";
+import { SellHandlers } from "../scenes/trade/SellHandlers";
 import { calculateFinalFee } from "../../utils/feeDiscounts";
-import { GENERIC_ERRORS } from "@texts";
-import { User } from "@prisma/client";
+import { Token, User } from "@prisma/client";
 
 const logPrefix = "[sellTextHandler]";
-
-// Token aliases configuration - same as buyHandler
-const TOKEN_ALIASES: Record<string, Address> = {
-  bife: "0xD769d56f479E9E72a77bB1523e866A33098Feec5" as Address,
-  // Add more aliases as needed
-};
-
-// Multi-word token aliases - same as buyHandler
-const MULTI_WORD_ALIASES: Record<string, Address> = {
-  "baby sato": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd" as Address, // Replace with actual address
-};
-
-// Connector words to ignore in parsing
-const CONNECTOR_WORDS = [
-  "of",
-  "from",
-  "for",
-  "at",
-  "into",
-  "and",
-  "tokens",
-  "token",
-  "coins",
-  "coin",
-];
-
-interface ParsedSellCommand {
-  percentage: string;
-  token: string;
-  tokenAddress?: Address;
-}
 
 /**
  * Parse sell command text to extract percentage and token
@@ -68,7 +44,9 @@ interface ParsedSellCommand {
  * - sell half baby sato
  * - sell 25% of USDC
  */
-function parseSellCommand(commandText: string): ParsedSellCommand | null {
+function parseSellCommand(
+  commandText: string
+): { percentage: string; token: string } | null {
   try {
     // Remove "sell" prefix and trim
     const text = commandText.replace(/^sell\s+/i, "").trim();
@@ -114,7 +92,7 @@ function parseSellCommand(commandText: string): ParsedSellCommand | null {
  */
 async function resolveTokenInfo(
   ctx: GlobalSceneContext,
-  parsed: ParsedSellCommand,
+  parsed: { percentage: string; token: string },
   wallet: any
 ): Promise<{ tokenAddress: Address; symbol: string; decimals: number } | null> {
   try {
@@ -278,7 +256,7 @@ function parsePercentage(rawPct: string): number {
  */
 async function executeSellCommand(
   ctx: GlobalSceneContext,
-  parsed: ParsedSellCommand,
+  parsed: { percentage: string; token: string },
   wallet: any,
   tokenInfo: { tokenAddress: Address; symbol: string; decimals: number },
   holding: any,
@@ -295,10 +273,9 @@ async function executeSellCommand(
       (currentBalanceBN * BigInt(Math.floor(percentage))) / 100n;
 
     logger.info(
-      `${logPrefix} Tokens to sell: ${formatUnits(
-        tokensToSell,
-        holding.token.decimals
-      )} ${holding.token.symbol}`
+      `${logPrefix} Tokens to sell: ${formatEther(tokensToSell)} ${
+        holding.token.symbol
+      }`
     );
 
     // Find best DEX
@@ -382,7 +359,7 @@ async function executeSellCommand(
         parseLogsFn: handlers.parseLogsFn,
         onMinedFn: handlers.onMinedFn,
         swapType: "Sell",
-        amountIn: formatUnits(tokensToSell, holding.token.decimals),
+        amountIn: formatEther(tokensToSell),
         symbol: holding.token.symbol,
         tokenAddress: tokenInfo.tokenAddress,
       });
@@ -423,7 +400,7 @@ async function executeSellCommand(
         parseLogsFn: handlers.parseLogsFn,
         onMinedFn: handlers.onMinedFn,
         swapType: "Sell",
-        amountIn: formatUnits(tokensToSell, holding.token.decimals),
+        amountIn: formatEther(tokensToSell),
         symbol: holding.token.symbol,
         tokenAddress: tokenInfo.tokenAddress,
       });
@@ -461,7 +438,7 @@ async function executeSellCommand(
         parseLogsFn: handlers.parseLogsFn,
         onMinedFn: handlers.onMinedFn,
         swapType: "Sell",
-        amountIn: formatUnits(tokensToSell, holding.token.decimals),
+        amountIn: formatEther(tokensToSell),
         symbol: holding.token.symbol,
         tokenAddress: tokenInfo.tokenAddress,
       });
@@ -497,7 +474,7 @@ async function executeSellCommand(
         parseLogsFn: handlers.parseLogsFn,
         onMinedFn: handlers.onMinedFn,
         swapType: "Sell",
-        amountIn: formatUnits(tokensToSell, holding.token.decimals),
+        amountIn: formatEther(tokensToSell),
         symbol: holding.token.symbol,
         tokenAddress: tokenInfo.tokenAddress,
       });
@@ -534,7 +511,7 @@ async function executeSellCommand(
         parseLogsFn: handlers.parseLogsFn,
         onMinedFn: handlers.onMinedFn,
         swapType: "Sell",
-        amountIn: formatUnits(tokensToSell, holding.token.decimals),
+        amountIn: formatEther(tokensToSell),
         symbol: holding.token.symbol,
         tokenAddress: tokenInfo.tokenAddress,
       });
@@ -571,7 +548,7 @@ async function executeSellCommand(
         parseLogsFn: handlers.parseLogsFn,
         onMinedFn: handlers.onMinedFn,
         swapType: "Sell",
-        amountIn: formatUnits(tokensToSell, holding.token.decimals),
+        amountIn: formatEther(tokensToSell),
         symbol: holding.token.symbol,
         tokenAddress: tokenInfo.tokenAddress,
       });

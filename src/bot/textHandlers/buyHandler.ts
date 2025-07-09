@@ -1,7 +1,6 @@
 // src/bot/textHandlers/buyHandler.ts
 import { logger } from "@logger";
 import { GlobalSceneContext } from "@types";
-import { TextHandler, TextMatch } from "./types";
 import {
   Address,
   Hash,
@@ -10,6 +9,15 @@ import {
   TransactionReceipt,
   formatEther,
 } from "viem";
+import {
+  BuyAmountValidator,
+  CONNECTOR_WORDS,
+  MULTI_WORD_ALIASES,
+  TOKEN_ALIASES,
+  normalizeAmount,
+} from "@utils";
+import { TextHandler, TextMatch } from "./types";
+import { GENERIC_ERRORS } from "@texts";
 import { publicClientQuickNode } from "../../client/viemClient";
 import { getBestDexForBuyEthToToken } from "../../blockchain/services/priceComparison/priceComparisonService";
 import {
@@ -23,39 +31,10 @@ import {
 import { findOrCreateToken } from "../../blockchain/services/token";
 import { BuyHandlers } from "../scenes/trade/BuyHandlers";
 import { replyTxNotificationsWithLinks } from "../../blockchain/services/swap/txNotifications";
-import { normalizeAmount } from "@utils";
 import { calculateFinalFee } from "../../utils/feeDiscounts";
 import { Token, User } from "@prisma/client";
-import { GENERIC_ERRORS } from "@texts";
 
 const logPrefix = "[buyTextHandler]";
-
-// Token aliases configuration - same as sendHandler
-const TOKEN_ALIASES: Record<string, Address> = {
-  bife: "0xD769d56f479E9E72a77bB1523e866A33098Feec5" as Address,
-  usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as Address,
-  // Add more aliases as needed
-};
-
-// Multi-word token aliases - same as sendHandler
-const MULTI_WORD_ALIASES: Record<string, Address> = {
-  "baby sato": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd" as Address, // Replace with actual address
-  "pepe coin": "0x1234567890123456789012345678901234567890" as Address, // Example
-};
-
-// Connector words to ignore in parsing
-const CONNECTOR_WORDS = [
-  "of",
-  "from",
-  "for",
-  "at",
-  "into",
-  "and",
-  "tokens",
-  "token",
-  "coins",
-  "coin",
-];
 
 interface ParsedBuyCommand {
   amount: string;

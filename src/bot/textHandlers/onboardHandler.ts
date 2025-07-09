@@ -1,7 +1,19 @@
 import { logger } from "@logger";
 import { GlobalSceneContext } from "@types";
+import { Address, formatEther, parseEther } from "viem";
+import {
+  TOKEN_ALIASES,
+  MULTI_WORD_ALIASES,
+  CONNECTOR_WORDS,
+  findMultiWordToken,
+  generateClickeableToken,
+  normalizeAmount,
+  generateTradeLink,
+  sleep,
+  generateShareableTransferMessage,
+} from "@utils";
 import { TextHandler, TextMatch } from "./types";
-import { Address, parseEther } from "viem";
+import { publicClientQuickNode } from "@client";
 import {
   resolveBNSAddress,
   isBNSName,
@@ -13,74 +25,12 @@ import { mixedBatchTransfer } from "../../blockchain/transactions/mixedBatchTran
 import { User, Wallet } from "@prisma/client";
 import {
   decryptPrivateKey,
-  getWalletBalance,
   createBaseWallet,
+  getWalletBalance,
 } from "@services";
 import { getTokenBalance } from "@blockchain";
-import { publicClientQuickNode } from "@client";
-import {
-  generateTradeLink,
-  sleep,
-  generateShareableTransferMessage,
-} from "@utils";
 import { GENERIC_ERRORS } from "@texts";
-
-/**
- * Generate clickeable token link for buy mode
- */
-function generateClickeableToken(
-  tokenSymbol: string,
-  tokenAddress?: Address,
-  isEthTransfer?: boolean
-): string {
-  try {
-    // For ETH transfers or tokens without address, return plain text
-    if (
-      isEthTransfer ||
-      !tokenAddress ||
-      tokenAddress === "0x0000000000000000000000000000000000000000"
-    ) {
-      return tokenSymbol.toUpperCase();
-    }
-
-    const buyLink = generateTradeLink({
-      tokenAddress,
-      mode: "buy",
-    });
-    return `<a href="${buyLink}">${tokenSymbol.toUpperCase()}</a>`;
-  } catch (error) {
-    // Fallback to plain text if link generation fails
-    logger.warn(`Failed to generate trade link for ${tokenSymbol}:`, error);
-    return tokenSymbol.toUpperCase();
-  }
-}
-
-// Token aliases configuration
-const TOKEN_ALIASES: Record<string, Address> = {
-  // Single word aliases that resolve to specific addresses
-  bife: "0x1234567890123456789012345678901234567890" as Address, // Replace with actual BIFE address
-  usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as Address,
-  // Note: ETH is handled specially as native ETH, not WETH
-};
-
-// Multi-word token aliases
-const MULTI_WORD_ALIASES: Record<string, Address> = {
-  "baby sato": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd" as Address, // Replace with actual address
-  "pepe coin": "0x1234567890123456789012345678901234567890" as Address, // Example
-};
-
-// Connector words to ignore in parsing
-const CONNECTOR_WORDS = [
-  "of",
-  "from",
-  "to",
-  "for",
-  "->",
-  "→",
-  "at",
-  "into",
-  "and",
-];
+import { contracts } from "@config";
 
 interface ParsedSendCommand {
   amount: string;
@@ -389,29 +339,6 @@ async function parseSendCommand(
     recipients,
     isEthTransfer,
   };
-}
-
-/**
- * Find multi-word tokens in the word array
- */
-function findMultiWordToken(
-  words: string[]
-): { token: string; address: Address; wordCount: number } | null {
-  // Check 2-word combinations first, then 3-word, etc.
-  for (let wordCount = 3; wordCount >= 2; wordCount--) {
-    if (words.length >= wordCount) {
-      const tokenCandidate = words.slice(0, wordCount).join(" ").toLowerCase();
-      const address = MULTI_WORD_ALIASES[tokenCandidate];
-      if (address) {
-        return {
-          token: tokenCandidate,
-          address,
-          wordCount,
-        };
-      }
-    }
-  }
-  return null;
 }
 
 /**
