@@ -269,13 +269,28 @@ export class TradeMenus extends BaseMenus {
       selectedWallets.includes(wallet.id)
     );
     const allButtonText = allWalletsSelected ? "All 🟢" : "All";
-    walletButtons.push({
-      text: allButtonText,
-      callback_data: this.createCallback(CB.TOGGLE_ALL_WALLETS),
-    });
 
     if (walletButtons.length > 0) {
-      keyboard.push(walletButtons);
+      // If 3 or fewer wallets, put "All" button on the same line
+      if (walletButtons.length <= 3) {
+        const rowWithAll = [
+          ...walletButtons,
+          {
+            text: allButtonText,
+            callback_data: this.createCallback(CB.TOGGLE_ALL_WALLETS),
+          },
+        ];
+        keyboard.push(rowWithAll);
+      } else {
+        // If 4-5 wallets, put wallet buttons first, then "All" on separate line
+        keyboard.push(walletButtons);
+        keyboard.push([
+          {
+            text: allButtonText,
+            callback_data: this.createCallback(CB.TOGGLE_ALL_WALLETS),
+          },
+        ]);
+      }
     }
 
     // Slippage and Gas buttons
@@ -435,13 +450,28 @@ export class TradeMenus extends BaseMenus {
       selectedWallets.includes(wallet.id)
     );
     const allButtonText = allWalletsSelected ? "All 🟢" : "All";
-    walletButtons.push({
-      text: allButtonText,
-      callback_data: this.createCallback(CB.TOGGLE_ALL_WALLETS),
-    });
 
     if (walletButtons.length > 0) {
-      keyboard.push(walletButtons);
+      // If 3 or fewer wallets, put "All" button on the same line
+      if (walletButtons.length <= 3) {
+        const rowWithAll = [
+          ...walletButtons,
+          {
+            text: allButtonText,
+            callback_data: this.createCallback(CB.TOGGLE_ALL_WALLETS),
+          },
+        ];
+        keyboard.push(rowWithAll);
+      } else {
+        // If 4-5 wallets, put wallet buttons first, then "All" on separate line
+        keyboard.push(walletButtons);
+        keyboard.push([
+          {
+            text: allButtonText,
+            callback_data: this.createCallback(CB.TOGGLE_ALL_WALLETS),
+          },
+        ]);
+      }
     }
 
     // Slippage and Gas buttons

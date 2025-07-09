@@ -139,7 +139,7 @@ export const TRADE_TEXTS = {
       // Different message format for buy vs sell
       const amountLabel = isSell ? "💸 <b>Sell:</b> " : "💸 <b>Buy:</b> ";
       const amountSuffix = isSell ? "%" : " Ξ";
-      const outputLabel = isSell ? "💰 <b>Get:</b> " : "💰 <b>Out:</b> ";
+      const outputLabel = isSell ? "💰 <b>Out:</b> " : "💰 <b>Out:</b> ";
       const outputValue = isSell
         ? `${outputAmount} ETH`
         : `${outputAmount} ${tokenSymbol}`;
