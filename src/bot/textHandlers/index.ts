@@ -140,7 +140,7 @@ const boostPatterns: TextPattern[] = [
     pattern: /^boost\s+.+$/i,
     handler: boostTextHandler,
     description: "Boost VIVI with ETH",
-    examples: ["boost vivi 0.001", "boost vivi 0.1", "boost vivi 1"],
+    examples: ["boost vivi 0.069"],
   },
 ];
 

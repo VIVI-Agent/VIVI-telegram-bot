@@ -50,10 +50,7 @@ export const boostTextHandler: TextHandler = async (
 
     if (!parsed) {
       await ctx.reply(
-        "❌ Invalid boost format. Usage:\n" +
-          "• boost vivi 0.001\n" +
-          "• boost vivi 0.1\n" +
-          "• boost vivi 1",
+        "❌ Invalid boost format. Usage:\n" + "• boost vivi 0.069\n",
         {
           parse_mode: "HTML",
           reply_parameters: { message_id: ctx.message?.message_id! },
@@ -299,8 +296,8 @@ function parseBoostCommand(commandText: string): ParsedBoostCommand | null {
   const target = words[0];
   const amount = words[1];
 
-  // Validate amount format
-  if (!/^\d+(\.\d+)?$/.test(amount)) {
+  // Validate amount format - accepts .001, 0.001, 1.5, etc.
+  if (!/^(\d*\.)?\d+$/.test(amount)) {
     logger.warn(`${logPrefix} Invalid amount format: ${amount}`);
     return null;
   }
