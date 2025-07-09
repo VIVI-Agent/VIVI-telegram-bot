@@ -257,8 +257,8 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
   }
 
   async routeText(ctx: GlobalSceneContext, text: string): Promise<void> {
-    logger.info(`🔄 Routing text: "${text}"`);
-    logger.info(
+    logger.debug(`🔄 Routing text: "${text}"`);
+    logger.debug(
       `🔄 Active scenes count: ${
         Object.keys(ctx.session.activeSubScenes).length
       }`
@@ -332,7 +332,7 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
       }
     }
 
-    logger.info(`❌ Unhandled text: ${text}`);
+    logger.debug(`❌ Unhandled text: ${text}`);
   }
 
   // FIFO Scene Management

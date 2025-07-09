@@ -3,7 +3,7 @@ import DatadogWinston from "datadog-winston";
 import { DD } from "@config";
 
 export const logger = winston.createLogger({
-  level: "debug",
+  level: "info",
   transports: [
     process.env.NODE_ENV === "production"
       ? new DatadogWinston({

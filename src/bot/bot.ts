@@ -235,7 +235,7 @@ bot.on(message("text"), async (ctx) => {
   if (ctx.chat?.type === "private") {
     const text = ctx.message.text;
 
-    logger.info(`Text received: ${text}`);
+    logger.debug(`Text received: ${text}`);
 
     (async () => {
       try {
@@ -257,7 +257,7 @@ bot.on(message("text"), async (ctx) => {
   // Handle Text Messages In Group Chats
   else if (ctx.chat?.type === "group" || ctx.chat?.type === "supergroup") {
     const text = ctx.message.text;
-    logger.info(`Text received: ${text}`);
+    logger.debug(`Text received: ${text}`);
 
     // Handle scene routing in groups
     (async () => {
