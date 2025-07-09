@@ -12,7 +12,7 @@ import { createAuthMiddleware } from "./middlewares/AuthMiddleware";
 import { logger } from "@logger";
 import { GENERIC_ERRORS } from "@texts";
 import { registerCommands } from "./commands";
-import { textManager } from "./textHandlers";
+import { balanceHandler, inviteTextHandler, textManager } from "./textHandlers";
 
 // Create bot instance
 const bot = new Telegraf<GlobalSceneContext>(secrets.TELEGRAM_BOT_TOKEN || "");
@@ -128,6 +128,23 @@ bot.command("trade", async (ctx) => {
   }
 });
 
+// Handle balance command (groups only)
+bot.command("balance", async (ctx) => {
+  if (ctx.chat?.type === "private") {
+    await balanceHandler(ctx, ctx.message.message_id);
+  }
+});
+
+// Handle invite command (groups only)
+bot.command("invite", async (ctx) => {
+  if (ctx.chat?.type === "group" || ctx.chat?.type === "supergroup") {
+    await inviteTextHandler(ctx, {
+      command: "invite",
+      params: {},
+    });
+  }
+});
+
 // Handle createbuyevent command (admin only in groups)
 bot.command("createbuyevent", async (ctx) => {
   // Only allow in groups
@@ -163,64 +180,72 @@ bot.command("createbuyevent", async (ctx) => {
 });
 
 bot.command("cancelcreation", async (ctx) => {
-  if (
-    ctx.session.creatingEvent === true &&
-    ctx.session.buyEventSceneInstanceId
-  ) {
-    logger.info(`Cancelling buy event creation for user ${ctx.from?.id}`);
-
-    // Deactivate the scene
-    await sceneManager.deactivateScene(
-      ctx,
+  if (ctx.chat?.type === "group" || ctx.chat?.type === "supergroup") {
+    if (
+      ctx.session.creatingEvent === true &&
       ctx.session.buyEventSceneInstanceId
-    );
+    ) {
+      logger.info(`Cancelling buy event creation for user ${ctx.from?.id}`);
 
-    // Reset flags
-    ctx.session.creatingEvent = false;
-    ctx.session.buyEventSceneInstanceId = undefined;
+      // Deactivate the scene
+      await sceneManager.deactivateScene(
+        ctx,
+        ctx.session.buyEventSceneInstanceId
+      );
 
-    await ctx.reply("✅ Event creation cancelled successfully.");
-  } else {
-    await ctx.reply("❌ No event creation in progress to cancel.");
+      // Reset flags
+      ctx.session.creatingEvent = false;
+      ctx.session.buyEventSceneInstanceId = undefined;
+
+      await ctx.reply("✅ Event creation cancelled successfully.");
+    } else {
+      await ctx.reply("❌ No event creation in progress to cancel.");
+    }
   }
 });
 
 // Handle closebuyevent command (admin only in groups)
 bot.command("closebuyevent", async (ctx) => {
-  const { CloseBuyEventCommandHandler } = await import(
-    "./scenes/buyEvent/CloseBuyEventCommandHandler"
-  );
-  const handler = new CloseBuyEventCommandHandler();
+  if (ctx.chat?.type === "group" || ctx.chat?.type === "supergroup") {
+    const { CloseBuyEventCommandHandler } = await import(
+      "./scenes/buyEvent/CloseBuyEventCommandHandler"
+    );
+    const handler = new CloseBuyEventCommandHandler();
 
-  const canExecute = await handler.canExecute(ctx);
-  if (canExecute) {
-    await handler.execute(ctx);
+    const canExecute = await handler.canExecute(ctx);
+    if (canExecute) {
+      await handler.execute(ctx);
+    }
   }
 });
 
 // Handle leaderboard command (groups only)
 bot.command("leaderboard", async (ctx) => {
-  const { LeaderboardCommandHandler } = await import(
-    "./scenes/buyEvent/LeaderboardCommandHandler"
-  );
-  const handler = new LeaderboardCommandHandler();
+  if (ctx.chat?.type === "group" || ctx.chat?.type === "supergroup") {
+    const { LeaderboardCommandHandler } = await import(
+      "./scenes/buyEvent/LeaderboardCommandHandler"
+    );
+    const handler = new LeaderboardCommandHandler();
 
-  const canExecute = await handler.canExecute(ctx);
-  if (canExecute) {
-    await handler.execute(ctx);
+    const canExecute = await handler.canExecute(ctx);
+    if (canExecute) {
+      await handler.execute(ctx);
+    }
   }
 });
 
 // Handle myeventstat command (groups only)
 bot.command("myeventstat", async (ctx) => {
-  const { MyEventStatCommandHandler } = await import(
-    "./scenes/buyEvent/MyEventStatCommandHandler"
-  );
-  const handler = new MyEventStatCommandHandler();
+  if (ctx.chat?.type === "group" || ctx.chat?.type === "supergroup") {
+    const { MyEventStatCommandHandler } = await import(
+      "./scenes/buyEvent/MyEventStatCommandHandler"
+    );
+    const handler = new MyEventStatCommandHandler();
 
-  const canExecute = await handler.canExecute(ctx);
-  if (canExecute) {
-    await handler.execute(ctx);
+    const canExecute = await handler.canExecute(ctx);
+    if (canExecute) {
+      await handler.execute(ctx);
+    }
   }
 });
 

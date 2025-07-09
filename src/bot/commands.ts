@@ -12,6 +12,7 @@ export async function registerCommands(bot: Telegraf<GlobalSceneContext>) {
         { command: "wallets", description: "Manage trading wallets" },
         { command: "settings", description: "Configure trading preferences" },
         { command: "referral", description: "View referral link" },
+        { command: "balance", description: "Check your public wallet balance" },
         // { command: "help", description: "Get help & documentation" },
       ],
       {
@@ -31,16 +32,8 @@ export async function registerCommands(bot: Telegraf<GlobalSceneContext>) {
           description: "Your personal event statistics 📈",
         },
         {
-          command: "balance",
-          description: "Check your public wallet balance 💰",
-        },
-        {
           command: "invite",
           description: "Generate registration link 🔗",
-        },
-        {
-          command: "onboard",
-          description: "Send X amount of tokens and 0.00007 ETH to users",
         },
       ],
       {
@@ -70,16 +63,8 @@ export async function registerCommands(bot: Telegraf<GlobalSceneContext>) {
           description: "Your personal event statistics 📈",
         },
         {
-          command: "balance",
-          description: "Check your wallet balance 💰",
-        },
-        {
           command: "invite",
           description: "Generate registration link 🔗",
-        },
-        {
-          command: "onboard",
-          description: "Send X amount of tokens and 0.00007 ETH to users",
         },
       ],
       {
