@@ -41,14 +41,11 @@ export const inviteTextHandler: TextHandler = async (
     const referralLink = `https://t.me/${secrets.TELEGRAM_BOT_USERNAME}?start=ref=${tgUsername}`;
 
     // Send response
-    await ctx.reply(
-      `<b>Join VIVI 🥃</b> <a href="${referralLink}">register</a> 🤝`,
-      {
-        parse_mode: "HTML",
-        link_preview_options: { is_disabled: true },
-        reply_parameters: { message_id: ctx.message?.message_id! },
-      }
-    );
+    await ctx.reply(`<a href="${referralLink}">Join VIVI 🤝</a>`, {
+      parse_mode: "HTML",
+      link_preview_options: { is_disabled: true },
+      reply_parameters: { message_id: ctx.message?.message_id! },
+    });
 
     logger.info(
       `${logPrefix} Successfully generated referral link for @${tgUsername}`
