@@ -195,6 +195,23 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
         }
         return;
       }
+
+      // Handle send confirmation callbacks
+      if (callback === "send_confirm") {
+        const { handleSendConfirm } = await import(
+          "../textHandlers/sendCallbacks"
+        );
+        await handleSendConfirm(ctx);
+        return;
+      }
+
+      if (callback === "send_cancel") {
+        const { handleSendCancel } = await import(
+          "../textHandlers/sendCallbacks"
+        );
+        await handleSendCancel(ctx);
+        return;
+      }
     } catch (error) {
       await ctx.answerCbQuery();
       await ctx.reply(GENERIC_ERRORS.OLD_VERSION);

@@ -210,7 +210,90 @@ export const sendTextHandler: TextHandler = async (
       return true; // Error message already sent
     }
 
-    // Execute the transfer (no separate confirmation needed)
+    // Check if this is a private chat and handle confirmation
+    logger.info(
+      `${logPrefix} Chat type: ${ctx.chat?.type}, Chat ID: ${ctx.chat?.id}`
+    );
+    if (ctx.chat?.type === "private") {
+      // Check if there's already a pending transfer
+      logger.info(`${logPrefix} Checking for pending transfer in private chat`);
+      if (ctx.session.pendingTransfer) {
+        await ctx.reply(
+          "⚠️ You have a pending transfer that needs confirmation.\n" +
+            "Please confirm or cancel the previous transfer before starting a new one.",
+          {
+            parse_mode: "HTML",
+            reply_parameters: { message_id: ctx.message?.message_id! },
+          }
+        );
+        return true;
+      }
+
+      // Store transfer data in session for confirmation
+      logger.info(
+        `${logPrefix} No pending transfer, storing new transfer data`
+      );
+      ctx.session.pendingTransfer = {
+        amount: parsed.amount,
+        token: parsed.token,
+        tokenAddress: parsed.tokenAddress!,
+        isEthTransfer: parsed.isEthTransfer,
+        recipients: validatedRecipients,
+        invalidRecipients,
+        senderWalletId: senderWallet.id,
+        tokenDecimals: resolvedToken.decimals,
+        messageId: 0, // Will be set after sending confirmation message
+      };
+
+      // Calculate total amount based on valid recipients
+      const totalAmount =
+        parseFloat(parsed.amount) * validatedRecipients.length;
+
+      // Send confirmation message
+      let confirmationMessage = `🔐 <b>Transfer Confirmation Required</b>\n\n`;
+      confirmationMessage += `💰 <b>Total:</b> ${totalAmount} ${generateClickeableToken(
+        parsed.token,
+        parsed.tokenAddress,
+        parsed.isEthTransfer
+      )}\n`;
+      confirmationMessage += `👥 <b>Recipients:</b> ${validatedRecipients
+        .map((r) => r.displayName)
+        .join(", ")}`;
+
+      if (invalidRecipients.length > 0) {
+        confirmationMessage += `\n❌ <b>Invalid:</b> ${invalidRecipients
+          .map((inv) => inv.original)
+          .join(", ")}`;
+      }
+
+      const confirmationMsg = await ctx.reply(confirmationMessage, {
+        parse_mode: "HTML",
+        link_preview_options: { is_disabled: true },
+        reply_parameters: { message_id: ctx.message?.message_id! },
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: "✅ Confirm Transfer",
+                callback_data: "send_confirm",
+              },
+              {
+                text: "❌ Cancel",
+                callback_data: "send_cancel",
+              },
+            ],
+          ],
+        },
+      });
+
+      // Update the message ID in the session
+      ctx.session.pendingTransfer.messageId = confirmationMsg.message_id;
+
+      return true;
+    }
+
+    // For group chats, execute immediately (faster, less spam)
+    logger.info(`${logPrefix} Group chat, executing immediately`);
     await executeSendCommand(
       ctx,
       parsed,
