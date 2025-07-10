@@ -6,7 +6,6 @@ import {
   resolveBNSAddress,
   isBNSName,
   BNSError,
-  BNSErrorType,
 } from "../../blockchain/services/nameResolution/resolveBNSName";
 import { getBankrEVMAddress } from "../../blockchain/services/nameResolution/bankr";
 import { batchTransferService } from "../../blockchain/transactions/batchTransfer/batchTransferService";
@@ -23,11 +22,10 @@ import {
   sleep,
   generateShareableTransferMessage,
   TOKEN_ALIASES,
-  MULTI_WORD_ALIASES,
   CONNECTOR_WORDS,
   findMultiWordToken,
   generateClickeableToken,
-  generateTradeLink,
+  viviJoin,
 } from "@utils";
 import { GENERIC_ERRORS } from "@texts";
 import { secrets } from "@config";
@@ -974,6 +972,10 @@ async function executeSendCommand(
 
     message += `\n🌐 <a href="https://basescan.org/tx/${result.txHash}">View on BaseScan</a>`;
 
+    if (ctx.chat?.type === "group" || ctx.chat?.type === "supergroup") {
+      message += `\n${viviJoin(ctx.from?.username)}`;
+    }
+
     await ctx.telegram.editMessageText(
       statusMessage.chat.id,
       statusMessage.message_id,
@@ -1011,6 +1013,10 @@ async function executeSendCommand(
         }
 
         message += `🌐 <a href="https://basescan.org/tx/${result.txHash}">View on BaseScan</a>`;
+
+        if (ctx.chat?.type === "group" || ctx.chat?.type === "supergroup") {
+          message += `\n${viviJoin(ctx.from?.username)}`;
+        }
 
         await ctx.telegram.editMessageText(
           statusMessage.chat.id,

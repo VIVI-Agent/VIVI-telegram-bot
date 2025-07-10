@@ -21,6 +21,11 @@ export const TRADE_TEXTS = {
   ERRORS: {
     TOKEN_NOT_FOUND: "That doesn't look like a valid token address",
     NO_POOL: "No pool found for this token",
+    INSUFFICIENT_BALANCE: "❌ Insufficient balance in wallet",
+    NO_TOKENS_TO_SELL: "❌ No tokens to sell in wallet",
+    TRANSACTION_FAILED: "❌ Transaction failed",
+    BUY_FAILED: "❌ Buy failed",
+    SELL_FAILED: "❌ Sell failed",
   },
 
   FUNCTIONS: {

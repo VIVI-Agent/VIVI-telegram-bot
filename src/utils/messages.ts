@@ -19,13 +19,9 @@ export function formatHash(txHash: string) {
 
 export function viviJoin(tgUsername?: string) {
   if (tgUsername)
-    return `<a href="https://t.me/${secrets.TELEGRAM_BOT_USERNAME}?start=ref=${tgUsername}">Join VIVI 🥃</a>`;
+    return `<a href="https://t.me/${secrets.TELEGRAM_BOT_USERNAME}?start=ref=${tgUsername}">💸 Manage Funds</a> | <a href="https://t.me/viviaccess">Join VIVI 🥃</a>`;
   else
-    return `<a href="https://t.me/${secrets.TELEGRAM_BOT_USERNAME}?start">Join VIVI 🥃</a>`;
-}
-
-export function manageVIVI() {
-  return `<a href="https://t.me/${secrets.TELEGRAM_BOT_USERNAME}?start">Manage Funds 🥃</a>`;
+    return `<a href="https://t.me/${secrets.TELEGRAM_BOT_USERNAME}?start">💸 Manage Funds</a> | <a href="https://t.me/viviaccess">Join VIVI 🥃</a>`;
 }
 
 export function viviJoinPlain(tgUsername?: string) {

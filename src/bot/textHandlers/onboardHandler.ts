@@ -1,16 +1,14 @@
 import { logger } from "@logger";
 import { GlobalSceneContext } from "@types";
-import { Address, formatEther, parseEther } from "viem";
+import { Address, parseEther } from "viem";
 import {
   TOKEN_ALIASES,
-  MULTI_WORD_ALIASES,
   CONNECTOR_WORDS,
   findMultiWordToken,
   generateClickeableToken,
-  normalizeAmount,
-  generateTradeLink,
   sleep,
   generateShareableTransferMessage,
+  viviJoin,
 } from "@utils";
 import { TextHandler, TextMatch } from "./types";
 import { publicClientQuickNode } from "@client";
@@ -18,7 +16,6 @@ import {
   resolveBNSAddress,
   isBNSName,
   BNSError,
-  BNSErrorType,
 } from "../../blockchain/services/nameResolution/resolveBNSName";
 import { getBankrEVMAddress } from "../../blockchain/services/nameResolution/bankr";
 import { mixedBatchTransfer } from "../../blockchain/transactions/mixedBatchTransfer";
@@ -30,7 +27,6 @@ import {
 } from "@services";
 import { getTokenBalance } from "@blockchain";
 import { GENERIC_ERRORS } from "@texts";
-import { contracts } from "@config";
 
 interface ParsedSendCommand {
   amount: string;
@@ -863,6 +859,10 @@ async function executeSendCommand(
 
     message += `\n🌐 <a href="https://basescan.org/tx/${result.txHash}">View on BaseScan</a>`;
 
+    if (ctx.chat?.type === "group" || ctx.chat?.type === "supergroup") {
+      message += `\n${viviJoin(ctx.from?.username)}`;
+    }
+
     await ctx.telegram.editMessageText(
       statusMessage.chat.id,
       statusMessage.message_id,
@@ -1110,6 +1110,10 @@ async function executeSendCommand(
       }
 
       message += `🌐 <a href="https://basescan.org/tx/${result.txHash}">View on BaseScan</a>`;
+
+      if (ctx.chat?.type === "group" || ctx.chat?.type === "supergroup") {
+        message += `\n${viviJoin(ctx.from?.username)}`;
+      }
 
       await ctx.telegram.editMessageText(
         statusMessage.chat.id,

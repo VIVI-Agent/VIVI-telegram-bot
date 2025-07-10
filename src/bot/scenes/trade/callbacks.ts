@@ -2,6 +2,7 @@ export const CB = {
   // Main navigation
   MAIN_MENU: "main_menu",
   DISMISS_TRADE: "dismiss_trade",
+  DISMISS_ERROR: "dismiss_error",
 
   // Mode switching
   SWITCH_TO_SELL: "switch_to_sell",

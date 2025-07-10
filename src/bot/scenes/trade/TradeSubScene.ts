@@ -11,7 +11,8 @@ import {
   tokenInfoUpdateEmitter,
   TokenInfoUpdateEvent,
 } from "@blockchain";
-import { Address } from "viem";
+import { Address, parseEther } from "viem";
+import { extractUserFriendlyError } from "@client";
 
 export class TradeSubScene extends BaseSubScene<TradeSceneData> {
   private menus: TradeMenus;
@@ -143,8 +144,25 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
             let hasAnyTokens = false;
             const walletsWithTokens: number[] = [];
 
+            this.log(
+              "debug",
+              ctx,
+              `Checking wallets for tokens to sell. Total wallets: ${sceneData.userWithWallets.wallets.length}`
+            );
+
             // Check all wallets for tokens
             for (const wallet of sceneData.userWithWallets.wallets) {
+              this.log(
+                "debug",
+                ctx,
+                `Checking wallet ${wallet.id} (${wallet.address}) for tokens`
+              );
+              this.log(
+                "debug",
+                ctx,
+                `Wallet holdings: ${JSON.stringify(wallet.holdings)}`
+              );
+
               const hasTokenBalance =
                 wallet.holdings &&
                 wallet.holdings.balance &&
@@ -285,6 +303,26 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
           await ctx.sceneManager.deactivateScene(ctx, this.instanceId);
           return true;
 
+        case CB.DISMISS_ERROR:
+          await ctx.answerCbQuery();
+          // Get the message ID from the callback parameters
+          if (params && params[0]) {
+            const messageId = parseInt(params[0]);
+            if (messageId && ctx.chat?.id) {
+              try {
+                await ctx.telegram.deleteMessage(ctx.chat.id, messageId);
+                this.log("info", ctx, `Dismissed error message: ${messageId}`);
+              } catch (error) {
+                this.log(
+                  "warn",
+                  ctx,
+                  `Failed to delete message ${messageId}: ${error}`
+                );
+              }
+            }
+          }
+          return true;
+
         case CB.SWITCH_TO_SELL:
           await ctx.answerCbQuery();
           await this.switchMode(ctx, "trade_sell");
@@ -318,6 +356,18 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
           if (params && params[0]) {
             const walletId = parseInt(params[0]);
             const sceneData = this.getSceneData(ctx);
+
+            // Prevent deselecting the last wallet
+            if (
+              sceneData.selectedWallets &&
+              sceneData.selectedWallets.length <= 1
+            ) {
+              await ctx.answerCbQuery(
+                "⚠️ At least one wallet must be selected"
+              );
+              return true;
+            }
+
             if (sceneData.selectedWallets) {
               sceneData.selectedWallets = sceneData.selectedWallets.filter(
                 (id) => id !== walletId
@@ -511,14 +561,63 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
             const selectedWallets = sceneData.selectedWallets;
             const userId = ctx.user.id;
 
+            // Pre-validate ETH balance for all selected wallets
+            const validationErrors: string[] = [];
+            const validWallets: number[] = [];
+            for (const walletId of selectedWallets || []) {
+              const wallet = sceneData.userWithWallets?.wallets.find(
+                (w) => w.id === walletId
+              );
+              if (!wallet) {
+                validationErrors.push(`Wallet ${walletId} not found`);
+                continue;
+              }
+
+              const ethBalance = BigInt(wallet.balance || "0");
+              const amountEth = parseEther(sceneData.selectedAmount || "0");
+
+              if (ethBalance < amountEth) {
+                const readableBalance = (
+                  Number(ethBalance) / Math.pow(10, 18)
+                ).toFixed(6);
+                const readableNeeded = (
+                  Number(amountEth) / Math.pow(10, 18)
+                ).toFixed(6);
+                validationErrors.push(
+                  `Wallet ${this.escapeHtml(
+                    wallet.address
+                  )}: Insufficient ETH (${readableBalance} < ${readableNeeded})`
+                );
+              } else {
+                validWallets.push(walletId);
+              }
+            }
+
+            if (validationErrors.length > 0) {
+              const totalSkipped = validationErrors.length;
+              const totalSelected = selectedWallets?.length || 0;
+              const requiredAmount = this.escapeHtml(
+                sceneData.selectedAmount || "0"
+              );
+              const warningMessage = `⚠️ Not enough funds in ${totalSkipped}/${totalSelected} wallet(s). Required: ${requiredAmount}Ξ`;
+              await this.createDismissMessage(ctx, warningMessage);
+
+              // If no valid wallets, stop here
+              if (validWallets.length === 0) {
+                return true;
+              }
+            }
+
             await this.menus.showTradeMenu(ctx, sceneData, messageId, true);
 
             const instantReply = await ctx.reply(
-              `⏳ Processing Buy Tx ${sceneData.token?.symbol}...\n`
+              `⏳ Processing Buy Tx ${this.escapeHtml(
+                sceneData.token?.symbol || ""
+              )}...\n`
             );
 
             const results = await Promise.allSettled(
-              selectedWallets?.map((wid) =>
+              validWallets.map((wid) =>
                 this.service.buyToken(
                   ctx,
                   sceneData,
@@ -526,11 +625,59 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
                   userId,
                   this.createTransactionSuccessCallback(ctx, "buy")
                 )
-              ) || []
+              )
             );
+
             await ctx.deleteMessage(instantReply.message_id);
+
+            // Check results and handle errors
+            const failedResults = results.filter(
+              (result) => result.status === "rejected"
+            );
+
+            if (failedResults.length > 0) {
+              // Show error message to user
+              const errorMessages = failedResults.map((result) => {
+                const error = result.reason;
+                if (error instanceof Error) {
+                  // Use the user-friendly error extractor
+                  return extractUserFriendlyError(error);
+                }
+                return TRADE_TEXTS.ERRORS.TRANSACTION_FAILED;
+              });
+
+              const errorMessage = `⚠️ <b>Buy transaction failed:</b>\n${errorMessages
+                .map((msg) => this.escapeHtml(msg))
+                .join("\n")}`;
+              await this.createDismissMessage(ctx, errorMessage);
+
+              // Re-enable the menu buttons
+              await this.menus.showTradeMenu(ctx, sceneData, messageId, false);
+            } else {
+              // All transactions succeeded, success callback will handle menu update
+              this.log(
+                "info",
+                ctx,
+                "All buy transactions completed successfully"
+              );
+            }
           } catch (error) {
             this.log("error", ctx, `Error buying token: ${error}`);
+
+            // Show error message to user
+            const errorMessage =
+              error instanceof Error
+                ? extractUserFriendlyError(error)
+                : "Unknown error occurred";
+            await this.createDismissMessage(
+              ctx,
+              `<b>${TRADE_TEXTS.ERRORS.BUY_FAILED}:</b> ${this.escapeHtml(
+                errorMessage
+              )}`
+            );
+
+            // Re-enable the menu buttons
+            await this.menus.showTradeMenu(ctx, sceneData, messageId, false);
           }
           return true;
 
@@ -539,14 +686,146 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
             await ctx.answerCbQuery();
             const selectedWallets = sceneData.selectedWallets;
             const userId = ctx.user.id;
+
+            this.log(
+              "debug",
+              ctx,
+              `Sell token callback - Selected wallets: ${selectedWallets}`
+            );
+            this.log(
+              "debug",
+              ctx,
+              `Scene data wallets: ${JSON.stringify(
+                sceneData.userWithWallets?.wallets.map((w) => ({
+                  id: w.id,
+                  address: w.address,
+                  holdings: w.holdings,
+                }))
+              )}`
+            );
+
+            // Pre-validate token balance for all selected wallets
+            const validationErrors: string[] = [];
+            const validWallets: number[] = [];
+            const skippedWallets: string[] = [];
+
+            for (const walletId of selectedWallets || []) {
+              const wallet = sceneData.userWithWallets?.wallets.find(
+                (w) => w.id === walletId
+              );
+              if (!wallet) {
+                validationErrors.push(`Wallet ${walletId} not found`);
+                continue;
+              }
+
+              const holding = wallet.holdings;
+              this.log(
+                "debug",
+                ctx,
+                `Validating wallet ${wallet.address} (ID: ${walletId})`
+              );
+              this.log(
+                "debug",
+                ctx,
+                `Holding data: ${JSON.stringify(holding)}`
+              );
+
+              if (!holding) {
+                this.log(
+                  "debug",
+                  ctx,
+                  `No holding found for wallet ${wallet.address}`
+                );
+                skippedWallets.push(
+                  `Wallet ${wallet.address}: No ${sceneData.token?.symbol} tokens to sell`
+                );
+                continue;
+              }
+
+              // Check if holding has the correct token ID
+              if (holding.tokenId !== sceneData.token?.id) {
+                this.log(
+                  "debug",
+                  ctx,
+                  `Holding token ID (${holding.tokenId}) doesn't match scene token ID (${sceneData.token?.id}) for wallet ${wallet.address}`
+                );
+                skippedWallets.push(
+                  `Wallet ${wallet.address}: No ${sceneData.token?.symbol} tokens to sell`
+                );
+                continue;
+              }
+
+              if (!holding.balance) {
+                this.log(
+                  "debug",
+                  ctx,
+                  `No balance found in holding for wallet ${wallet.address}`
+                );
+                skippedWallets.push(
+                  `Wallet ${wallet.address}: No ${sceneData.token?.symbol} tokens to sell`
+                );
+                continue;
+              }
+
+              const balanceBN = BigInt(holding.balance);
+              this.log(
+                "debug",
+                ctx,
+                `Balance for wallet ${wallet.address}: ${balanceBN.toString()}`
+              );
+
+              if (balanceBN === BigInt(0)) {
+                this.log(
+                  "debug",
+                  ctx,
+                  `Zero balance for wallet ${wallet.address}`
+                );
+                skippedWallets.push(
+                  `Wallet ${wallet.address}: No ${sceneData.token?.symbol} tokens to sell`
+                );
+              } else {
+                this.log(
+                  "debug",
+                  ctx,
+                  `Valid balance found for wallet ${
+                    wallet.address
+                  }: ${balanceBN.toString()}`
+                );
+                validWallets.push(walletId);
+              }
+            }
+
+            if (validWallets.length === 0) {
+              const errorMessage = `❌ <b>No tokens to sell:</b>\n${skippedWallets
+                .map((wallet) => this.escapeHtml(wallet))
+                .join(
+                  "\n"
+                )}\n\n💡 Try refreshing your balances or switching to buy mode if you're sure you have tokens.`;
+              await this.createDismissMessage(ctx, errorMessage);
+              return true;
+            }
+
+            // Show warnings for skipped wallets if any
+            if (skippedWallets.length > 0) {
+              const totalSkipped = skippedWallets.length;
+              const totalSelected = selectedWallets?.length || 0;
+              const tokenSymbol = this.escapeHtml(
+                sceneData.token?.symbol || "tokens"
+              );
+              const warningMessage = `⚠️ No ${tokenSymbol} in ${totalSkipped}/${totalSelected} wallet(s)`;
+              await this.createDismissMessage(ctx, warningMessage);
+            }
+
             await this.menus.showTradeMenu(ctx, sceneData, messageId, true);
 
             const instantReply = await ctx.reply(
-              `⏳ Processing Sell Tx ${sceneData.token?.symbol}...\n`
+              `⏳ Processing Sell Tx ${this.escapeHtml(
+                sceneData.token?.symbol || ""
+              )}...\n`
             );
 
             const results = await Promise.allSettled(
-              selectedWallets?.map((wid) =>
+              validWallets.map((wid) =>
                 this.service.sellToken(
                   ctx,
                   sceneData,
@@ -554,13 +833,64 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
                   userId,
                   this.createTransactionSuccessCallback(ctx, "sell")
                 )
-              ) || []
+              )
             );
 
             await ctx.deleteMessage(instantReply.message_id);
+
+            // Check results and handle errors
+            const failedResults = results.filter(
+              (result) => result.status === "rejected"
+            );
+
+            if (failedResults.length > 0) {
+              // Show error message to user
+              const errorMessages = failedResults.map((result) => {
+                const error = result.reason;
+                if (error instanceof Error) {
+                  // Use the user-friendly error extractor
+                  return extractUserFriendlyError(error);
+                }
+                return TRADE_TEXTS.ERRORS.TRANSACTION_FAILED;
+              });
+
+              const errorMessage = `⚠️ <b>Sell transaction failed:</b>\n${errorMessages
+                .map((msg) => this.escapeHtml(msg))
+                .join("\n")}`;
+              await this.createDismissMessage(ctx, errorMessage);
+
+              // Re-enable the menu buttons
+              await this.menus.showTradeMenu(ctx, sceneData, messageId, false);
+            } else {
+              // All transactions succeeded, success callback will handle menu update
+              this.log(
+                "info",
+                ctx,
+                "All sell transactions completed successfully"
+              );
+            }
           } catch (error) {
             this.log("error", ctx, `Error selling token: ${error}`);
+
+            // Show error message to user
+            const errorMessage =
+              error instanceof Error
+                ? extractUserFriendlyError(error)
+                : "Unknown error occurred";
+            await this.createDismissMessage(
+              ctx,
+              `<b>${TRADE_TEXTS.ERRORS.SELL_FAILED}:</b> ${this.escapeHtml(
+                errorMessage
+              )}`
+            );
+
+            // Re-enable the menu buttons
+            await this.menus.showTradeMenu(ctx, sceneData, messageId, false);
           }
+          return true;
+        case "DISMISS_TX_MSG":
+          await ctx.answerCbQuery();
+          await ctx.deleteMessage(parseInt(callback.split(":")[1]));
           return true;
 
         default:
@@ -951,6 +1281,10 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
   }
 
   /**
+   * Helper function to refresh balances from blockchain and update the menu
+   */
+
+  /**
    * Public method to create transaction success callback
    */
   public createTransactionSuccessCallback(
@@ -1072,8 +1406,27 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
         // Check all wallets for tokens to sell and select those with tokens
         const walletsWithTokens: number[] = [];
 
+        this.log(
+          "debug",
+          ctx,
+          `SwitchMode: Checking wallets for tokens to sell. Total wallets: ${
+            sceneData.userWithWallets?.wallets?.length || 0
+          }`
+        );
+
         // Check all wallets for tokens
         for (const wallet of sceneData.userWithWallets?.wallets || []) {
+          this.log(
+            "debug",
+            ctx,
+            `SwitchMode: Checking wallet ${wallet.id} (${wallet.address}) for tokens`
+          );
+          this.log(
+            "debug",
+            ctx,
+            `SwitchMode: Wallet holdings: ${JSON.stringify(wallet.holdings)}`
+          );
+
           const hasTokenBalance =
             wallet.holdings &&
             wallet.holdings.balance &&
@@ -1434,5 +1787,70 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
     );
     this.cleanupTokenInfoListener();
     await super.cleanup(ctx);
+  }
+
+  private escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  private async createDismissMessage(
+    ctx: GlobalSceneContext,
+    message: string,
+    messageId?: number
+  ): Promise<number> {
+    if (messageId) {
+      // Edit existing message with dismiss button
+      const dismissKeyboard = {
+        inline_keyboard: [
+          [
+            {
+              text: "🗑️ Dismiss",
+              callback_data: `${this.instanceId}:${CB.DISMISS_ERROR}:${messageId}`,
+            },
+          ],
+        ],
+      };
+
+      await ctx.telegram.editMessageText(
+        ctx.chat?.id!,
+        messageId,
+        undefined,
+        message,
+        {
+          parse_mode: "HTML",
+          reply_markup: dismissKeyboard,
+        }
+      );
+      return messageId;
+    } else {
+      // Send new message first, then add dismiss button
+      const sentMessage = await ctx.reply(message, {
+        parse_mode: "HTML",
+      });
+
+      // Now edit the message to add the dismiss button with the correct message_id
+      await ctx.telegram.editMessageReplyMarkup(
+        ctx.chat?.id!,
+        sentMessage.message_id,
+        undefined,
+        {
+          inline_keyboard: [
+            [
+              {
+                text: "🗑️ Dismiss",
+                callback_data: `${this.instanceId}:${CB.DISMISS_ERROR}:${sentMessage.message_id}`,
+              },
+            ],
+          ],
+        }
+      );
+
+      return sentMessage.message_id;
+    }
   }
 }
