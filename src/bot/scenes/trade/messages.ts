@@ -130,12 +130,9 @@ export const TRADE_TEXTS = {
           .join(" | ")
       );
 
-      const walletBalances = `${ethBalanceLines.join(
-        "\n"
-      )}\n<b>👛 Bag:</b> ${totalHoldings} ${tokenSymbol}\n${tokenBalanceLines.join(
-        "\n"
-      )}`;
-
+      const walletBalances = `<b>${tokenSymbol}:</b> ${totalHoldings}
+${tokenBalanceLines.join("\n")}\n
+${ethBalanceLines.join("\n")}`;
       // Different message format for buy vs sell
       const amountLabel = isSell ? "💸 <b>Sell:</b> " : "💸 <b>Buy:</b> ";
       const amountSuffix = isSell ? "%" : " Ξ";
@@ -252,4 +249,28 @@ export function formatHolders(holders?: string): string {
   if (isNaN(value)) return "N/A";
 
   return Math.floor(value).toLocaleString();
+}
+
+/**
+ * Format total holdings with natural abbreviations (K, M, B, T)
+ */
+export function formatTotalHoldings(totalHoldings?: string): string {
+  if (!totalHoldings) return "0";
+
+  const value = parseFloat(totalHoldings);
+  if (isNaN(value)) return "0";
+
+  if (value >= 1000000000000) {
+    return `${(value / 1000000000000).toFixed(2)}T`;
+  } else if (value >= 1000000000) {
+    return `${(value / 1000000000).toFixed(2)}B`;
+  } else if (value >= 1000000) {
+    return `${(value / 1000000).toFixed(2)}M`;
+  } else if (value >= 1000) {
+    return `${(value / 1000).toFixed(2)}K`;
+  } else if (value >= 1) {
+    return `${value.toFixed(2)}`;
+  } else {
+    return `${value.toFixed(6)}`;
+  }
 }

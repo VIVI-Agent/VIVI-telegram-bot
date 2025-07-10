@@ -296,7 +296,7 @@ export class UserService {
           where: { isDeleted: false },
           include: {
             holdings: {
-              where: { tokenId, balance: { not: "0" } },
+              where: { tokenId },
               include: { token: true },
               take: 1, // Solo tomar el primer holding
             },

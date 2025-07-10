@@ -1,7 +1,7 @@
 import { GENERIC_BUTTONS, GENERIC_ERRORS } from "@texts";
 import { BaseMenus, GlobalSceneContext, TradeSceneData } from "../../types";
 import { CB } from "./callbacks";
-import { TRADE_TEXTS } from "./messages";
+import { TRADE_TEXTS, formatTotalHoldings } from "./messages";
 import { Markup } from "telegraf";
 
 export class TradeMenus extends BaseMenus {
@@ -101,10 +101,7 @@ export class TradeMenus extends BaseMenus {
         amount!,
         sceneData.state === "trade_sell", // Pass mode to determine message type
         sceneData.externalTokenInfo, // Pass token info from scene data
-        totalHoldings?.toLocaleString("en-US", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 4,
-        })
+        formatTotalHoldings(totalHoldings?.toString())
       );
 
       if (hideMenuKeyboard) {

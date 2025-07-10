@@ -139,60 +139,56 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
               sceneData.userWithSettings.sellSettings?.slippage?.toString();
             this.updateSceneData(ctx, sceneData);
 
-            // Check if user has any tokens to sell and select only default wallet
+            // Check all wallets for tokens to sell and select those with tokens
             let hasAnyTokens = false;
-            const defaultWallet = sceneData.userWithWallets.wallets.find(
-              (wallet) => wallet.isSelected
-            );
+            const walletsWithTokens: number[] = [];
 
-            if (defaultWallet) {
-              // Check if default wallet has tokens to sell
+            // Check all wallets for tokens
+            for (const wallet of sceneData.userWithWallets.wallets) {
               const hasTokenBalance =
-                defaultWallet.holdings &&
-                defaultWallet.holdings.balance &&
-                BigInt(defaultWallet.holdings.balance) > BigInt(0);
+                wallet.holdings &&
+                wallet.holdings.balance &&
+                BigInt(wallet.holdings.balance) > BigInt(0);
 
               if (hasTokenBalance) {
-                sceneData.selectedWallets?.push(defaultWallet.id);
+                walletsWithTokens.push(wallet.id);
                 hasAnyTokens = true;
                 this.log(
                   "info",
                   ctx,
-                  `Selected default wallet for SELL: ${defaultWallet.id} (${defaultWallet.address}): Token=${defaultWallet.holdings?.balance}`
+                  `Found wallet with tokens for SELL: ${wallet.id} (${wallet.address}): Token=${wallet.holdings?.balance}`
                 );
               } else {
                 this.log(
                   "debug",
                   ctx,
-                  `Default wallet has no tokens to sell: ${defaultWallet.address}`
+                  `Wallet has no tokens to sell: ${wallet.address}`
                 );
               }
-            } else {
-              this.log("warn", ctx, "No default wallet found for sell mode");
             }
 
-            this.log(
-              "info",
-              ctx,
-              `Total selected wallets for sell: ${
-                sceneData.selectedWallets?.length || 0
-              }`
-            );
-
-            // Get best dex for sell mode if we have tokens to sell
+            // Select all wallets that have tokens
             if (hasAnyTokens) {
+              sceneData.selectedWallets = walletsWithTokens;
+              this.log(
+                "info",
+                ctx,
+                `Selected wallets with tokens for SELL: ${sceneData.selectedWallets.join(
+                  ", "
+                )}`
+              );
+
+              // Get best dex for sell mode
               const bestDex = await this.service.getBestDex(ctx, sceneData);
               if (bestDex) {
                 sceneData.bestDex = bestDex.best;
               }
-            }
-
-            // If no tokens to sell, switch to buy mode
-            if (!hasAnyTokens) {
+            } else {
+              // If no tokens found in any wallet, switch to buy mode
               this.log(
                 "info",
                 ctx,
-                `No ${sceneData.token?.symbol} tokens found in wallets, switching to buy mode`
+                `No ${sceneData.token?.symbol} tokens found in any wallet, switching to buy mode`
               );
 
               // Switch to buy mode
@@ -311,16 +307,9 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
               sceneData.selectedWallets.push(walletId);
               this.log("info", ctx, `Selected wallet ID: ${walletId}`);
             }
-            // Update the menu
-            const updatedMenuId = await this.menus.showTradeMenu(
-              ctx,
-              sceneData,
-              messageId
-            );
-            if (updatedMenuId) {
-              sceneData.menuMessageId = updatedMenuId;
-            }
-            this.updateSceneData(ctx, sceneData);
+
+            // Refresh quote and update menu with new wallet selection
+            await this.refreshQuoteAndMenu(ctx);
           }
           return true;
 
@@ -335,10 +324,9 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
               );
               this.log("info", ctx, `Unselected wallet ID: ${walletId}`);
             }
-            // Update the menu
-            this.updateSceneData(ctx, sceneData);
 
-            await this.menus.showTradeMenu(ctx, sceneData, messageId);
+            // Refresh quote and update menu with new wallet selection
+            await this.refreshQuoteAndMenu(ctx);
           }
           return true;
 
@@ -378,8 +366,8 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
               );
             }
 
-            this.updateSceneData(ctx, currentSceneData);
-            await this.menus.showTradeMenu(ctx, currentSceneData, messageId);
+            // Refresh quote and update menu with new wallet selection
+            await this.refreshQuoteAndMenu(ctx);
           }
           return true;
 
@@ -1081,37 +1069,47 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
         sceneData.selectedSlippage =
           sceneData.userWithSettings?.sellSettings?.slippage?.toString();
 
-        // Auto-select only the default wallet for sell
-        const defaultWallet = sceneData.userWithWallets?.wallets?.find(
-          (wallet) => wallet.isSelected
-        );
+        // Check all wallets for tokens to sell and select those with tokens
+        const walletsWithTokens: number[] = [];
 
-        if (defaultWallet) {
-          // Check if default wallet has tokens to sell
+        // Check all wallets for tokens
+        for (const wallet of sceneData.userWithWallets?.wallets || []) {
           const hasTokenBalance =
-            defaultWallet.holdings &&
-            defaultWallet.holdings.balance &&
-            BigInt(defaultWallet.holdings.balance) > BigInt(0);
+            wallet.holdings &&
+            wallet.holdings.balance &&
+            BigInt(wallet.holdings.balance) > BigInt(0);
 
           if (hasTokenBalance) {
-            sceneData.selectedWallets?.push(defaultWallet.id);
+            walletsWithTokens.push(wallet.id);
             this.log(
               "info",
               ctx,
-              `Selected default wallet for switched SELL mode: ${defaultWallet.id}`
+              `Found wallet with tokens for switched SELL mode: ${wallet.id} (${wallet.address}): Token=${wallet.holdings?.balance}`
             );
           } else {
             this.log(
               "debug",
               ctx,
-              `Default wallet has no tokens to sell in switched mode`
+              `Wallet has no tokens to sell in switched mode: ${wallet.address}`
             );
           }
+        }
+
+        // Select all wallets that have tokens
+        if (walletsWithTokens.length > 0) {
+          sceneData.selectedWallets = walletsWithTokens;
+          this.log(
+            "info",
+            ctx,
+            `Selected wallets with tokens for switched SELL mode: ${sceneData.selectedWallets.join(
+              ", "
+            )}`
+          );
         } else {
           this.log(
             "warn",
             ctx,
-            "No default wallet found for switched sell mode"
+            "No wallets with tokens found for switched sell mode"
           );
         }
       }

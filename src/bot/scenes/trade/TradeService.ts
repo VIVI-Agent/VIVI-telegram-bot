@@ -71,14 +71,24 @@ export class TradeService extends BaseService {
           ethAmount = buySettings?.amount1 ?? 0.01;
         }
 
-        // Convertir ETH a Wei (multiplicar por 10^18)
-        const defaultAmountBN = BigInt(Math.floor(ethAmount * 10 ** 18));
+        // Get number of selected wallets to calculate total amount
+        const selectedWalletIds = sceneData.selectedWallets || [];
+        const numberOfWallets = selectedWalletIds.length;
 
-        this.log("info", ctx, `Buy amount in ETH: ${ethAmount}`);
+        // If no wallets selected, use default amount for 1 wallet
+        const effectiveAmount =
+          numberOfWallets > 0 ? ethAmount * numberOfWallets : ethAmount;
+
+        // Convertir ETH a Wei (multiplicar por 10^18)
+        const totalAmountBN = BigInt(Math.floor(effectiveAmount * 10 ** 18));
+
+        this.log("info", ctx, `Buy amount per wallet in ETH: ${ethAmount}`);
+        this.log("info", ctx, `Number of selected wallets: ${numberOfWallets}`);
+        this.log("info", ctx, `Total buy amount in ETH: ${effectiveAmount}`);
         this.log(
           "info",
           ctx,
-          `Buy amount in Wei: ${defaultAmountBN.toString()}`
+          `Total buy amount in Wei: ${totalAmountBN.toString()}`
         );
 
         const bestResult = await getBestDexForBuyEthToToken({
@@ -86,7 +96,7 @@ export class TradeService extends BaseService {
           tokenOut: tokenAddress!,
           decimalsOut,
           feeTiers: FEE_TIERS,
-          amountEth: defaultAmountBN,
+          amountEth: totalAmountBN,
         });
         return bestResult;
       } else if (sceneData.state === "trade_sell" && token) {
