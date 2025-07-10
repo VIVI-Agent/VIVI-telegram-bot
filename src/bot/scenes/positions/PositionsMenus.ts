@@ -10,6 +10,17 @@ export class PositionsMenus extends BaseMenus {
   }
 
   /**
+   * Helper function to format numbers with US-style separators
+   */
+  private formatNumberUS(value: string | number, decimals: number = 4): string {
+    const numValue = typeof value === "string" ? parseFloat(value) : value;
+    return numValue.toLocaleString("en-US", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: decimals,
+    });
+  }
+
+  /**
    * Show the main positions menu
    */
   async showPositionsMenu(
@@ -81,11 +92,12 @@ export class PositionsMenus extends BaseMenus {
       text += POSITIONS_TEXTS.MESSAGES.NO_TOKENS_MESSAGE;
     } else {
       // Add portfolio summary
-      text += `${POSITIONS_TEXTS.MESSAGES.TOTAL_VALUE} ${totalWorthEth.toFixed(
+      text += `${POSITIONS_TEXTS.MESSAGES.TOTAL_VALUE} ${this.formatNumberUS(
+        totalWorthEth,
         4
       )} ETH\n`;
       text += `${POSITIONS_TEXTS.MESSAGES.TOTAL_PNL} ${formatPnl(
-        totalProfitLoss.toFixed(4)
+        this.formatNumberUS(totalProfitLoss, 4)
       )} ETH\n\n`;
 
       // Add token list with PNL
@@ -106,7 +118,8 @@ export class PositionsMenus extends BaseMenus {
           text += `${emoji} <b><a href="${generateTradeLink({
             tokenAddress: item.token.address,
             mode: "sell",
-          })}">${item.token.symbol}</a></b>: ${parseFloat(item.balance).toFixed(
+          })}">${item.token.symbol}</a></b>: ${this.formatNumberUS(
+            item.balance,
             4
           )}\n`;
         } catch (error) {
@@ -116,13 +129,17 @@ export class PositionsMenus extends BaseMenus {
             ctx,
             `Failed to generate trade links for ${item.token.symbol}: ${error}`
           );
-          text += `${emoji} <b>${item.token.symbol}</b>: ${parseFloat(
-            item.balance
-          ).toFixed(4)}\n`;
+          text += `${emoji} <b>${item.token.symbol}</b>: ${this.formatNumberUS(
+            item.balance,
+            4
+          )}\n`;
         }
-        text += `   ${POSITIONS_TEXTS.MESSAGES.TOTAL_VALUE} ${(
-          parseFloat(item.unrealizedPnlEth) + parseFloat(item.realizedPnlEth)
-        ).toFixed(6)} ETH\n`;
+        text += `   ${
+          POSITIONS_TEXTS.MESSAGES.TOTAL_VALUE
+        } ${this.formatNumberUS(
+          parseFloat(item.unrealizedPnlEth) + parseFloat(item.realizedPnlEth),
+          6
+        )} ETH\n`;
         text += `   ${POSITIONS_TEXTS.MESSAGES.TOTAL_PNL} ${formatPnl(
           item.totalPnlEth
         )} ETH (${pctFormatted}%)\n\n`;
