@@ -9,6 +9,7 @@ import {
   findMultiWordToken,
   generateClickeableToken,
   normalizeAmount,
+  viviJoin,
 } from "@utils";
 import { TextHandler, TextMatch } from "./types";
 import { publicClientQuickNode } from "@client";
@@ -534,7 +535,9 @@ async function executeBurnCommand(
     message = `✅ <b>Burn Successful!</b>\n`;
     message += `💰 <b>Amount:</b> ${burnAmountFormatted} ${tokenLink}\n`;
     message += `🌐 <a href="https://basescan.org/tx/${tx.txHash}">View on BaseScan</a>`;
-
+    if (ctx.chat?.type === "group" || ctx.chat?.type === "supergroup") {
+      message += `\n${viviJoin(ctx.from?.username)}`;
+    }
     await ctx.telegram.editMessageText(
       ctx.chat!.id,
       initialMessage.message_id,

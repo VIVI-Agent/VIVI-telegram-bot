@@ -42,7 +42,7 @@ export const MAIN_MENU_TEXTS = {
 
       // Return the formatted text
       return `
-<a href="https://github.com/VIVI-Agent/VIVI-changelog/blob/main/CHANGELOG.md"><b>👒 v.0.6.9 (Beta)</b></a>
+<a href="https://github.com/VIVI-Agent/VIVI-changelog/blob/main/CHANGELOG.md"><b>👒 v.0.7.0 (Beta)</b></a>
 ___________________________________
 <a href="https://vivi.win/docs">📄 Docs</a>
 <a href="https://vivi.win">🌎 Website</a>

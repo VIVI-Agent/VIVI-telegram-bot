@@ -134,8 +134,10 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
               sceneData.bestDex = bestDex.best;
             }
           } else if (sceneData.state === "trade_sell") {
-            sceneData.selectedAmount =
-              sceneData.userWithSettings.sellSettings?.amount1?.toString();
+            // Use the highest percentage from sellSettings for sell mode
+            sceneData.selectedAmount = this.getHighestSellPercentage(
+              sceneData.userWithSettings.sellSettings
+            );
             sceneData.selectedSlippage =
               sceneData.userWithSettings.sellSettings?.slippage?.toString();
             this.updateSceneData(ctx, sceneData);
@@ -1343,6 +1345,22 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
   /**
    * Switch between buy and sell modes
    */
+  /**
+   * Get the highest percentage from sellSettings
+   */
+  private getHighestSellPercentage(sellSettings: any): string {
+    if (!sellSettings) return "25"; // Default fallback
+
+    const percentages = [
+      sellSettings.amount1 || 0,
+      sellSettings.amount2 || 0,
+      sellSettings.amount3 || 0,
+    ];
+
+    const highestPercentage = Math.max(...percentages);
+    return highestPercentage.toString();
+  }
+
   private async switchMode(
     ctx: GlobalSceneContext,
     newMode: "trade_buy" | "trade_sell"
@@ -1398,8 +1416,10 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
           );
         }
       } else {
-        sceneData.selectedAmount =
-          sceneData.userWithSettings?.sellSettings?.amount1?.toString();
+        // Use the highest percentage from sellSettings for sell mode
+        sceneData.selectedAmount = this.getHighestSellPercentage(
+          sceneData.userWithSettings?.sellSettings
+        );
         sceneData.selectedSlippage =
           sceneData.userWithSettings?.sellSettings?.slippage?.toString();
 

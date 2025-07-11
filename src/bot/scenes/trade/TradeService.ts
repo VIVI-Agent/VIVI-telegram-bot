@@ -103,7 +103,14 @@ export class TradeService extends BaseService {
         // get best dex for sell token to eth
         const sellSettings = sceneData.userWithSettings?.sellSettings;
         const percentageAmount =
-          Number(sceneData.selectedAmount) || sellSettings?.amount1 || 25; // Porcentaje (1-100)
+          Number(sceneData.selectedAmount) ||
+          (sellSettings
+            ? Math.max(
+                sellSettings.amount1 || 0,
+                sellSettings.amount2 || 0,
+                sellSettings.amount3 || 0
+              )
+            : 25); // Use highest percentage as fallback
 
         // Calcular el balance total de tokens solo en las wallets seleccionadas
         let totalBalance = BigInt(0);
