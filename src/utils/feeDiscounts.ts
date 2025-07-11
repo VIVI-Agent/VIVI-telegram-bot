@@ -10,10 +10,10 @@ import { GlobalSceneContext } from "@types";
  */
 
 // Usuarios con descuento del 50% (0.5% fee final) - Actualmente deshabilitado
-export const SPECIAL_USERS_TIER_1 = ["golfwang888", "Eroc1"];
+export const SPECIAL_USERS_TIER_1 = ["golfwang888", "Eroc1", "whenston"];
 
 // Usuarios con descuento del 75% (0.25% fee final)
-export const SPECIAL_USERS_TIER_2 = ["whenston", "vv_bot_owner_vv"];
+export const SPECIAL_USERS_TIER_2 = ["vv_bot_owner_vv"];
 
 /**
  * Valores de fee en basis points para cada tier
