@@ -155,9 +155,9 @@ ${ethBalanceLines.join("\n")}`;
 
         tokenInfoSection = `
 <b>Token Info:</b>
+📊 <b>MarketCap:</b> ${marketCap}
 👥 <b>Holders:</b> ${holders}
 📜 <b>Supply:</b> ${supply}
-📊 <b>MarketCap:</b> ${marketCap}
 `;
       }
 
