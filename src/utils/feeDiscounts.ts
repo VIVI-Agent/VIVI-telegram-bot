@@ -79,9 +79,9 @@ export function hasSpecialDiscount(
 
 /**
  * Calcula el fee final para un token considerando:
- * 1. Configuración de whitelist del token
- * 2. Descuentos especiales del usuario (TIER_1 tiene máxima precedencia)
- * 3. Override para tokens estables (solo si no hay descuento especial TIER_1)
+ * 1. Descuentos especiales del usuario (TIER_1 y TIER_2 tienen máxima precedencia)
+ * 2. Configuración de whitelist del token (solo si no hay descuento especial)
+ * 3. Override para tokens estables (solo si no hay descuento especial)
  *
  * @param ctx - Contexto de la aplicación
  * @param tokenAddress - Dirección del token
@@ -97,7 +97,7 @@ export async function calculateFinalFee(
     `[FEE_DEBUG] Starting calculateFinalFee for userId: ${userId}, tokenAddress: ${tokenAddress}`
   );
 
-  // 1. Obtener usuario para verificar descuentos especiales
+  // 1. Obtener usuario para verificar descuentos especiales PRIMERO
   const user = await ctx.services.userService.getUserById(userId);
   console.log(
     `[FEE_DEBUG] User found: ${user?.tgUsername}, userId: ${user?.id}`
@@ -106,35 +106,35 @@ export async function calculateFinalFee(
   const specialFee = getSpecialUserFee(user?.tgUsername);
   console.log(`[FEE_DEBUG] Special fee calculated: ${specialFee}`);
 
-  // 2. Obtener configuración de whitelist del token
+  // 2. Si el usuario tiene descuento especial, devolver inmediatamente
+  if (specialFee !== null) {
+    if (user?.tgUsername && SPECIAL_USERS_TIER_1.includes(user.tgUsername)) {
+      console.log(
+        `[FEE_DISCOUNT] User ${user.tgUsername} gets TIER_1 discount: ${specialFee} bps (0.5%) - IMMEDIATE RETURN`
+      );
+    } else if (user?.tgUsername) {
+      console.log(
+        `[FEE_DISCOUNT] User ${user.tgUsername} gets TIER_2 discount: ${specialFee} bps (0.25%) - IMMEDIATE RETURN`
+      );
+    } else {
+      console.log(
+        `[FEE_DISCOUNT] User with special discount but no username - IMMEDIATE RETURN`
+      );
+    }
+    return specialFee;
+  }
+
+  // 3. Solo si NO hay descuento especial, obtener configuración de whitelist del token
   const tokenWL = await ctx.services.feeWhitelistService.getTokenWhitelist(
     tokenAddress
   );
   let feePercent = tokenWL?.feeBps ?? contracts.FEE_AMOUNT;
 
   console.log(
-    `[FEE_DEBUG] Token WL fee: ${tokenWL?.feeBps}, Default fee: ${contracts.FEE_AMOUNT}, Initial feePercent: ${feePercent}`
+    `[FEE_DEBUG] No special discount found. Token WL fee: ${tokenWL?.feeBps}, Default fee: ${contracts.FEE_AMOUNT}, feePercent: ${feePercent}`
   );
 
-  // 3. Si el usuario tiene descuento especial TIER_1, tiene máxima precedencia
-  if (
-    specialFee !== null &&
-    user?.tgUsername &&
-    SPECIAL_USERS_TIER_1.includes(user.tgUsername)
-  ) {
-    console.log(
-      `[FEE_DISCOUNT] User ${user.tgUsername} gets TIER_1 discount: ${specialFee} bps (0.5%) - OVERRIDING tokenWL`
-    );
-    return specialFee;
-  }
-
-  // 4. Aplicar otros descuentos especiales (TIER_2)
-  if (specialFee !== null) {
-    feePercent = specialFee;
-    console.log(`[FEE_DEBUG] Applying TIER_2 special fee: ${specialFee}`);
-  }
-
-  // 5. Override para tokens estables (solo si no hay descuento especial TIER_1)
+  // 4. Override para tokens estables (solo si no hay descuento especial)
   if (tokenWL?.type === WhitelistType.STABLE) {
     feePercent = 0;
     console.log(`[FEE_DEBUG] Applying STABLE override: 0`);
