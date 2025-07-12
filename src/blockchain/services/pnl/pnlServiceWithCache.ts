@@ -5,6 +5,8 @@ import { publicClientDRPC } from "@client";
 import { PnlData } from "@domain";
 import { GlobalSceneContext } from "@types";
 import { pnlUpdateEmitter } from "./pnlUpdateEmitter";
+import { getTokenBalance } from "blockchain/transactions/balanceToken";
+import { Address } from "viem";
 
 export interface PnlSummary {
   token: { symbol: string; address: string; id: number; decimals: number };
@@ -209,7 +211,74 @@ export class PnlServiceWithCache {
   }
 
   /**
-   * Update user PnL cache in background
+   * Update all user holdings from blockchain before calculating PnL
+   */
+  private async updateHoldingsFromBlockchain(
+    ctx: GlobalSceneContext,
+    userId: number
+  ): Promise<void> {
+    try {
+      logger.debug(
+        `[PnlServiceWithCache] Updating holdings from blockchain for user ${userId}`
+      );
+
+      // Get all user wallets
+      const wallets = await ctx.services.walletService.getUserWallets(userId);
+
+      // Get all tokens that user has ever held
+      const allHoldings = await ctx.services.holdingService.getHoldingsByUserId(
+        userId
+      );
+
+      // Update balances for each wallet-token combination
+      const updatePromises = wallets.map(async (wallet: any) => {
+        const walletHoldings = allHoldings.filter(
+          (h) => h.walletId === wallet.id
+        );
+
+        return Promise.all(
+          walletHoldings.map(async (holding) => {
+            try {
+              // Get current balance from blockchain
+              const currentBalance = await getTokenBalance(
+                holding.token.address as Address,
+                wallet.address as Address
+              );
+
+              // Update holding in database
+              await ctx.services.holdingService.updateHoldingFromChain({
+                userId: userId,
+                tokenId: holding.tokenId,
+                walletId: wallet.id,
+                newBalance: currentBalance,
+              });
+
+              logger.debug(
+                `[PnlServiceWithCache] Updated ${holding.token.symbol} balance for wallet ${wallet.address}: ${currentBalance}`
+              );
+            } catch (error) {
+              logger.error(
+                `[PnlServiceWithCache] Failed to update ${holding.token.symbol} balance for wallet ${wallet.address}: ${error}`
+              );
+            }
+          })
+        );
+      });
+
+      await Promise.all(updatePromises);
+      logger.debug(
+        `[PnlServiceWithCache] Holdings updated from blockchain successfully for user ${userId}`
+      );
+    } catch (error) {
+      logger.error(
+        `[PnlServiceWithCache] Error updating holdings from blockchain: ${error}`
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Update user PnL cache in background (same as refresh but non-blocking)
    */
   async updateUserPnlCacheInBackground(
     ctx: GlobalSceneContext,
@@ -220,37 +289,23 @@ export class PnlServiceWithCache {
         `[PnlServiceWithCache] Starting background PnL update for user ${userId}`
       );
 
+      // 1. Clear old PnL cache to ensure fresh data
+      await ctx.services.pnlCacheService.clearUserPnlCache(userId);
+      logger.debug(
+        `[PnlServiceWithCache] Cleared old PnL cache for user ${userId}`
+      );
+
+      // 2. Update holdings from blockchain (same as refresh)
+      await this.updateHoldingsFromBlockchain(ctx, userId);
+      logger.debug(
+        `[PnlServiceWithCache] Updated holdings from blockchain for user ${userId}`
+      );
+
+      // 3. Calculate fresh PnL data
       const freshData = await this.calculateFreshUserPnl(ctx, userId);
 
-      // Save each token's PnL to cache
-      for (const tokenPnl of freshData) {
-        // Find the holding for this token (using first holding for now)
-        const holding = await ctx.services.holdingService.getHoldingByTokenId(
-          userId,
-          tokenPnl.token.id
-        );
-
-        if (holding) {
-          const pnlData: PnlData = {
-            currentValueWei: parseUnits(tokenPnl.totalPnlEth, 18).toString(), // This needs proper calculation
-            currentPriceWei: parseUnits(tokenPnl.currentPrice, 18).toString(),
-            costBasisWei: "0", // TODO: Calculate from holding data
-            unrealizedPnlWei: parseUnits(
-              tokenPnl.unrealizedPnlEth,
-              18
-            ).toString(),
-            realizedPnlWei: parseUnits(tokenPnl.realizedPnlEth, 18).toString(),
-            totalPnlWei: parseUnits(tokenPnl.totalPnlEth, 18).toString(),
-            percentageReturn: tokenPnl.percentageReturn.replace("%", ""),
-          };
-
-          await ctx.services.pnlCacheService.savePnlCache(
-            userId,
-            holding.id,
-            pnlData
-          );
-        }
-      }
+      // 4. Save fresh data to cache
+      await this.saveFreshDataToCache(ctx, userId, freshData);
 
       logger.debug(
         `[PnlServiceWithCache] Background PnL update completed for user ${userId}, emitting update event`
@@ -388,15 +443,23 @@ export class PnlServiceWithCache {
 
       // Get current token balance and calculation variables
       const tokenBalance = BigInt(holding.balance);
-      const costBasis = BigInt(holding.totalCostBasis || "0");
+      const totalCostBasis = BigInt(holding.totalCostBasis || "0");
       const totalTokensBought = BigInt(holding.totalTokensBought || "0");
       const realizedPnl = BigInt(holding.realizedPnlWei || "0");
 
-      // Calculate average cost
+      // Calculate proportional cost basis for current tokens
+      let proportionalCostBasis = 0n;
+      if (totalTokensBought > 0n && tokenBalance > 0n) {
+        // Calculate what portion of the total cost basis belongs to current tokens
+        proportionalCostBasis =
+          (totalCostBasis * tokenBalance) / totalTokensBought;
+      }
+
+      // Calculate average cost per token
       const averageCost =
         totalTokensBought > 0n
           ? formatEther(
-              (costBasis * parseUnits("1", holding.token.decimals)) /
+              (totalCostBasis * parseUnits("1", holding.token.decimals)) /
                 totalTokensBought
             )
           : "0";
@@ -430,17 +493,41 @@ export class PnlServiceWithCache {
         }
       }
 
-      // Calculate unrealized PNL
-      const unrealizedPnl = currentValue - costBasis;
+      // Calculate unrealized PNL based on proportional cost basis
+      const unrealizedPnl = currentValue - proportionalCostBasis;
 
       // Calculate total PNL (realized + unrealized)
       const totalPnl = realizedPnl + unrealizedPnl;
 
-      // Calculate percentage return
+      // Calculate percentage return based on proportional cost basis
       const percentageReturn =
-        costBasis > 0n
-          ? ((Number(totalPnl) / Number(costBasis)) * 100).toFixed(2)
+        proportionalCostBasis > 0n
+          ? ((Number(totalPnl) / Number(proportionalCostBasis)) * 100).toFixed(
+              2
+            )
           : "0";
+
+      // Log calculation details for debugging
+      logger.info(
+        `[PnlServiceWithCache] PnL calculation for holding ${holdingId}:` +
+          `\n   Token Balance: ${formatUnits(
+            tokenBalance,
+            holding.token.decimals
+          )}` +
+          `\n   Total Cost Basis: ${formatEther(totalCostBasis)} ETH` +
+          `\n   Total Tokens Bought: ${formatUnits(
+            totalTokensBought,
+            holding.token.decimals
+          )}` +
+          `\n   Proportional Cost Basis: ${formatEther(
+            proportionalCostBasis
+          )} ETH` +
+          `\n   Current Value: ${formatEther(currentValue)} ETH` +
+          `\n   Unrealized PnL: ${formatEther(unrealizedPnl)} ETH` +
+          `\n   Realized PnL: ${formatEther(realizedPnl)} ETH` +
+          `\n   Total PnL: ${formatEther(totalPnl)} ETH` +
+          `\n   Percentage: ${percentageReturn}%`
+      );
 
       return {
         unrealizedPnlEth: formatEther(unrealizedPnl),

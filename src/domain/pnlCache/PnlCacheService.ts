@@ -101,4 +101,16 @@ export class PnlCacheService {
       },
     });
   }
+
+  /**
+   * Clear all PnL cache for a user (used when refreshing positions)
+   */
+  async clearUserPnlCache(userId: number): Promise<void> {
+    await this.prisma.pnlCache.deleteMany({
+      where: {
+        userId,
+        holdingId: { not: null }, // Only delete holding-specific cache
+      },
+    });
+  }
 }

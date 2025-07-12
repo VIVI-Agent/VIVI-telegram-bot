@@ -192,18 +192,35 @@ export class HoldingService {
     currentRealizedPnl: bigint,
     isCompletelyLiquidated: boolean
   ): Promise<void> {
+    // Calculate the portion of cost basis being realized
+    const costBasisPortion =
+      currentTokensBought > 0n
+        ? (currentCostBasis * tokensSold) / currentTokensBought
+        : 0n;
+
+    // Calculate profit/loss for this sale
+    const tradePnl = ethReceived - costBasisPortion;
+
+    let realizedPnlToSave: string;
+    if (isCompletelyLiquidated) {
+      // Si liquida la posición, guarda el realizedPnl acumulado + tradePnl de la venta final
+      realizedPnlToSave = (currentRealizedPnl + tradePnl).toString();
+    } else {
+      realizedPnlToSave = (currentRealizedPnl + tradePnl).toString();
+    }
+
     await this.prisma.holding.update({
       where: { id: holdingId },
       data: {
         totalCostBasis: isCompletelyLiquidated
           ? "0"
-          : (currentCostBasis - ethReceived).toString(),
+          : (currentCostBasis - costBasisPortion).toString(),
         totalTokensBought: isCompletelyLiquidated
           ? "0"
           : (currentTokensBought - tokensSold).toString(),
         realizedPnlWei: isCompletelyLiquidated
-          ? "0"
-          : (currentRealizedPnl + ethReceived).toString(),
+          ? realizedPnlToSave // Guarda el realizedPnl final de la posición
+          : realizedPnlToSave,
       },
     });
   }

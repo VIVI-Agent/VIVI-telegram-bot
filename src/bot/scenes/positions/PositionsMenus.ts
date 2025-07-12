@@ -79,9 +79,10 @@ export class PositionsMenus extends BaseMenus {
 
     // Calculate totals
     pnlSummary.forEach((item) => {
-      const worth =
-        parseFloat(item.unrealizedPnlEth) + parseFloat(item.realizedPnlEth);
-      totalWorthEth += worth;
+      // Total Value should be the current value of all tokens (balance * currentPrice)
+      const currentValue =
+        parseFloat(item.balance) * parseFloat(item.currentPrice);
+      totalWorthEth += currentValue;
       totalProfitLoss += parseFloat(item.totalPnlEth);
     });
 
@@ -137,7 +138,7 @@ export class PositionsMenus extends BaseMenus {
         text += `   ${
           POSITIONS_TEXTS.MESSAGES.TOTAL_VALUE
         } ${this.formatNumberUS(
-          parseFloat(item.unrealizedPnlEth) + parseFloat(item.realizedPnlEth),
+          parseFloat(item.balance) * parseFloat(item.currentPrice),
           6
         )} ETH\n`;
         text += `   ${POSITIONS_TEXTS.MESSAGES.TOTAL_PNL} ${formatPnl(

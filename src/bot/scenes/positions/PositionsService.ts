@@ -1,5 +1,7 @@
 import { PnlServiceWithCache } from "blockchain/services/pnl/pnlServiceWithCache";
 import { BaseService, GlobalSceneContext } from "../../types";
+import { getTokenBalance } from "blockchain/transactions/balanceToken";
+import { Address } from "viem";
 
 export class PositionsService extends BaseService {
   private backgroundOperations: Set<Promise<any>> = new Set();
@@ -83,6 +85,84 @@ export class PositionsService extends BaseService {
   }
 
   /**
+   * Update all user holdings from blockchain before calculating PnL
+   */
+  private async updateHoldingsFromBlockchain(
+    ctx: GlobalSceneContext
+  ): Promise<void> {
+    try {
+      this.log("info", ctx, "Updating holdings from blockchain...");
+
+      // Get all user wallets
+      const wallets = await ctx.services.walletService.getUserWallets(
+        ctx.user.id
+      );
+
+      // Get all tokens that user has ever held
+      const allHoldings = await ctx.services.holdingService.getHoldingsByUserId(
+        ctx.user.id
+      );
+
+      // Group holdings by wallet and token for efficient updates
+      const holdingsByWalletToken = new Map<string, any>();
+
+      for (const holding of allHoldings) {
+        const key = `${holding.walletId}-${holding.tokenId}`;
+        holdingsByWalletToken.set(key, holding);
+      }
+
+      // Update balances for each wallet-token combination
+      const updatePromises = wallets.map(async (wallet: any) => {
+        const walletHoldings = allHoldings.filter(
+          (h) => h.walletId === wallet.id
+        );
+
+        return Promise.all(
+          walletHoldings.map(async (holding) => {
+            try {
+              // Get current balance from blockchain
+              const currentBalance = await getTokenBalance(
+                holding.token.address as Address,
+                wallet.address as Address
+              );
+
+              // Update holding in database
+              await ctx.services.holdingService.updateHoldingFromChain({
+                userId: ctx.user.id,
+                tokenId: holding.tokenId,
+                walletId: wallet.id,
+                newBalance: currentBalance,
+              });
+
+              this.log(
+                "debug",
+                ctx,
+                `Updated ${holding.token.symbol} balance for wallet ${wallet.address}: ${currentBalance}`
+              );
+            } catch (error) {
+              this.log(
+                "error",
+                ctx,
+                `Failed to update ${holding.token.symbol} balance for wallet ${wallet.address}: ${error}`
+              );
+            }
+          })
+        );
+      });
+
+      await Promise.all(updatePromises);
+      this.log("info", ctx, "Holdings updated from blockchain successfully");
+    } catch (error) {
+      this.log(
+        "error",
+        ctx,
+        `Error updating holdings from blockchain: ${error}`
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Refresh positions data (force fresh calculation)
    */
   async refreshPositions(ctx: GlobalSceneContext) {
@@ -95,6 +175,13 @@ export class PositionsService extends BaseService {
         ctx,
         `Force refreshing positions for user: ${ctx.user.id}`
       );
+
+      // First, clear old PnL cache to ensure fresh data
+      await ctx.services.pnlCacheService.clearUserPnlCache(ctx.user.id);
+      this.log("info", ctx, "Cleared old PnL cache");
+
+      // Second, update all holdings from blockchain
+      await this.updateHoldingsFromBlockchain(ctx);
 
       const pnlService = new PnlServiceWithCache();
 
