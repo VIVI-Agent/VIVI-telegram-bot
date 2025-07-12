@@ -9,7 +9,7 @@ import { GlobalSceneContext } from "@types";
  * Configuración de descuentos especiales en fees
  */
 
-// Usuarios con descuento del 50% (0.5% fee final) - Actualmente deshabilitado
+// Usuarios con descuento del 50% (0.5% fee final)
 export const SPECIAL_USERS_TIER_1 = ["golfwang888", "Eroc1", "whenston"];
 
 // Usuarios con descuento del 75% (0.25% fee final)
@@ -31,16 +31,38 @@ export const FEE_TIERS = {
 export function getSpecialUserFee(
   username: string | null | undefined
 ): number | null {
-  if (!username) return null;
+  console.log(
+    `[FEE_DEBUG] getSpecialUserFee called with username: "${username}"`
+  );
 
+  if (!username) {
+    console.log(`[FEE_DEBUG] No username provided, returning null`);
+    return null;
+  }
+
+  console.log(
+    `[FEE_DEBUG] Checking TIER_2: ${SPECIAL_USERS_TIER_2.includes(username)}`
+  );
   if (SPECIAL_USERS_TIER_2.includes(username)) {
+    console.log(
+      `[FEE_DEBUG] User ${username} in TIER_2, returning ${FEE_TIERS.TIER_2}`
+    );
     return FEE_TIERS.TIER_2;
   }
 
+  console.log(
+    `[FEE_DEBUG] Checking TIER_1: ${SPECIAL_USERS_TIER_1.includes(username)}`
+  );
   if (SPECIAL_USERS_TIER_1.includes(username)) {
+    console.log(
+      `[FEE_DEBUG] User ${username} in TIER_1, returning ${FEE_TIERS.TIER_1}`
+    );
     return FEE_TIERS.TIER_1;
   }
 
+  console.log(
+    `[FEE_DEBUG] User ${username} not in any special tier, returning null`
+  );
   return null;
 }
 
@@ -58,8 +80,8 @@ export function hasSpecialDiscount(
 /**
  * Calcula el fee final para un token considerando:
  * 1. Configuración de whitelist del token
- * 2. Descuentos especiales del usuario
- * 3. Override para tokens estables
+ * 2. Descuentos especiales del usuario (TIER_1 tiene máxima precedencia)
+ * 3. Override para tokens estables (solo si no hay descuento especial TIER_1)
  *
  * @param ctx - Contexto de la aplicación
  * @param tokenAddress - Dirección del token
@@ -71,23 +93,53 @@ export async function calculateFinalFee(
   tokenAddress: Address,
   userId: number
 ): Promise<number> {
-  // 1. Obtener configuración de whitelist del token
+  console.log(
+    `[FEE_DEBUG] Starting calculateFinalFee for userId: ${userId}, tokenAddress: ${tokenAddress}`
+  );
+
+  // 1. Obtener usuario para verificar descuentos especiales
+  const user = await ctx.services.userService.getUserById(userId);
+  console.log(
+    `[FEE_DEBUG] User found: ${user?.tgUsername}, userId: ${user?.id}`
+  );
+
+  const specialFee = getSpecialUserFee(user?.tgUsername);
+  console.log(`[FEE_DEBUG] Special fee calculated: ${specialFee}`);
+
+  // 2. Obtener configuración de whitelist del token
   const tokenWL = await ctx.services.feeWhitelistService.getTokenWhitelist(
     tokenAddress
   );
   let feePercent = tokenWL?.feeBps ?? contracts.FEE_AMOUNT;
 
-  // 2. Obtener usuario para verificar descuentos especiales
-  const user = await ctx.services.userService.getUserById(userId);
-  const specialFee = getSpecialUserFee(user?.tgUsername);
+  console.log(
+    `[FEE_DEBUG] Token WL fee: ${tokenWL?.feeBps}, Default fee: ${contracts.FEE_AMOUNT}, Initial feePercent: ${feePercent}`
+  );
+
+  // 3. Si el usuario tiene descuento especial TIER_1, tiene máxima precedencia
+  if (
+    specialFee !== null &&
+    user?.tgUsername &&
+    SPECIAL_USERS_TIER_1.includes(user.tgUsername)
+  ) {
+    console.log(
+      `[FEE_DISCOUNT] User ${user.tgUsername} gets TIER_1 discount: ${specialFee} bps (0.5%) - OVERRIDING tokenWL`
+    );
+    return specialFee;
+  }
+
+  // 4. Aplicar otros descuentos especiales (TIER_2)
   if (specialFee !== null) {
     feePercent = specialFee;
+    console.log(`[FEE_DEBUG] Applying TIER_2 special fee: ${specialFee}`);
   }
 
-  // 3. Override para tokens estables (tiene precedencia sobre descuentos especiales)
+  // 5. Override para tokens estables (solo si no hay descuento especial TIER_1)
   if (tokenWL?.type === WhitelistType.STABLE) {
     feePercent = 0;
+    console.log(`[FEE_DEBUG] Applying STABLE override: 0`);
   }
 
+  console.log(`[FEE_DEBUG] Final fee: ${feePercent}`);
   return feePercent;
 }
