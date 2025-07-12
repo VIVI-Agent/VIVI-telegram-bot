@@ -1259,7 +1259,7 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
   }
 
   /**
-   * Helper function to refresh the bestDex quote and update the menu
+   * Helper function to refresh the bestDex quote and token info, then update the menu
    */
   private async refreshQuoteAndMenu(ctx: GlobalSceneContext): Promise<void> {
     try {
@@ -1271,11 +1271,29 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
         sceneData.bestDex = bestDex.best;
         this.updateSceneData(ctx, sceneData);
 
-        // Update the menu with new quote
-        await this.menus.showTradeMenu(ctx, sceneData, sceneData.menuMessageId);
-
         this.log("info", ctx, "Quote refreshed successfully");
       }
+
+      // Force refresh token info (holders, supply, marketcap)
+      if (sceneData.token?.address) {
+        this.log("info", ctx, "Forcing token info refresh");
+
+        // Trigger background token info update
+        setImmediate(async () => {
+          try {
+            await this.tokenInfoService.updateTokenInfoCacheInBackground(
+              ctx,
+              sceneData.token!.address as Address
+            );
+            this.log("info", ctx, "Token info refresh triggered successfully");
+          } catch (error) {
+            this.log("error", ctx, `Error refreshing token info: ${error}`);
+          }
+        });
+      }
+
+      // Update the menu with new quote (token info will be updated via event system)
+      await this.menus.showTradeMenu(ctx, sceneData, sceneData.menuMessageId);
     } catch (error) {
       this.log("error", ctx, `Error refreshing quote: ${error}`);
       // Could show an error message to user if needed
