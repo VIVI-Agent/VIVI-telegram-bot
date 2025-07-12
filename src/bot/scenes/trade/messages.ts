@@ -213,8 +213,8 @@ export function formatMarketCap(marketCap?: string): string {
 
   // Format with US locale (commas for thousands, dots for decimals)
   return `$${value.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   })}`;
 }
 
