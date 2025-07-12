@@ -203,7 +203,7 @@ export function buildSocialLinks(
 }
 
 /**
- * Format market cap with appropriate units
+ * Format market cap with US number formatting (commas and dots)
  */
 export function formatMarketCap(marketCap?: string): string {
   if (!marketCap) return "N/A";
@@ -211,15 +211,11 @@ export function formatMarketCap(marketCap?: string): string {
   const value = parseFloat(marketCap);
   if (isNaN(value)) return "N/A";
 
-  if (value >= 1000000000) {
-    return `$${(value / 1000000000).toFixed(2)}B`;
-  } else if (value >= 1000000) {
-    return `$${(value / 1000000).toFixed(2)}M`;
-  } else if (value >= 1000) {
-    return `$${(value / 1000).toFixed(2)}K`;
-  } else {
-    return `$${value.toFixed(2)}`;
-  }
+  // Format with US locale (commas for thousands, dots for decimals)
+  return `$${value.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 /**

@@ -40,22 +40,51 @@ export async function getTokenExternalInfo(
     console.log(`   🔢 Dextools Financial Info:`, dextoolsFinancialInfo);
     console.log(`   🌐 Dextools Social Info:`, dextoolsSocialInfo);
 
-    // If Dextools directly provides market cap, use it
+    // 🎯 MARKET CAP PRIORITY LOGIC
+    // 1. If Dextools provides mcap, use it
+    // 2. If no mcap but fdv available, use fdv as market cap
+    // 3. If no fdv but mcap available, use mcap
+    // 4. If none available, calculate from bestDex
+
+    let marketCapFromDextools: Decimal | undefined;
+    let marketCapSource = "none";
+
     if (dextoolsFinancialInfo?.mcap) {
+      marketCapFromDextools = new Decimal(
+        dextoolsFinancialInfo.mcap.toString()
+      );
+      marketCapSource = "mcap";
+      console.log(
+        `✅ [MARKET CAP PRIORITY] Using Dextools mcap: $${dextoolsFinancialInfo.mcap}`
+      );
+    } else if (dextoolsFinancialInfo?.fdv) {
+      marketCapFromDextools = new Decimal(dextoolsFinancialInfo.fdv.toString());
+      marketCapSource = "fdv";
+      console.log(
+        `✅ [MARKET CAP PRIORITY] Using Dextools fdv as market cap: $${dextoolsFinancialInfo.fdv}`
+      );
+    } else {
+      console.log(
+        `⚠️ [MARKET CAP PRIORITY] No Dextools mcap or fdv available, will calculate from bestDex`
+      );
+    }
+
+    // If we have market cap from Dextools, return it immediately
+    if (marketCapFromDextools) {
       const result = {
-        marketCap: new Decimal(dextoolsFinancialInfo.mcap.toString()),
-        totalSupply: dextoolsFinancialInfo.totalSupply?.toString(),
-        circulatingSupply: dextoolsFinancialInfo.circulatingSupply?.toString(),
-        holders: dextoolsFinancialInfo.holders?.toString(), // Include holders data
+        marketCap: marketCapFromDextools,
+        totalSupply: dextoolsFinancialInfo?.totalSupply?.toString(),
+        circulatingSupply: dextoolsFinancialInfo?.circulatingSupply?.toString(),
+        holders: dextoolsFinancialInfo?.holders?.toString(),
         website: dextoolsSocialInfo?.socialInfo?.website,
         telegramLink: dextoolsSocialInfo?.socialInfo?.telegram,
         twitterLink: dextoolsSocialInfo?.socialInfo?.twitter,
       };
 
       console.log(
-        `✅ [TOKEN EXTERNAL INFO] Using Dextools data for ${tokenAddress}:`
+        `✅ [TOKEN EXTERNAL INFO] Using Dextools ${marketCapSource} for ${tokenAddress}:`
       );
-      console.log(`   📊 Market Cap: ${result.marketCap}`);
+      console.log(`   📊 Market Cap: $${marketCapFromDextools}`);
       console.log(`   👥 Holders: ${result.holders}`);
       console.log(`   📜 Total Supply: ${result.totalSupply}`);
 
@@ -69,31 +98,30 @@ export async function getTokenExternalInfo(
       throw new Error("Decimals not found");
     }
 
-    // Calculate exact price of 1 token in ETH by buying 1 token (more accurate for market cap)
-    // We'll use 1.0 token as our quote amount (scaled by decimals)
-    const oneToken = BigInt(10) ** BigInt(decimals);
+    // Calculate exact price of 1 token in ETH using sell quote (more accurate for market cap)
+    // We'll use a small amount of tokens to minimize price impact
+    const smallTokenAmount = BigInt(10) ** BigInt(decimals); // 1 token
     const feeTiers = [100, 500, 3000, 10000];
 
     let ethPerToken: number;
     try {
-      // Use buy quote instead of sell quote for more accurate market cap calculation
-      const quoteResult = await getBestDexForBuyEthToToken({
+      // Use sell quote for more accurate market cap calculation (avoids buy-side price impact)
+      const quoteResult = await getBestDexForSellTokenToEth({
         publicClient: publicClientDRPC,
-        tokenOut: tokenAddress,
-        decimalsOut: decimals,
+        tokenIn: tokenAddress,
         feeTiers,
-        amountEth: oneToken, // Quote for exactly 1 ETH worth
+        amountTokenIn: smallTokenAmount, // Quote for exactly 1 token
       });
 
       if (!quoteResult.best) {
         throw new Error("No liquidity pools found for token");
       }
 
-      // Calculate ETH per token: 1 ETH / tokens received
-      const tokensReceived = Number(quoteResult.best.formattedOut);
-      ethPerToken = 1 / tokensReceived; // This gives us ETH per token
+      // Calculate ETH per token: ETH received / tokens sold
+      const ethReceived = Number(quoteResult.best.formattedOut);
+      ethPerToken = ethReceived; // This gives us ETH per token directly
       logger.info(
-        `[calculateTokenMarketCap] Price of 1 token: ${ethPerToken} ETH (calculated from buy quote: 1 ETH = ${tokensReceived} tokens)`
+        `[calculateTokenMarketCap] Price of 1 token: ${ethPerToken} ETH (calculated from sell quote: 1 token = ${ethReceived} ETH)`
       );
     } catch (error) {
       logger.error(
@@ -208,9 +236,11 @@ export async function getTokenExternalInfo(
       `🎯 [SUPPLY DEBUG] Final supply selection: ${supplyToUse} (${supplyType})`
     );
 
-    // Calculate market cap if we have a supply value
+    // Calculate market cap from bestDex (fallback when Dextools data not available)
     if (supplyToUse) {
-      console.log(`🧮 [MARKET CAP DEBUG] Calculation details:`);
+      console.log(
+        `🧮 [MARKET CAP FALLBACK] Calculation details (no Dextools mcap/fdv):`
+      );
       console.log(`   💰 Token price USD: ${tokenPriceUsd}`);
       console.log(`   📊 Supply used: ${supplyToUse}`);
       console.log(`   🔢 Supply type: ${supplyType}`);
@@ -218,7 +248,9 @@ export async function getTokenExternalInfo(
       const marketCapNumber = tokenPriceUsd * supplyToUse;
       const marketCap = new Decimal(marketCapNumber.toString());
 
-      console.log(`   🎯 Calculated market cap: $${marketCapNumber}`);
+      console.log(
+        `   🎯 Calculated market cap (fallback): $${marketCapNumber}`
+      );
       console.log(
         `   📈 Expected with Dextools supply: $${
           tokenPriceUsd * 99990151333.5639
@@ -226,7 +258,7 @@ export async function getTokenExternalInfo(
       );
 
       logger.info(
-        `[calculateTokenMarketCap] Calculated market cap using ${supplyType} supply: $${marketCapNumber}`
+        `[calculateTokenMarketCap] Calculated market cap using ${supplyType} supply (fallback): $${marketCapNumber}`
       );
 
       const calculatedResult = {
@@ -243,9 +275,9 @@ export async function getTokenExternalInfo(
       };
 
       console.log(
-        `🎯 [TOKEN EXTERNAL INFO] Calculated result for ${tokenAddress}:`
+        `🎯 [TOKEN EXTERNAL INFO] Fallback calculated result for ${tokenAddress}:`
       );
-      console.log(`   📊 Market Cap: $${marketCapNumber}`);
+      console.log(`   📊 Market Cap (bestDex): $${marketCapNumber}`);
       console.log(`   👥 Holders: ${calculatedResult.holders}`);
       console.log(`   📜 Total Supply: ${calculatedResult.totalSupply}`);
 
