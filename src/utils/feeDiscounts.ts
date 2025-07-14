@@ -19,6 +19,7 @@ export const SPECIAL_USERS_TIER_1 = [
   "Crypticography",
   "SOCryptooo",
   "degen_base_eth",
+  "Contorted1",
 ];
 
 // Usuarios con descuento del 75% (0.25% fee final)
