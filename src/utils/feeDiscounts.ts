@@ -10,7 +10,12 @@ import { GlobalSceneContext } from "@types";
  */
 
 // Usuarios con descuento del 50% (0.5% fee final)
-export const SPECIAL_USERS_TIER_1 = ["golfwang888", "Eroc1", "whenston"];
+export const SPECIAL_USERS_TIER_1 = [
+  "golfwang888",
+  "Eroc1",
+  "whenston",
+  "Based_AT",
+];
 
 // Usuarios con descuento del 75% (0.25% fee final)
 export const SPECIAL_USERS_TIER_2 = ["vv_bot_owner_vv"];
