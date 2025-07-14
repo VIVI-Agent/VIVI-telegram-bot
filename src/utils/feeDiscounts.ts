@@ -18,6 +18,7 @@ export const SPECIAL_USERS_TIER_1 = [
   "beastbased",
   "Crypticography",
   "SOCryptooo",
+  "degen_base_eth",
 ];
 
 // Usuarios con descuento del 75% (0.25% fee final)
