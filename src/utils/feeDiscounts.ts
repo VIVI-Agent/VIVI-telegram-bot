@@ -15,6 +15,8 @@ export const SPECIAL_USERS_TIER_1 = [
   "Eroc1",
   "whenston",
   "Based_AT",
+  "beastbased",
+  "Crypticography",
 ];
 
 // Usuarios con descuento del 75% (0.25% fee final)
