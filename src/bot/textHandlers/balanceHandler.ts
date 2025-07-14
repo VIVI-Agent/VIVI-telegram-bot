@@ -200,6 +200,23 @@ export async function balanceHandler(
     );
     const ethHuman = parseFloat(formatUnits(ethBalanceBN, 18)).toFixed(4);
 
+    // Actualizar balance de ETH en la base de datos
+    try {
+      await ctx.services.walletService.updateWalletBalance(
+        selectedWallet.id,
+        ethBalanceBN
+      );
+      logger.debug(
+        `${logPrefix} Updated ETH balance in database for wallet ${selectedWallet.id}: ${ethHuman} ETH`
+      );
+    } catch (updateError) {
+      logger.warn(
+        `${logPrefix} Failed to update ETH balance in database for wallet ${selectedWallet.id}:`,
+        updateError
+      );
+      // Continue with the flow even if database update fails
+    }
+
     // Construir mensaje
     const ownershipText = targetUsername
       ? `@${username} balance`
