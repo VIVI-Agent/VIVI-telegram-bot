@@ -81,6 +81,24 @@ export class BuyEventService {
     groupChatId: string,
     userId: number
   ): Promise<BuyEvent> {
+    // Obtener el ID del chat actual
+
+    // Verificar si el grupo ya está autorizado
+    let authorizedGroup = await this.prisma.authorizedGroup.findUnique({
+      where: { chatId: groupChatId },
+    });
+
+    // Si no existe, crearlo primero
+    if (!authorizedGroup) {
+      authorizedGroup = await this.prisma.authorizedGroup.create({
+        data: {
+          chatId: groupChatId,
+          description: "Auto-created for buy event",
+        },
+      });
+      logger.info(`Created authorized group for ${groupChatId}`);
+    }
+
     const event = await this.prisma.buyEvent.create({
       data: {
         name,
