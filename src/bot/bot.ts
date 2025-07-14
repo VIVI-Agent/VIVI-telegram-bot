@@ -1,5 +1,6 @@
 import { session, Telegraf } from "telegraf";
 import { message } from "telegraf/filters";
+import { Address, parseEther, formatEther } from "viem";
 
 import { redisStore, secrets, webhookServer } from "@config";
 import { services } from "@domain";
@@ -13,6 +14,10 @@ import { logger } from "@logger";
 import { GENERIC_ERRORS } from "@texts";
 import { registerCommands } from "./commands";
 import { balanceHandler, inviteTextHandler, textManager } from "./textHandlers";
+import { normalizeAmount } from "@utils";
+
+// Import buyTextHandler
+import { buyTextHandler } from "./textHandlers/buyHandler";
 
 // Create bot instance
 const bot = new Telegraf<GlobalSceneContext>(secrets.TELEGRAM_BOT_TOKEN || "");
@@ -58,11 +63,33 @@ bot.start(async (ctx) => {
       const startParams = ctx.message.text?.split(" ")[1];
       logger.info(`Start params: ${startParams}`);
       if (startParams) {
-        // https://t.me/VIVIBaseBot?start=trade_sell_0x06e3685982b381ab7ecb760c8fbd7d92ac368a27
-        const [action, mode, token] = startParams.split("_");
-        if (action === "trade") {
-          await sceneManager.activateScene(ctx, "Trade", { mode, token });
+        // Parse parameters: trade_buy_0x06e3685982b381ab7ecb760c8fbd7d92ac368a27_amount_0_04
+        // Use regex to properly handle decimal amounts with underscore separator
+        const tradeBuyPattern =
+          /^trade_buy_(0x[a-fA-F0-9]{40})_amount_([0-9]+_?[0-9]*)$/;
+        const match = startParams.match(tradeBuyPattern);
+
+        if (match) {
+          const [, tokenAddress, amountWithUnderscore] = match;
+          // Convert underscore decimal separator to dot
+          const amount = amountWithUnderscore.replace(/_/g, ".");
+          logger.info(
+            `Parsed token: ${tokenAddress}, amount: ${amount} (converted from ${amountWithUnderscore})`
+          );
+
+          // Execute direct buy with amount
+          await executeDirectBuy(ctx, tokenAddress, amount);
           return;
+        } else {
+          // Fallback to old parsing for other cases
+          const params = startParams.split("_");
+          const [action, mode, token] = params;
+
+          if (action === "trade") {
+            // No amount parameter, use existing behavior
+            await sceneManager.activateScene(ctx, "Trade", { mode, token });
+            return;
+          }
         }
 
         // Ignore any other params
@@ -82,6 +109,45 @@ bot.start(async (ctx) => {
     }
   }
 });
+
+/**
+ * Execute direct buy from start command parameters
+ */
+async function executeDirectBuy(
+  ctx: any,
+  tokenAddress: string,
+  amount: string
+) {
+  try {
+    logger.info(
+      `Executing direct buy for token: ${tokenAddress}, amount: ${amount}`
+    );
+
+    // Create a simulated text match for buyTextHandler
+    const simulatedMatch = {
+      command: "buy",
+      params: {
+        fullMatch: `buy ${amount} ${tokenAddress}`,
+      },
+    };
+
+    // Use buyTextHandler directly
+    await buyTextHandler(ctx, simulatedMatch);
+
+    logger.info(`Direct buy completed for user ${ctx.from?.id}`);
+  } catch (error) {
+    logger.error(`Error in direct buy:`, error);
+    await ctx.reply(
+      `❌ Buy failed: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`,
+      {
+        parse_mode: "HTML",
+        reply_parameters: { message_id: ctx.message?.message_id! },
+      }
+    );
+  }
+}
 
 // Handle callbacks
 bot.on("callback_query", async (ctx) => {
