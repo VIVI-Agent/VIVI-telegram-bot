@@ -96,6 +96,7 @@ export const onboardTextHandler: TextHandler = async (
       await ctx.reply(GENERIC_ERRORS.USER_NOT_FOUND, {
         parse_mode: "HTML",
         reply_parameters: { message_id: ctx.message?.message_id! },
+        link_preview_options: { is_disabled: true },
       });
       return true;
     }
