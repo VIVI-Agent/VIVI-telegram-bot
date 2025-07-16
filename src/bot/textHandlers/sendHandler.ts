@@ -26,6 +26,7 @@ import {
   findMultiWordToken,
   generateClickeableToken,
   viviJoin,
+  normalizeAmount,
 } from "@utils";
 import { GENERIC_ERRORS } from "@texts";
 import { secrets } from "@config";
@@ -368,7 +369,12 @@ async function parseSendCommand(
 
   // First word should be the amount
   const amount = words[0];
-  if (!/^\d+(\.\d+)?$/.test(amount)) {
+  // Use normalizeAmount to handle comma separators and validate format
+  const normalizedAmount = normalizeAmount(amount);
+  if (
+    !/^\d*\.?\d+$/.test(normalizedAmount) ||
+    parseFloat(normalizedAmount) <= 0
+  ) {
     logger.warn(`${logPrefix} Invalid amount format: ${amount}`);
     return null;
   }
@@ -419,13 +425,13 @@ async function parseSendCommand(
   const isEthTransfer = token.toLowerCase() === "eth";
 
   logger.debug(
-    `${logPrefix} Parsed - Amount: ${amount}, Token: ${token}, Recipients: ${recipients.join(
+    `${logPrefix} Parsed - Amount: ${normalizedAmount}, Token: ${token}, Recipients: ${recipients.join(
       ", "
     )}`
   );
 
   return {
-    amount,
+    amount: normalizedAmount,
     token,
     tokenAddress,
     recipients,
