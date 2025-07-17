@@ -103,7 +103,38 @@ export const VIVIAerodromeABI = [
         type: "address",
       },
     ],
-    name: "FeeReceiverUpdated",
+    name: "DefaultFeeReceiverUpdated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "user",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "totalFeeAmount",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "address[]",
+        name: "receivers",
+        type: "address[]",
+      },
+      {
+        indexed: false,
+        internalType: "uint256[]",
+        name: "amounts",
+        type: "uint256[]",
+      },
+    ],
+    name: "FeeDistributed",
     type: "event",
   },
   {
@@ -255,6 +286,23 @@ export const VIVIAerodromeABI = [
         name: "slippagePercent",
         type: "uint256",
       },
+      {
+        components: [
+          {
+            internalType: "address",
+            name: "receiver",
+            type: "address",
+          },
+          {
+            internalType: "uint256",
+            name: "bps",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct VIVIFeeManager.FeeReceiver[]",
+        name: "additionalFeeReceivers",
+        type: "tuple[]",
+      },
     ],
     name: "VIVIBuy",
     outputs: [],
@@ -322,6 +370,23 @@ export const VIVIAerodromeABI = [
         name: "slippagePercent",
         type: "uint256",
       },
+      {
+        components: [
+          {
+            internalType: "address",
+            name: "receiver",
+            type: "address",
+          },
+          {
+            internalType: "uint256",
+            name: "bps",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct VIVIFeeManager.FeeReceiver[]",
+        name: "additionalFeeReceivers",
+        type: "tuple[]",
+      },
     ],
     name: "VIVISell",
     outputs: [],
@@ -356,7 +421,7 @@ export const VIVIAerodromeABI = [
   },
   {
     inputs: [],
-    name: "feeReceiver",
+    name: "defaultFeeReceiver",
     outputs: [
       {
         internalType: "address",
@@ -391,11 +456,11 @@ export const VIVIAerodromeABI = [
     inputs: [
       {
         internalType: "address",
-        name: "_newFR",
+        name: "_defaultFeeReceiver",
         type: "address",
       },
     ],
-    name: "setFeeReceiver",
+    name: "setDefaultFeeReceiver",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

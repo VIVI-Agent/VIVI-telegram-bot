@@ -5,7 +5,8 @@ import axios from "axios";
 import { logger } from "@logger";
 import { contracts, secrets } from "@config";
 
-import { VIVIApeStoreABI } from "@abis";
+import { VIVIApeStoreABI, VIVIApeStoreABI_NEW } from "@abis";
+import { checkApeStoreProxyStatus } from "../../../utils/checkApeStoreProxy";
 
 import {
   publicClientQuickNode,
@@ -31,6 +32,8 @@ import { GlobalSceneContext } from "@types";
 
 const FEE_SWAP_WRAPPER_APESTORE =
   contracts.FEE_SWAP_WRAPPER_APESTORE as Address;
+const FEE_SWAP_WRAPPER_APESTORE_NEW =
+  contracts.FEE_SWAP_WRAPPER_APESTORE_NEW as Address;
 
 async function getTokenId(tokenAddress: Address): Promise<string> {
   try {
@@ -135,6 +138,23 @@ export async function buyTokenVIVIApeStore({
   const user = await ctx.services.userService.getUserById(userId);
   const userSpeed = user?.speed || SpeedEnum.AUTO;
 
+  // Check referral fee logic
+  let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
+  if (user?.referredById) {
+    const referrer = await ctx.services.userService.getUserById(
+      user.referredById
+    );
+    if (referrer?.rewardWallet) {
+      additionalFeeReceivers.push({
+        receiver: referrer.rewardWallet as Address,
+        bps: 2000n, // 20% of 1% = 2000 bps
+      });
+      logger.info(
+        `[buyTokenVIVIApeStore] Referral fee: ${referrer.rewardWallet} (2000 bps)`
+      );
+    }
+  }
+
   logger.info(`[buyTokenVIVIApeStore] address ${walletEntity.address}`);
   logger.info(`[buyTokenVIVIApeStore] amt ${amountEth.toString()}`);
 
@@ -147,6 +167,22 @@ export async function buyTokenVIVIApeStore({
   logger.info(`Fee Amount (${feePercent / 100}%): ${feeAmount.toString()}`);
   logger.info(`ETH for Router: ${ethForRouter.toString()}`);
 
+  // Check if new contract is allowed as proxy (moved before signature generation)
+  logger.info("[buyTokenVIVIApeStore] Checking ApeStore proxy status...");
+  const isNewContractAllowed = await checkApeStoreProxyStatus();
+  const contractAddress = isNewContractAllowed
+    ? FEE_SWAP_WRAPPER_APESTORE_NEW
+    : FEE_SWAP_WRAPPER_APESTORE;
+  const contractABI = isNewContractAllowed
+    ? VIVIApeStoreABI_NEW
+    : VIVIApeStoreABI;
+
+  logger.info(
+    `[buyTokenVIVIApeStore] Using contract: ${
+      isNewContractAllowed ? "NEW" : "OLD"
+    } (${contractAddress})`
+  );
+
   const tokenId = await getTokenId(tokenAddress);
   logger.info(
     `[buyTokenVIVIApeStore] TokenId for ${tokenAddress} is ${tokenId}`
@@ -155,7 +191,7 @@ export async function buyTokenVIVIApeStore({
   // *** USAR ethForRouter PARA LA SIGNATURE (NO amountEth TOTAL) ***
   const signature = await getTransactionSignature(
     Number(tokenId),
-    FEE_SWAP_WRAPPER_APESTORE,
+    contractAddress, // Use the correct contract address based on proxy status
     ethForRouter.toString() // ¡CAMBIO CRÍTICO!
   );
 
@@ -175,6 +211,7 @@ export async function buyTokenVIVIApeStore({
         amountEth,
         slippagePercent,
         feePercent,
+        additionalFeeReceivers,
       });
       logger.info(
         `[buyTokenVIVIApeStore] Gas estimado para ApeStore: ${estimatedGas}`
@@ -197,18 +234,29 @@ export async function buyTokenVIVIApeStore({
   const { txHash } = await writeContractWithRetries({
     walletClient,
     request: {
-      address: FEE_SWAP_WRAPPER_APESTORE,
-      abi: VIVIApeStoreABI,
+      address: contractAddress,
+      abi: contractABI,
       functionName: "VIVIBuy",
-      args: [
-        {
-          token: tokenAddress,
-          minOut: 0n,
-          signature: signature,
-          recipient: getAddress(walletEntity.address),
-        },
-        BigInt(feePercent),
-      ],
+      args: isNewContractAllowed
+        ? [
+            {
+              token: tokenAddress,
+              minOut: 0n,
+              signature: signature,
+              recipient: getAddress(walletEntity.address),
+            },
+            BigInt(feePercent),
+            additionalFeeReceivers,
+          ]
+        : [
+            {
+              token: tokenAddress,
+              minOut: 0n,
+              signature: signature,
+              recipient: getAddress(walletEntity.address),
+            },
+            BigInt(feePercent),
+          ],
       value: amountEth,
       maxFeePerGas: gasOverrides.maxFeePerGas,
       maxPriorityFeePerGas: gasOverrides.maxPriorityFeePerGas,
@@ -260,7 +308,7 @@ export async function buyTokenVIVIApeStore({
               walletEntity,
               tokenAddress,
               requiredAmount: tokensBought,
-              spender: FEE_SWAP_WRAPPER_APESTORE,
+              spender: contractAddress,
               privateKey,
             }).catch((err) =>
               logger.error(
@@ -292,7 +340,7 @@ export async function buyTokenVIVIApeStore({
           for (const log of receipt.logs) {
             try {
               const event = decodeEventLog({
-                abi: VIVIApeStoreABI,
+                abi: contractABI,
                 eventName: "Buy",
                 data: log.data as `0x${string}`,
                 topics: log.topics as [`0x${string}`, ...`0x${string}`[]],
@@ -306,7 +354,7 @@ export async function buyTokenVIVIApeStore({
               walletEntity,
               tokenAddress,
               requiredAmount: tokensBought,
-              spender: FEE_SWAP_WRAPPER_APESTORE,
+              spender: contractAddress,
               privateKey,
             }).catch((err) =>
               logger.error(
@@ -338,7 +386,7 @@ export async function buyTokenVIVIApeStore({
           for (const log of receipt.logs) {
             try {
               const event = decodeEventLog({
-                abi: VIVIApeStoreABI,
+                abi: contractABI,
                 eventName: "Buy",
                 data: log.data as `0x${string}`,
                 topics: log.topics as [`0x${string}`, ...`0x${string}`[]],
@@ -352,7 +400,7 @@ export async function buyTokenVIVIApeStore({
               walletEntity,
               tokenAddress,
               requiredAmount: tokensBought,
-              spender: FEE_SWAP_WRAPPER_APESTORE,
+              spender: contractAddress,
               privateKey,
             }).catch((err) =>
               logger.error(
@@ -429,6 +477,23 @@ export async function sellTokenVIVIApeStore({
   const user = await ctx.services.userService.getUserById(userId);
   const userSpeed = user?.speed || SpeedEnum.AUTO;
 
+  // Check referral fee logic
+  let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
+  if (user?.referredById) {
+    const referrer = await ctx.services.userService.getUserById(
+      user.referredById
+    );
+    if (referrer?.rewardWallet) {
+      additionalFeeReceivers.push({
+        receiver: referrer.rewardWallet as Address,
+        bps: 2000n, // 20% of 1% = 2000 bps
+      });
+      logger.info(
+        `[sellTokenVIVIApeStore] Referral fee: ${referrer.rewardWallet} (2000 bps)`
+      );
+    }
+  }
+
   // Si tenemos bestDex, usamos su valor de salida como estimated ETH value
   if (bestDex && !estimatedEthValue) {
     estimatedEthValue = BigInt(bestDex.amountOut || "0");
@@ -446,6 +511,7 @@ export async function sellTokenVIVIApeStore({
         tokenAmount,
         slippagePercent,
         feePercent,
+        additionalFeeReceivers,
       });
       logger.info(
         `[sellTokenVIVIApeStore] Gas estimado para ApeStore: ${estimatedGas}`
@@ -454,6 +520,22 @@ export async function sellTokenVIVIApeStore({
       logger.error("[sellTokenVIVIApeStore] Error estimando gas:", err);
     }
   }
+
+  // Check if new contract is allowed as proxy
+  logger.info("[sellTokenVIVIApeStore] Checking ApeStore proxy status...");
+  const isNewContractAllowed = await checkApeStoreProxyStatus();
+  const contractAddress = isNewContractAllowed
+    ? FEE_SWAP_WRAPPER_APESTORE_NEW
+    : FEE_SWAP_WRAPPER_APESTORE;
+  const contractABI = isNewContractAllowed
+    ? VIVIApeStoreABI_NEW
+    : VIVIApeStoreABI;
+
+  logger.info(
+    `[sellTokenVIVIApeStore] Using contract: ${
+      isNewContractAllowed ? "NEW" : "OLD"
+    } (${contractAddress})`
+  );
 
   const gasOverrides = await getGasOverridesForSpeed(
     userSpeed,
@@ -469,33 +551,45 @@ export async function sellTokenVIVIApeStore({
     walletEntity,
     tokenAddress,
     requiredAmount: tokenAmount,
-    spender: FEE_SWAP_WRAPPER_APESTORE,
+    spender: contractAddress,
     privateKey,
   });
 
   const tokenId = await getTokenId(tokenAddress);
   const signature = await getTransactionSignature(
     Number(tokenId),
-    FEE_SWAP_WRAPPER_APESTORE,
+    contractAddress, // Use the correct contract address based on proxy status
     tokenAmount.toString()
   );
 
   const { txHash } = await writeContractWithRetries({
     walletClient,
     request: {
-      address: FEE_SWAP_WRAPPER_APESTORE,
-      abi: VIVIApeStoreABI,
+      address: contractAddress,
+      abi: contractABI,
       functionName: "VIVISell",
-      args: [
-        {
-          token: tokenAddress,
-          amount: tokenAmount,
-          minOut: 0n,
-          signature: signature as `0x${string}`,
-          recipient: getAddress(walletEntity.address),
-        },
-        BigInt(feePercent),
-      ],
+      args: isNewContractAllowed
+        ? [
+            {
+              token: tokenAddress,
+              amount: tokenAmount,
+              minOut: 0n,
+              signature: signature as `0x${string}`,
+              recipient: getAddress(walletEntity.address),
+            },
+            BigInt(feePercent),
+            additionalFeeReceivers,
+          ]
+        : [
+            {
+              token: tokenAddress,
+              amount: tokenAmount,
+              minOut: 0n,
+              signature: signature as `0x${string}`,
+              recipient: getAddress(walletEntity.address),
+            },
+            BigInt(feePercent),
+          ],
       maxFeePerGas: gasOverrides.maxFeePerGas,
       maxPriorityFeePerGas: gasOverrides.maxPriorityFeePerGas,
       gas: gasOverrides.gas,

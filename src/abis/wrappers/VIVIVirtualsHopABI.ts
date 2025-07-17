@@ -108,7 +108,38 @@ export const VIVIVirtualsHopABI = [
         type: "address",
       },
     ],
-    name: "FeeReceiverUpdated",
+    name: "DefaultFeeReceiverUpdated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "user",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "totalFeeAmount",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "address[]",
+        name: "receivers",
+        type: "address[]",
+      },
+      {
+        indexed: false,
+        internalType: "uint256[]",
+        name: "amounts",
+        type: "uint256[]",
+      },
+    ],
+    name: "FeeDistributed",
     type: "event",
   },
   {
@@ -257,6 +288,23 @@ export const VIVIVirtualsHopABI = [
         name: "feeBps",
         type: "uint256",
       },
+      {
+        components: [
+          {
+            internalType: "address",
+            name: "receiver",
+            type: "address",
+          },
+          {
+            internalType: "uint256",
+            name: "bps",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct VIVIFeeManager.FeeReceiver[]",
+        name: "additionalFeeReceivers",
+        type: "tuple[]",
+      },
     ],
     name: "VIVIVirtualsBuy",
     outputs: [],
@@ -302,6 +350,23 @@ export const VIVIVirtualsHopABI = [
         name: "feeBps",
         type: "uint256",
       },
+      {
+        components: [
+          {
+            internalType: "address",
+            name: "receiver",
+            type: "address",
+          },
+          {
+            internalType: "uint256",
+            name: "bps",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct VIVIFeeManager.FeeReceiver[]",
+        name: "additionalFeeReceivers",
+        type: "tuple[]",
+      },
     ],
     name: "VIVIVirtualsSell",
     outputs: [],
@@ -323,7 +388,7 @@ export const VIVIVirtualsHopABI = [
   },
   {
     inputs: [],
-    name: "feeReceiver",
+    name: "defaultFeeReceiver",
     outputs: [
       {
         internalType: "address",
@@ -358,11 +423,11 @@ export const VIVIVirtualsHopABI = [
     inputs: [
       {
         internalType: "address",
-        name: "_feeReceiver",
+        name: "_defaultFeeReceiver",
         type: "address",
       },
     ],
-    name: "setFeeReceiver",
+    name: "setDefaultFeeReceiver",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

@@ -11,6 +11,8 @@ import {
   VIVIAerodromeABI,
   VIVIZoraMultiHopABI,
   VIVIVirtualsHopABI,
+  VIVIApeStoreABI,
+  VIVIApeStoreABI_NEW,
 } from "@abis";
 
 export async function estimateBuyGas({
@@ -21,6 +23,7 @@ export async function estimateBuyGas({
   amountEth,
   slippagePercent = 1,
   feePercent = 100,
+  additionalFeeReceivers = [],
 }: {
   publicClient: PublicClient;
   bestDex: DexQuoteResultBuy;
@@ -29,6 +32,7 @@ export async function estimateBuyGas({
   amountEth: bigint;
   slippagePercent?: number;
   feePercent?: number;
+  additionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>;
 }): Promise<bigint> {
   const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 10);
   const dexName = bestDex.dexName;
@@ -53,6 +57,7 @@ export async function estimateBuyGas({
           },
           BigInt(feePercent),
           BigInt(slippagePercent),
+          additionalFeeReceivers || [],
         ],
         account: walletAddress,
         value: amountEth,
@@ -73,6 +78,7 @@ export async function estimateBuyGas({
             amountOutMin: 0n,
           },
           BigInt(feePercent),
+          additionalFeeReceivers,
         ],
         account: walletAddress,
         value: amountEth,
@@ -108,6 +114,7 @@ export async function estimateBuyGas({
           },
           BigInt(feePercent),
           BigInt(slippagePercent),
+          additionalFeeReceivers || [],
         ],
         account: walletAddress,
         value: amountEth,
@@ -129,6 +136,7 @@ export async function estimateBuyGas({
             amountIn: amountEth,
           },
           BigInt(feePercent),
+          additionalFeeReceivers || [],
         ],
         account: walletAddress,
         value: amountEth,
@@ -148,6 +156,27 @@ export async function estimateBuyGas({
             deadline: virtualBuyDeadline,
             slippagePercent: BigInt(slippagePercent), // Direct percentage (5% = 5)
             amountIn: amountEth,
+          },
+          BigInt(feePercent),
+          additionalFeeReceivers || [],
+        ],
+        account: walletAddress,
+        value: amountEth,
+      });
+    } else if (dexName === "ApeStore") {
+      // For ApeStore, we need to check which contract to use
+      // Since we can't easily check proxy status here, we'll use the old contract for gas estimation
+      // The actual contract selection will be done in the swap service
+      return await publicClient.estimateContractGas({
+        address: contracts.FEE_SWAP_WRAPPER_APESTORE as Address,
+        abi: VIVIApeStoreABI,
+        functionName: "VIVIBuy",
+        args: [
+          {
+            token: getAddress(tokenAddress),
+            minOut: 0n,
+            signature: "0x", // Placeholder for gas estimation
+            recipient: walletAddress,
           },
           BigInt(feePercent),
         ],
@@ -175,6 +204,7 @@ export async function estimateSellGas({
   tokenAmount,
   slippagePercent = 1,
   feePercent = 100,
+  additionalFeeReceivers = [],
 }: {
   publicClient: PublicClient;
   bestDex: DexQuoteResultSell;
@@ -183,6 +213,7 @@ export async function estimateSellGas({
   tokenAmount: bigint;
   slippagePercent?: number;
   feePercent?: number;
+  additionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>;
 }): Promise<bigint> {
   const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 10);
   const dexName = bestDex.dexName;
@@ -208,6 +239,7 @@ export async function estimateSellGas({
           },
           BigInt(feePercent),
           BigInt(slippagePercent),
+          additionalFeeReceivers || [],
         ],
         account: walletAddress,
       });
@@ -227,6 +259,7 @@ export async function estimateSellGas({
             amountOutMin: 1n,
           },
           BigInt(feePercent),
+          additionalFeeReceivers,
         ],
         account: walletAddress,
       });
@@ -261,6 +294,7 @@ export async function estimateSellGas({
           },
           BigInt(feePercent),
           BigInt(slippagePercent),
+          additionalFeeReceivers || [],
         ],
         account: walletAddress,
       });
@@ -281,6 +315,7 @@ export async function estimateSellGas({
             amountIn: tokenAmount,
           },
           BigInt(feePercent),
+          additionalFeeReceivers || [],
         ],
         account: walletAddress,
       });
@@ -299,6 +334,27 @@ export async function estimateSellGas({
             deadline: virtualSellDeadline,
             slippagePercent: BigInt(slippagePercent), // Direct percentage (5% = 5)
             amountIn: tokenAmount,
+          },
+          BigInt(feePercent),
+          additionalFeeReceivers || [],
+        ],
+        account: walletAddress,
+      });
+    } else if (dexName === "ApeStore") {
+      // For ApeStore, we need to check which contract to use
+      // Since we can't easily check proxy status here, we'll use the old contract for gas estimation
+      // The actual contract selection will be done in the swap service
+      return await publicClient.estimateContractGas({
+        address: contracts.FEE_SWAP_WRAPPER_APESTORE as Address,
+        abi: VIVIApeStoreABI,
+        functionName: "VIVISell",
+        args: [
+          {
+            token: getAddress(tokenAddress),
+            amount: tokenAmount,
+            minOut: 0n,
+            signature: "0x", // Placeholder for gas estimation
+            recipient: walletAddress,
           },
           BigInt(feePercent),
         ],

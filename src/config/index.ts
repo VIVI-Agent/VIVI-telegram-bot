@@ -40,6 +40,7 @@ const envSchema = z.object({
   DD_TAG_API: z.string().nonempty(),
   DEXT_API_KEY: z.string().optional(),
   FEE_SWAP_WRAPPER_APESTORE: z.string().optional(),
+  FEE_SWAP_WRAPPER_APESTORE_NEW: z.string().optional(),
   APESTORE_API_KEY: z.string().nonempty(),
   APESTORE_ROUTER_ADDRESS: z.string().nonempty(),
   ERC20_BATCH_ADDRESS: z.string().nonempty(),
@@ -85,6 +86,7 @@ export const contracts = {
   FEE_AMOUNT: parsedEnv.FEE_AMOUNT,
   APESTORE_ROUTER_ADDRESS: parsedEnv.APESTORE_ROUTER_ADDRESS,
   FEE_SWAP_WRAPPER_APESTORE: parsedEnv.FEE_SWAP_WRAPPER_APESTORE,
+  FEE_SWAP_WRAPPER_APESTORE_NEW: parsedEnv.FEE_SWAP_WRAPPER_APESTORE_NEW,
   ERC20_BATCH_ADDRESS: parsedEnv.ERC20_BATCH_ADDRESS,
   ETH_BATCH_ADDRESS: parsedEnv.ETH_BATCH_ADDRESS,
   VIVI_MIXED_BATCH_TRANSFER_CONTRACT_ADDRESS:

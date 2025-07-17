@@ -71,6 +71,35 @@ export async function buyTokenV3({
   const user = await ctx.services.userService.getUserById(userId);
   const userSpeed = user?.speed || SpeedEnum.AUTO;
 
+  // ─────────────────────────────────────────────────────────────
+  // CHECK REFERRAL AND GET REWARD WALLET
+  // ─────────────────────────────────────────────────────────────
+  let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
+
+  if (user?.referredById) {
+    // Get the referrer user to check if they have a reward wallet
+    const referrer = await ctx.services.userService.getUserById(
+      user.referredById
+    );
+    if (referrer?.rewardWallet) {
+      additionalFeeReceivers = [
+        {
+          receiver: getAddress(referrer.rewardWallet),
+          bps: 2000n, // 20% of 1% = 2000 bps
+        },
+      ];
+      logger.info(
+        `[buyTokenV3] Referral fee will be sent to: ${referrer.rewardWallet} (2000 bps)`
+      );
+    } else {
+      logger.info(
+        `[buyTokenV3] Referrer ${user.referredById} has no reward wallet configured`
+      );
+    }
+  } else {
+    logger.info(`[buyTokenV3] User ${userId} has no referrer`);
+  }
+
   // Estimar gas si tenemos bestDex y es UniswapV3
   let estimatedGas: bigint | undefined;
   if (bestDex && bestDex.dexName === "UniswapV3") {
@@ -82,6 +111,7 @@ export async function buyTokenV3({
         tokenAddress,
         amountEth,
         feePercent,
+        additionalFeeReceivers,
       });
       logger.info(`[buyTokenV3] Gas estimado para UniswapV3: ${estimatedGas}`);
     } catch (err) {
@@ -120,6 +150,7 @@ export async function buyTokenV3({
           amountOutMin,
         },
         BigInt(feePercent),
+        additionalFeeReceivers,
       ],
       value: amountEth,
       maxFeePerGas: gasOverrides.maxFeePerGas,
@@ -332,6 +363,35 @@ export async function sellTokenV3({
   const user = await ctx.services.userService.getUserById(userId);
   const userSpeed = user?.speed || SpeedEnum.AUTO;
 
+  // ─────────────────────────────────────────────────────────────
+  // CHECK REFERRAL AND GET REWARD WALLET
+  // ─────────────────────────────────────────────────────────────
+  let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
+
+  if (user?.referredById) {
+    // Get the referrer user to check if they have a reward wallet
+    const referrer = await ctx.services.userService.getUserById(
+      user.referredById
+    );
+    if (referrer?.rewardWallet) {
+      additionalFeeReceivers = [
+        {
+          receiver: getAddress(referrer.rewardWallet),
+          bps: 2000n, // 20% of 1% = 2000 bps
+        },
+      ];
+      logger.info(
+        `[sellTokenV3] Referral fee will be sent to: ${referrer.rewardWallet} (2000 bps)`
+      );
+    } else {
+      logger.info(
+        `[sellTokenV3] Referrer ${user.referredById} has no reward wallet configured`
+      );
+    }
+  } else {
+    logger.info(`[sellTokenV3] User ${userId} has no referrer`);
+  }
+
   // Si tenemos bestDex, usamos su valor de salida como estimated ETH value
   if (bestDex && !estimatedEthValue) {
     estimatedEthValue = BigInt(bestDex.amountOut || "0");
@@ -348,6 +408,7 @@ export async function sellTokenV3({
         tokenAddress,
         tokenAmount,
         feePercent,
+        additionalFeeReceivers,
       });
       logger.info(`[sellTokenV3] Gas estimado para UniswapV3: ${estimatedGas}`);
     } catch (err) {
@@ -393,6 +454,7 @@ export async function sellTokenV3({
           amountOutMin,
         },
         BigInt(feePercent),
+        additionalFeeReceivers,
       ],
       maxFeePerGas: gasOverrides.maxFeePerGas,
       maxPriorityFeePerGas: gasOverrides.maxPriorityFeePerGas,
