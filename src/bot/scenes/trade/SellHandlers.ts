@@ -162,6 +162,11 @@ export class SellHandlers {
 
             // Now update PnL after holding is confirmed to be updated
             await new PnlServiceWithCache().updatePnlForTrade(ctx, newTrade.id);
+            // Refresca la caché de PnL del usuario para que posiciones se actualice inmediatamente
+            await new PnlServiceWithCache().updateUserPnlCacheInBackground(
+              ctx,
+              userId
+            );
             logger.info(`User ${userId} sell transaction processed.`);
           } catch (err) {
             logger.error("createSellTrade failed in background:", err);

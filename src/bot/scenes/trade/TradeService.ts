@@ -16,6 +16,7 @@ import {
   getBestDexForSellTokenToEth,
   handleTxNotificationsWithLinks,
 } from "@blockchain";
+import { getTokenBalance } from "@blockchain";
 import { BaseService, GlobalSceneContext, TradeSceneData } from "../../types";
 import { Address, parseEther, TransactionReceipt } from "viem";
 import { AddressValidator, calculateFinalFee } from "@utils";
@@ -736,6 +737,80 @@ export class TradeService extends BaseService {
       this.log("error", ctx, `Error selling token: ${error}`);
       console.log(error);
       throw error;
+    }
+  }
+
+  /**
+   * Check if a specific token appears in user wallets (efficient method)
+   * This method only updates the specific holding and checks if it has balance
+   */
+  async checkTokenInWallets(
+    ctx: GlobalSceneContext,
+    userId: number,
+    tokenId: number
+  ): Promise<boolean> {
+    try {
+      this.log(
+        "debug",
+        ctx,
+        `Checking if token ${tokenId} appears in wallets for user ${userId}`
+      );
+
+      // Get all user wallets
+      const wallets = await ctx.services.walletService.getUserWallets(userId);
+
+      // Check each wallet for the specific token
+      for (const wallet of wallets) {
+        try {
+          // Get current balance from blockchain for this specific token
+          const token = await ctx.services.tokenService.getTokenById(tokenId);
+          if (!token) {
+            this.log("warn", ctx, `Token ${tokenId} not found`);
+            continue;
+          }
+
+          const currentBalance = await getTokenBalance(
+            token.address as Address,
+            wallet.address as Address
+          );
+
+          // If we found tokens, update the holding and return true
+          if (currentBalance > 0) {
+            this.log(
+              "info",
+              ctx,
+              `Found ${currentBalance} tokens in wallet ${wallet.address}`
+            );
+
+            // Update the holding with the current balance
+            await ctx.services.holdingService.updateHoldingFromChain({
+              userId: userId,
+              tokenId: tokenId,
+              walletId: wallet.id,
+              newBalance: currentBalance,
+            });
+
+            return true;
+          }
+        } catch (error) {
+          this.log(
+            "error",
+            ctx,
+            `Error checking wallet ${wallet.address}: ${error}`
+          );
+          // Continue checking other wallets
+        }
+      }
+
+      this.log(
+        "debug",
+        ctx,
+        `Token ${tokenId} not found in any wallet for user ${userId}`
+      );
+      return false;
+    } catch (error) {
+      this.log("error", ctx, `Error checking token in wallets: ${error}`);
+      return false;
     }
   }
 }
