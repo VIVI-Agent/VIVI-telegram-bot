@@ -1333,86 +1333,39 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
       const sceneData = this.getSceneData(ctx);
       const tokenId = sceneData.token?.id;
       const userId = ctx.user.id;
+
       if (!tokenId) {
         this.log("error", ctx, "No token ID found in scene data");
         return;
       }
 
-      // For buy transactions, wait for the token to appear in wallet before switching to sell mode
-      if (transactionType === "buy") {
-        this.log(
-          "info",
-          ctx,
-          "Waiting for token to appear in wallet before switching to sell mode"
-        );
-
-        const maxAttempts = 60; // 30 seconds max (60 * 500ms)
-        let attempts = 0;
-        let tokenFound = false;
-
-        while (attempts < maxAttempts && !tokenFound) {
-          attempts++;
-          try {
-            // Usa el método eficiente para verificar si el token aparece en alguna wallet
-            tokenFound = await this.service.checkTokenInWallets(
-              ctx,
-              userId,
-              tokenId
-            );
-            if (tokenFound) {
-              this.log(
-                "info",
-                ctx,
-                `Token found in wallet after ${attempts} attempts (${
-                  attempts * 500
-                }ms)`
-              );
-              break;
-            } else {
-              this.log(
-                "debug",
-                ctx,
-                `Token not found yet, attempt ${attempts}/${maxAttempts} (${
-                  attempts * 500
-                }ms)`
-              );
-              await new Promise((resolve) => setTimeout(resolve, 500));
-            }
-          } catch (error) {
-            this.log(
-              "error",
-              ctx,
-              `Error checking for token in wallet: ${error}`
-            );
-            await new Promise((resolve) => setTimeout(resolve, 500));
-          }
-        }
-
-        if (!tokenFound) {
-          this.log(
-            "warn",
-            ctx,
-            `Token not found in wallet after ${maxAttempts} attempts (${
-              maxAttempts * 500
-            }). Proceeding anyway`
-          );
-        }
-      }
-
       // Wait a moment to ensure all balance updates are complete
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      // Refresh user data with updated balances
+      // Force refresh user data with updated balances from database
+      this.log(
+        "info",
+        ctx,
+        "Refreshing user data from database after transaction"
+      );
       const [userWithSettings, wallets] = await Promise.all([
         this.service.getUserWithSettings(ctx),
-        this.service.getUserWalletsWithHolding(ctx, tokenId!),
+        this.service.getUserWalletsWithHolding(ctx, tokenId),
       ]);
 
       if (userWithSettings && wallets) {
+        // Update scene data with fresh data from database
         sceneData.userWithSettings = userWithSettings;
         sceneData.userWithWallets = wallets;
+        this.updateSceneData(ctx, sceneData);
 
-        // Switch to opposite mode
+        this.log(
+          "info",
+          ctx,
+          `Updated scene data with fresh user data: ${wallets.wallets.length} wallets`
+        );
+
+        // Switch to opposite mode with fresh data
         const newMode = transactionType === "buy" ? "trade_sell" : "trade_buy";
         await this.switchMode(ctx, newMode);
 
@@ -1421,6 +1374,8 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
           ctx,
           `Successfully switched to ${newMode} mode after ${transactionType}`
         );
+      } else {
+        this.log("error", ctx, "Failed to get updated user data from database");
       }
     } catch (error) {
       this.log("error", ctx, `Error handling transaction success: ${error}`);
