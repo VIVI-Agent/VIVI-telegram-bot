@@ -13,7 +13,6 @@ import {
 } from "@blockchain";
 import { Address, parseEther } from "viem";
 import { extractUserFriendlyError } from "@client";
-import { PnlServiceWithCache } from "blockchain/services/pnl/pnlServiceWithCache";
 
 export class TradeSubScene extends BaseSubScene<TradeSceneData> {
   private menus: TradeMenus;
@@ -1332,97 +1331,14 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
       );
 
       const sceneData = this.getSceneData(ctx);
-      const tokenId = sceneData.token?.id;
-      const userId = ctx.user.id;
 
-      if (!tokenId) {
-        this.log("error", ctx, "No token ID found in scene data");
-        return;
-      }
-
-      // For buy transactions, wait for the token to appear in wallet before switching to sell mode
-      if (transactionType === "buy") {
-        this.log(
-          "info",
-          ctx,
-          "Waiting for token to appear in wallet before switching to sell mode"
-        );
-
-        const maxAttempts = 60; // 30 seconds max (60 * 500ms)
-        let attempts = 0;
-        let tokenFound = false;
-
-        while (attempts < maxAttempts && !tokenFound) {
-          attempts++;
-
-          try {
-            // Force update PnL cache to ensure fresh data
-            await new PnlServiceWithCache().updateUserPnlCacheInBackground(
-              ctx,
-              userId
-            );
-
-            // Check if token appears in any wallet
-            const wallets = await this.service.getUserWalletsWithHolding(
-              ctx,
-              tokenId
-            );
-
-            if (wallets && wallets.wallets) {
-              for (const wallet of wallets.wallets) {
-                if (
-                  wallet.holdings &&
-                  wallet.holdings.balance &&
-                  BigInt(wallet.holdings.balance) > BigInt(0)
-                ) {
-                  tokenFound = true;
-                  this.log(
-                    "info",
-                    ctx,
-                    `Token found in wallet ${
-                      wallet.id
-                    } after ${attempts} attempts (${attempts * 500}ms)`
-                  );
-                  break;
-                }
-              }
-            }
-
-            if (!tokenFound) {
-              this.log(
-                "debug",
-                ctx,
-                `Token not found yet, attempt ${attempts}/${maxAttempts} (${
-                  attempts * 500
-                }ms)`
-              );
-              await new Promise((resolve) => setTimeout(resolve, 500));
-            }
-          } catch (error) {
-            this.log(
-              "error",
-              ctx,
-              `Error checking for token in wallet: ${error}`
-            );
-            await new Promise((resolve) => setTimeout(resolve, 500));
-          }
-        }
-
-        if (!tokenFound) {
-          this.log(
-            "warn",
-            ctx,
-            `Token not found in wallet after ${maxAttempts} attempts (${
-              maxAttempts * 500
-            }ms). Proceeding anyway`
-          );
-        }
-      }
+      // Wait a moment to ensure all balance updates are complete
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
       // Refresh user data with updated balances
       const [userWithSettings, wallets] = await Promise.all([
         this.service.getUserWithSettings(ctx),
-        this.service.getUserWalletsWithHolding(ctx, tokenId),
+        this.service.getUserWalletsWithHolding(ctx, sceneData.token?.id!),
       ]);
 
       if (userWithSettings && wallets) {
