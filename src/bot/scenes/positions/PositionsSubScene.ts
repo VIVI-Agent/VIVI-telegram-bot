@@ -26,9 +26,11 @@ export class PositionsSubScene extends BaseSubScene<PositionsSceneData> {
     };
 
     try {
-      const { data } = await this.service.loadUserPnl(ctx);
+      // Always refresh positions when entering the scene to ensure fresh data
+      this.log("info", ctx, "Auto-refreshing positions on scene activation");
+      const positions = await this.service.refreshPositions(ctx);
 
-      sceneData.positions = data;
+      sceneData.positions = positions.data;
       this.updateSceneData(ctx, sceneData);
 
       const menuMessageId = await this.menus.showPositionsMenu(ctx, sceneData);
