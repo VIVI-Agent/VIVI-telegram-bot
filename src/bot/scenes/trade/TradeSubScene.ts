@@ -1425,6 +1425,7 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
       const retryDelay = 100; // 1 second
 
       for (const wallet of wallets) {
+        if (!sceneData.selectedWallets?.includes(wallet.id)) continue;
         try {
           // Update ETH balance
           const { getWalletBalance, getTokenBalance } = await import(
