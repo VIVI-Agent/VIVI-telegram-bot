@@ -16,6 +16,7 @@ import {
   getBestDexForSellTokenToEth,
   handleTxNotificationsWithLinks,
 } from "@blockchain";
+import { getTokenBalance } from "@blockchain";
 import { BaseService, GlobalSceneContext, TradeSceneData } from "../../types";
 import { Address, parseEther, TransactionReceipt } from "viem";
 import { AddressValidator, calculateFinalFee } from "@utils";

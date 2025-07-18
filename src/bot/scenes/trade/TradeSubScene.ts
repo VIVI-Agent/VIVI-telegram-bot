@@ -1327,25 +1327,75 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
       this.log(
         "info",
         ctx,
-        `Transaction ${transactionType} completed successfully, switching mode`
+        `Transaction ${transactionType} completed successfully, updating balances and cache`
       );
 
       const sceneData = this.getSceneData(ctx);
+      const tokenId = sceneData.token?.id;
+      const userId = ctx.user.id;
+      const tokenAddress = sceneData.token?.address;
 
-      // Wait a moment to ensure all balance updates are complete
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      if (!tokenId || !tokenAddress) {
+        this.log("error", ctx, "No token ID or address found in scene data");
+        return;
+      }
 
-      // Refresh user data with updated balances
+      // Step 1: Update balances with retry until blockchain balances are updated
+      this.log("info", ctx, "Updating wallet balances after transaction");
+      await this.updateWalletBalancesAfterTransactionWithRetry(ctx, sceneData);
+
+      // Debug: Verify that holdings were created/updated
+      this.log(
+        "info",
+        ctx,
+        `Transaction type: ${transactionType}, Token ID: ${tokenId}`
+      );
+      this.log(
+        "info",
+        ctx,
+        `User ID: ${userId}, Token Address: ${tokenAddress}`
+      );
+
+      // Step 2: Clear PnL cache for the user (adapted for fix/trade-balances)
+      this.log("info", ctx, `Clearing PnL cache for user ${userId}`);
+      await ctx.services.pnlCacheService.clearUserPnlCache(userId);
+      this.log("info", ctx, `Cleared PnL cache for user ${userId}`);
+
+      // Step 3: Refresh user data with updated balances from database
+      this.log(
+        "info",
+        ctx,
+        "Refreshing user data from database after transaction"
+      );
       const [userWithSettings, wallets] = await Promise.all([
         this.service.getUserWithSettings(ctx),
-        this.service.getUserWalletsWithHolding(ctx, sceneData.token?.id!),
+        this.service.getUserWalletsWithHolding(ctx, tokenId),
       ]);
 
       if (userWithSettings && wallets) {
+        // Update scene data with fresh data from database
         sceneData.userWithSettings = userWithSettings;
         sceneData.userWithWallets = wallets;
+        this.updateSceneData(ctx, sceneData);
 
-        // Switch to opposite mode
+        this.log(
+          "info",
+          ctx,
+          `Updated scene data with fresh user data: ${wallets.wallets.length} wallets`
+        );
+
+        // Debug: Check if holdings are present in the refreshed data
+        for (const wallet of wallets.wallets) {
+          this.log(
+            "info",
+            ctx,
+            `Wallet ${wallet.id} (${
+              wallet.address
+            }) holdings after refresh: ${JSON.stringify(wallet.holdings)}`
+          );
+        }
+
+        // Step 4: Switch to opposite mode with fresh data
         const newMode = transactionType === "buy" ? "trade_sell" : "trade_buy";
         await this.switchMode(ctx, newMode);
 
@@ -1354,9 +1404,256 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
           ctx,
           `Successfully switched to ${newMode} mode after ${transactionType}`
         );
+
+        // Step 5: Force update the menu to remove "⏳ Sending" state
+        try {
+          this.log("info", ctx, "Forcing menu update to remove sending state");
+          await this.menus.showTradeMenu(
+            ctx,
+            sceneData,
+            sceneData.menuMessageId,
+            false // hideMenuKeyboard = false to show normal menu
+          );
+          this.log("info", ctx, "Menu updated successfully after transaction");
+        } catch (menuError) {
+          this.log(
+            "error",
+            ctx,
+            `Error updating menu after transaction: ${menuError}`
+          );
+        }
+      } else {
+        this.log("error", ctx, "Failed to get updated user data from database");
+
+        // Even if we fail to get updated data, try to update the menu to remove sending state
+        try {
+          this.log(
+            "info",
+            ctx,
+            "Attempting menu update despite data refresh failure"
+          );
+          await this.menus.showTradeMenu(
+            ctx,
+            sceneData,
+            sceneData.menuMessageId,
+            false // hideMenuKeyboard = false to show normal menu
+          );
+        } catch (menuError) {
+          this.log(
+            "error",
+            ctx,
+            `Error updating menu after data refresh failure: ${menuError}`
+          );
+        }
       }
     } catch (error) {
       this.log("error", ctx, `Error handling transaction success: ${error}`);
+
+      // Even if everything fails, try to update the menu to remove sending state
+      try {
+        const sceneData = this.getSceneData(ctx);
+        this.log("info", ctx, "Attempting menu update after transaction error");
+        await this.menus.showTradeMenu(
+          ctx,
+          sceneData,
+          sceneData.menuMessageId,
+          false
+        );
+      } catch (menuError) {
+        this.log(
+          "error",
+          ctx,
+          `Error updating menu after transaction error: ${menuError}`
+        );
+      }
+    }
+  }
+
+  /**
+   * Update wallet balances after a successful transaction with retry until blockchain balances match expected amounts
+   */
+  private async updateWalletBalancesAfterTransactionWithRetry(
+    ctx: GlobalSceneContext,
+    sceneData: TradeSceneData
+  ): Promise<void> {
+    try {
+      const wallets = sceneData.userWithWallets?.wallets || [];
+      const maxRetries = 15;
+      const retryDelay = 100; // 1 second
+
+      for (const wallet of wallets) {
+        if (!sceneData.selectedWallets?.includes(wallet.id)) continue;
+        try {
+          // Update ETH balance
+          const { getWalletBalance, getTokenBalance } = await import(
+            "@blockchain"
+          );
+          const newEthBalanceBN = await getWalletBalance(
+            wallet.address as Address
+          );
+          await ctx.services.walletService.updateWalletBalance(
+            wallet.id,
+            newEthBalanceBN
+          );
+
+          this.log(
+            "info",
+            ctx,
+            `Updated ETH balance for wallet ${wallet.id}: ${newEthBalanceBN}`
+          );
+
+          // Update token balance if there's a token in the scene
+          if (sceneData.token?.address) {
+            let tokenBalanceBN = 0n;
+            let retryCount = 0;
+            let balanceMatches = false;
+
+            // Retry until blockchain balance is > 0 or max retries reached
+            while (retryCount < maxRetries && tokenBalanceBN === 0n) {
+              tokenBalanceBN = await getTokenBalance(
+                sceneData.token.address as Address,
+                wallet.address as Address
+              );
+
+              this.log(
+                "info",
+                ctx,
+                `Attempt ${retryCount + 1}: Blockchain balance for wallet ${
+                  wallet.id
+                }, token ${sceneData.token.symbol}: ${tokenBalanceBN}`
+              );
+
+              if (tokenBalanceBN > 0n) {
+                this.log(
+                  "info",
+                  ctx,
+                  `Found balance > 0 for wallet ${wallet.id}: ${tokenBalanceBN}`
+                );
+                break;
+              } else {
+                this.log(
+                  "warn",
+                  ctx,
+                  `Balance still 0 for wallet ${wallet.id}, retrying...`
+                );
+                retryCount++;
+                if (retryCount < maxRetries) {
+                  this.log("info", ctx, `Retrying in ${retryDelay}ms...`);
+                  await new Promise((resolve) =>
+                    setTimeout(resolve, retryDelay)
+                  );
+                }
+              }
+            }
+
+            // Always update holding, even if balance is 0 (important for sell transactions)
+            this.log(
+              "info",
+              ctx,
+              `Updating holding for wallet ${wallet.id}, token ${sceneData.token.symbol}: ${tokenBalanceBN}`
+            );
+
+            await ctx.services.holdingService.updateHoldingFromChain({
+              userId: ctx.user.id,
+              tokenId: sceneData.token.id,
+              walletId: wallet.id,
+              newBalance: tokenBalanceBN,
+            });
+
+            this.log(
+              "info",
+              ctx,
+              `Successfully updated token balance for wallet ${wallet.id}, token ${sceneData.token.symbol}: ${tokenBalanceBN}`
+            );
+          }
+        } catch (error) {
+          this.log(
+            "error",
+            ctx,
+            `Error updating balances for wallet ${wallet.id}: ${error}`
+          );
+        }
+      }
+    } catch (error) {
+      this.log(
+        "error",
+        ctx,
+        `Error in updateWalletBalancesAfterTransactionWithRetry: ${error}`
+      );
+    }
+  }
+
+  /**
+   * Update wallet balances after a successful transaction
+   */
+  private async updateWalletBalancesAfterTransaction(
+    ctx: GlobalSceneContext,
+    sceneData: TradeSceneData
+  ): Promise<void> {
+    try {
+      const wallets = sceneData.userWithWallets?.wallets || [];
+
+      for (const wallet of wallets) {
+        try {
+          // Update ETH balance
+          const { getWalletBalance, getTokenBalance } = await import(
+            "@blockchain"
+          );
+          const newEthBalanceBN = await getWalletBalance(
+            wallet.address as Address
+          );
+          await ctx.services.walletService.updateWalletBalance(
+            wallet.id,
+            newEthBalanceBN
+          );
+
+          this.log(
+            "info",
+            ctx,
+            `Updated ETH balance for wallet ${wallet.id}: ${newEthBalanceBN}`
+          );
+
+          // Update token balance if there's a token in the scene
+          if (sceneData.token?.address) {
+            const tokenBalanceBN = await getTokenBalance(
+              sceneData.token.address as Address,
+              wallet.address as Address
+            );
+
+            // Update holding balance
+            this.log(
+              "info",
+              ctx,
+              `Updating holding for wallet ${wallet.id}, token ${sceneData.token.symbol}: ${tokenBalanceBN}`
+            );
+
+            await ctx.services.holdingService.updateHoldingFromChain({
+              userId: ctx.user.id,
+              tokenId: sceneData.token.id,
+              walletId: wallet.id,
+              newBalance: tokenBalanceBN,
+            });
+
+            this.log(
+              "info",
+              ctx,
+              `Successfully updated token balance for wallet ${wallet.id}, token ${sceneData.token.symbol}: ${tokenBalanceBN}`
+            );
+          }
+        } catch (error) {
+          this.log(
+            "error",
+            ctx,
+            `Error updating balances for wallet ${wallet.id}: ${error}`
+          );
+        }
+      }
+    } catch (error) {
+      this.log(
+        "error",
+        ctx,
+        `Error in updateWalletBalancesAfterTransaction: ${error}`
+      );
     }
   }
 
@@ -1464,6 +1761,21 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
             ctx,
             `SwitchMode: Wallet holdings: ${JSON.stringify(wallet.holdings)}`
           );
+
+          // Debug: Check if holdings exist and have balance
+          if (wallet.holdings) {
+            this.log(
+              "debug",
+              ctx,
+              `SwitchMode: Wallet ${wallet.id} has holdings: balance=${wallet.holdings.balance}, tokenId=${wallet.holdings.tokenId}`
+            );
+          } else {
+            this.log(
+              "debug",
+              ctx,
+              `SwitchMode: Wallet ${wallet.id} has NO holdings for token ${sceneData.token?.id}`
+            );
+          }
 
           const hasTokenBalance =
             wallet.holdings &&

@@ -2,7 +2,8 @@ import { logger } from "@logger";
 import { GlobalSceneContext } from "../../types";
 import { Address, decodeEventLog, formatUnits, TransactionReceipt } from "viem";
 import { Token } from "@prisma/client";
-import { getTokenBalance, getWalletBalance } from "@blockchain";
+// getTokenBalance and getWalletBalance are no longer used here
+// Balance updates are now handled in TradeSubScene.handleTransactionSuccess
 import {
   VIVIAerodromeABI,
   VIVIApeStoreABI,
@@ -11,7 +12,6 @@ import {
   VIVIVirtualsHopABI,
   VIVIZoraMultiHopABI,
 } from "@abis";
-import { PnlServiceWithCache } from "blockchain/services/pnl/pnlServiceWithCache";
 
 /**
  * BuyHandlers: Static class that provides "parseLogsFn" and "onMinedFn" functions for different DEX
@@ -108,38 +108,9 @@ export class BuyHandlers {
       }
 
       // Update holding first (synchronously to avoid race conditions)
-      const holdingUpdatePromise = (async () => {
-        try {
-          // Validate tokenData has required fields
-          if (!tokenData.address || !wallet.address) {
-            logger.warn(
-              `Skipping balance update: missing token address (${tokenData.address}) or wallet address (${wallet.address})`
-            );
-            return false;
-          }
-
-          const newOnChainBalanceBN = await getTokenBalance(
-            tokenData.address as Address,
-            wallet.address as Address
-          );
-          await ctx.services.holdingService.updateHoldingFromChain({
-            userId: userId,
-            tokenId: tokenData.id,
-            walletId: walletId,
-            newBalance: newOnChainBalanceBN,
-          });
-          logger.info(
-            `Updated holding for token ${tokenData.symbol} in wallet ${walletId}`
-          );
-          return true;
-        } catch (err) {
-          logger.error(
-            `Background updateHoldingFromChain failed for wallet ${walletId}:`,
-            err
-          );
-          return false;
-        }
-      })();
+      // Balance updates are now handled in TradeSubScene.handleTransactionSuccess
+      // to avoid duplication and ensure all wallets are updated consistently
+      const holdingUpdated = true; // Always true since we're not updating here anymore
 
       // **Register in BuyEvent if exists**
       if (ctx.chat?.id && ethInBN > 0n) {
@@ -173,36 +144,37 @@ export class BuyHandlers {
 
       // If ETH > 0 was spent, update trade and user
       if (ethInBN > 0n) {
-        // Wait for holding update before creating trade to avoid race conditions
-        setImmediate(async () => {
-          try {
-            // Wait for holding to be updated first
-            const holdingUpdated = await holdingUpdatePromise;
-
-            if (!holdingUpdated) {
-              logger.warn(
-                `Skipping trade creation due to holding update failure for user ${userId}`
-              );
-              return;
-            }
-
-            // Create trade record
-            const newTrade = await ctx.services.tradeService.createBuyTrade({
-              userId,
-              tokenId: tokenData.id,
-              walletId: wallet.id,
-              txHash,
-              ethSpent: ethInBN,
-              tokensReceived: tokensReceivedBN,
-            });
-
-            // Now update PnL after holding is confirmed to be updated
-            await new PnlServiceWithCache().updatePnlForTrade(ctx, newTrade.id);
-            logger.info(`User ${userId} buy transaction processed.`);
-          } catch (err) {
-            logger.error("createBuyTrade failed in background:", err);
+        // Create trade record synchronously
+        try {
+          if (!holdingUpdated) {
+            logger.warn(
+              `Skipping trade creation due to holding update failure for user ${userId}`
+            );
+            return;
           }
-        });
+
+          // Create trade record
+          const newTrade = await ctx.services.tradeService.createBuyTrade({
+            userId,
+            tokenId: tokenData.id,
+            walletId: wallet.id,
+            txHash,
+            ethSpent: ethInBN,
+            tokensReceived: tokensReceivedBN,
+          });
+
+          // 🎯 Clear PnL cache for the user (adapted for fix/trade-balances)
+          try {
+            await ctx.services.pnlCacheService.clearUserPnlCache(userId);
+            logger.debug(`[BuyHandlers] Cleared PnL cache for user ${userId}`);
+          } catch (error) {
+            logger.error(`[BuyHandlers] Error clearing PnL cache:`, error);
+          }
+
+          logger.info(`User ${userId} buy transaction processed.`);
+        } catch (err) {
+          logger.error("createBuyTrade failed:", err);
+        }
 
         setImmediate(async () => {
           // update user points
@@ -225,19 +197,6 @@ export class BuyHandlers {
             await ctx.services.userService.updateUserVolumeBuy(userId, ethInBN);
           } catch (error) {
             logger.error(`Error updating user volume: ${error}`);
-          }
-
-          try {
-            // Update local ETH balance
-            const newEthBalanceBN = await getWalletBalance(
-              wallet.address as Address
-            );
-            await ctx.services.walletService.updateWalletBalance(
-              wallet.id,
-              newEthBalanceBN
-            );
-          } catch (error) {
-            logger.error(`Error updating wallet balance: ${error}`);
           }
         });
 

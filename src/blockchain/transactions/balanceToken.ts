@@ -1,4 +1,4 @@
-import { publicClientDRPC } from "@client";
+import { publicClientQuickNode } from "@client";
 import { ERC20_ABI } from "abis/erc20/erc20";
 import { Address } from "viem";
 
@@ -15,7 +15,7 @@ export async function getTokenBalance(
     throw new Error("User address is required");
   }
 
-  const balance = await publicClientDRPC.readContract({
+  const balance = await publicClientQuickNode.readContract({
     address: tokenAddress.toLowerCase() as Address,
     abi: ERC20_ABI,
     functionName: "balanceOf",

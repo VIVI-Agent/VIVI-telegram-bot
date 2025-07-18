@@ -33,6 +33,7 @@ import { BuyHandlers } from "../scenes/trade/BuyHandlers";
 import { replyTxNotificationsWithLinks } from "../../blockchain/services/swap/txNotifications";
 import { calculateFinalFee } from "../../utils/feeDiscounts";
 import { Token, User } from "@prisma/client";
+import { getTokenBalance, getWalletBalance } from "@blockchain";
 
 const logPrefix = "[buyTextHandler]";
 
@@ -40,6 +41,102 @@ interface ParsedBuyCommand {
   amount: string;
   token: string;
   tokenAddress?: Address;
+}
+
+/**
+ * Create transaction success callback for text handlers
+ * Updates balances for the selected wallet only
+ */
+function createTextHandlerTransactionSuccessCallback(
+  ctx: GlobalSceneContext,
+  wallet: any,
+  tokenData: Token,
+  userId: number
+): () => Promise<void> {
+  return async () => {
+    try {
+      logger.info(
+        `[buyTextHandler] Executing transaction success callback for user ${userId}`
+      );
+
+      // Step 2: Update ETH balance for the selected wallet
+      const newEthBalanceBN = await getWalletBalance(wallet.address as Address);
+      await ctx.services.walletService.updateWalletBalance(
+        wallet.id,
+        newEthBalanceBN
+      );
+      logger.info(
+        `[buyTextHandler] Updated ETH balance for wallet ${wallet.id}: ${newEthBalanceBN}`
+      );
+
+      // Step 3: Update token balance with retry until blockchain balance is > 0
+      const maxRetries = 15;
+      const retryDelay = 100; // 100ms between retries
+      let tokenBalanceBN = 0n;
+      let retryCount = 0;
+
+      while (retryCount < maxRetries && tokenBalanceBN === 0n) {
+        tokenBalanceBN = await getTokenBalance(
+          tokenData.address as Address,
+          wallet.address as Address
+        );
+
+        logger.info(
+          `[buyTextHandler] Attempt ${
+            retryCount + 1
+          }: Blockchain balance for wallet ${wallet.id}, token ${
+            tokenData.symbol
+          }: ${tokenBalanceBN}`
+        );
+
+        if (tokenBalanceBN > 0n) {
+          logger.info(
+            `[buyTextHandler] Found balance > 0 for wallet ${wallet.id}: ${tokenBalanceBN}`
+          );
+          break;
+        } else {
+          logger.warn(
+            `[buyTextHandler] Balance still 0 for wallet ${wallet.id}, retrying...`
+          );
+          retryCount++;
+          if (retryCount < maxRetries) {
+            logger.info(`[buyTextHandler] Retrying in ${retryDelay}ms...`);
+            await new Promise((resolve) => setTimeout(resolve, retryDelay));
+          }
+        }
+      }
+
+      // Only create/update holding if balance > 0
+      if (tokenBalanceBN > 0n) {
+        await ctx.services.holdingService.updateHoldingFromChain({
+          userId: userId,
+          tokenId: tokenData.id,
+          walletId: wallet.id,
+          newBalance: tokenBalanceBN,
+        });
+        logger.info(
+          `[buyTextHandler] Updated token balance for wallet ${wallet.id}, token ${tokenData.symbol}: ${tokenBalanceBN}`
+        );
+      } else {
+        logger.debug(
+          `[buyTextHandler] Skipping holding update for wallet ${wallet.id}, token ${tokenData.symbol}: balance is 0`
+        );
+      }
+
+      // Step 4: Clear PnL cache for the user
+      await ctx.services.pnlCacheService.clearUserPnlCache(userId);
+      logger.info(`[buyTextHandler] Cleared PnL cache for user ${userId}`);
+
+      logger.info(
+        `[buyTextHandler] Transaction success callback completed for user ${userId}`
+      );
+    } catch (error) {
+      logger.error(
+        `[buyTextHandler] Error in transaction success callback:`,
+        error
+      );
+    }
+  };
 }
 
 /**
@@ -255,6 +352,14 @@ async function executeBuyCommand(
     const feePercent = await calculateFinalFee(ctx, tokenAddress, user.id);
     logger.info(`${logPrefix} Final fee percent: ${feePercent}`);
 
+    // Create transaction success callback for balance updates
+    const onTransactionSuccess = createTextHandlerTransactionSuccessCallback(
+      ctx,
+      wallet,
+      tokenInfo,
+      user.id
+    );
+
     // Execute buy based on best DEX
     let txHash: Hash;
     let waitReceipt: Promise<TransactionReceipt>;
@@ -280,7 +385,8 @@ async function executeBuyCommand(
         user.id,
         wid,
         txHash,
-        false // isGroup = false for individual buys
+        false, // isGroup = false for individual buys
+        onTransactionSuccess
       );
 
       logger.info(`${logPrefix} UniV2 TX: ${txHash}`);
@@ -317,7 +423,8 @@ async function executeBuyCommand(
         user.id,
         wid,
         txHash,
-        false
+        false,
+        onTransactionSuccess
       );
 
       logger.info(`${logPrefix} Aerodrome TX: ${txHash}`);
@@ -354,7 +461,8 @@ async function executeBuyCommand(
         user.id,
         wid,
         txHash,
-        false
+        false,
+        onTransactionSuccess
       );
 
       logger.info(`${logPrefix} UniV3 TX: ${txHash}`);
@@ -389,7 +497,8 @@ async function executeBuyCommand(
         user.id,
         wid,
         txHash,
-        false
+        false,
+        onTransactionSuccess
       );
 
       logger.info(`${logPrefix} ZoraMultiHop TX: ${txHash}`);
@@ -425,7 +534,8 @@ async function executeBuyCommand(
         user.id,
         wid,
         txHash,
-        false
+        false,
+        onTransactionSuccess
       );
 
       logger.info(`${logPrefix} ApeStore TX: ${txHash}`);
@@ -461,7 +571,8 @@ async function executeBuyCommand(
         user.id,
         wid,
         txHash,
-        false
+        false,
+        onTransactionSuccess
       );
 
       logger.info(`${logPrefix} VirtualToken TX: ${txHash}`);
