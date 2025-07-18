@@ -33,8 +33,66 @@ import { replyTxNotificationsWithLinks } from "../../blockchain/services/swap/tx
 import { SellHandlers } from "../scenes/trade/SellHandlers";
 import { calculateFinalFee } from "../../utils/feeDiscounts";
 import { Token, User } from "@prisma/client";
+import { getTokenBalance, getWalletBalance } from "@blockchain";
 
 const logPrefix = "[sellTextHandler]";
+
+/**
+ * Create transaction success callback for text handlers
+ * Updates balances for the selected wallet only
+ */
+function createTextHandlerTransactionSuccessCallback(
+  ctx: GlobalSceneContext,
+  wallet: any,
+  tokenData: Token,
+  userId: number
+): () => Promise<void> {
+  return async () => {
+    try {
+      logger.info(
+        `[sellTextHandler] Executing transaction success callback for user ${userId}`
+      );
+
+      // Step 1: Update ETH balance for the selected wallet
+      const newEthBalanceBN = await getWalletBalance(wallet.address as Address);
+      await ctx.services.walletService.updateWalletBalance(
+        wallet.id,
+        newEthBalanceBN
+      );
+      logger.info(
+        `[sellTextHandler] Updated ETH balance for wallet ${wallet.id}: ${newEthBalanceBN}`
+      );
+
+      // Step 2: Update token balance for the selected wallet
+      const tokenBalanceBN = await getTokenBalance(
+        tokenData.address as Address,
+        wallet.address as Address
+      );
+      await ctx.services.holdingService.updateHoldingFromChain({
+        userId: userId,
+        tokenId: tokenData.id,
+        walletId: wallet.id,
+        newBalance: tokenBalanceBN,
+      });
+      logger.info(
+        `[sellTextHandler] Updated token balance for wallet ${wallet.id}, token ${tokenData.symbol}: ${tokenBalanceBN}`
+      );
+
+      // Step 3: Clear PnL cache for the user
+      await ctx.services.pnlCacheService.clearUserPnlCache(userId);
+      logger.info(`[sellTextHandler] Cleared PnL cache for user ${userId}`);
+
+      logger.info(
+        `[sellTextHandler] Transaction success callback completed for user ${userId}`
+      );
+    } catch (error) {
+      logger.error(
+        `[sellTextHandler] Error in transaction success callback:`,
+        error
+      );
+    }
+  };
+}
 
 /**
  * Parse sell command text to extract percentage and token
@@ -321,6 +379,14 @@ async function executeSellCommand(
     );
     logger.info(`${logPrefix} Final fee percent: ${feePercent}`);
 
+    // Create transaction success callback for balance updates
+    const onTransactionSuccess = createTextHandlerTransactionSuccessCallback(
+      ctx,
+      wallet,
+      holding.token,
+      user.id
+    );
+
     // Execute sell based on best DEX
     let txHash: Hash;
     let waitReceipt: Promise<TransactionReceipt>;
@@ -347,7 +413,8 @@ async function executeSellCommand(
         user.id,
         wid,
         txHash,
-        false // isGroup = false for individual sells
+        false, // isGroup = false for individual sells
+        onTransactionSuccess
       );
 
       logger.info(`${logPrefix} UniV2 TX: ${txHash}`);
@@ -388,7 +455,8 @@ async function executeSellCommand(
         user.id,
         wid,
         txHash,
-        false
+        false,
+        onTransactionSuccess
       );
 
       logger.info(`${logPrefix} Aerodrome TX: ${txHash}`);
@@ -426,7 +494,8 @@ async function executeSellCommand(
         user.id,
         wid,
         txHash,
-        false
+        false,
+        onTransactionSuccess
       );
 
       logger.info(`${logPrefix} UniV3 TX: ${txHash}`);
@@ -462,7 +531,8 @@ async function executeSellCommand(
         user.id,
         wid,
         txHash,
-        false
+        false,
+        onTransactionSuccess
       );
 
       logger.info(`${logPrefix} ZoraMultiHop TX: ${txHash}`);
@@ -499,7 +569,8 @@ async function executeSellCommand(
         user.id,
         wid,
         txHash,
-        false
+        false,
+        onTransactionSuccess
       );
 
       logger.info(`${logPrefix} ApeStore TX: ${txHash}`);
@@ -536,7 +607,8 @@ async function executeSellCommand(
         user.id,
         wid,
         txHash,
-        false
+        false,
+        onTransactionSuccess
       );
 
       logger.info(`${logPrefix} VirtualToken TX: ${txHash}`);
