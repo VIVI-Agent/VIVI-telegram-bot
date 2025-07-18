@@ -1340,10 +1340,6 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
         return;
       }
 
-      // Step 1: Wait 1.5 seconds for blockchain to update
-      this.log("info", ctx, "Waiting 1.5 seconds for blockchain to update");
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
       // Step 2: Update balances with retry until blockchain balances are updated
       this.log("info", ctx, "Updating wallet balances after transaction");
       await this.updateWalletBalancesAfterTransactionWithRetry(ctx, sceneData);
@@ -1425,8 +1421,8 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
   ): Promise<void> {
     try {
       const wallets = sceneData.userWithWallets?.wallets || [];
-      const maxRetries = 5;
-      const retryDelay = 1000; // 1 second
+      const maxRetries = 15;
+      const retryDelay = 100; // 1 second
 
       for (const wallet of wallets) {
         try {
