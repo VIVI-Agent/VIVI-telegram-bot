@@ -59,7 +59,13 @@ function createTextHandlerTransactionSuccessCallback(
         `[buyTextHandler] Executing transaction success callback for user ${userId}`
       );
 
-      // Step 1: Update ETH balance for the selected wallet
+      // Step 1: Wait 1.5 seconds for blockchain to update
+      logger.info(
+        `[buyTextHandler] Waiting 1.5 seconds for blockchain to update`
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      // Step 2: Update ETH balance for the selected wallet
       const newEthBalanceBN = await getWalletBalance(wallet.address as Address);
       await ctx.services.walletService.updateWalletBalance(
         wallet.id,
@@ -69,22 +75,61 @@ function createTextHandlerTransactionSuccessCallback(
         `[buyTextHandler] Updated ETH balance for wallet ${wallet.id}: ${newEthBalanceBN}`
       );
 
-      // Step 2: Update token balance for the selected wallet
-      const tokenBalanceBN = await getTokenBalance(
-        tokenData.address as Address,
-        wallet.address as Address
-      );
-      await ctx.services.holdingService.updateHoldingFromChain({
-        userId: userId,
-        tokenId: tokenData.id,
-        walletId: wallet.id,
-        newBalance: tokenBalanceBN,
-      });
-      logger.info(
-        `[buyTextHandler] Updated token balance for wallet ${wallet.id}, token ${tokenData.symbol}: ${tokenBalanceBN}`
-      );
+      // Step 3: Update token balance with retry until blockchain balance is > 0
+      const maxRetries = 15;
+      const retryDelay = 100; // 100ms between retries
+      let tokenBalanceBN = 0n;
+      let retryCount = 0;
 
-      // Step 3: Clear PnL cache for the user
+      while (retryCount < maxRetries && tokenBalanceBN === 0n) {
+        tokenBalanceBN = await getTokenBalance(
+          tokenData.address as Address,
+          wallet.address as Address
+        );
+
+        logger.info(
+          `[buyTextHandler] Attempt ${
+            retryCount + 1
+          }: Blockchain balance for wallet ${wallet.id}, token ${
+            tokenData.symbol
+          }: ${tokenBalanceBN}`
+        );
+
+        if (tokenBalanceBN > 0n) {
+          logger.info(
+            `[buyTextHandler] Found balance > 0 for wallet ${wallet.id}: ${tokenBalanceBN}`
+          );
+          break;
+        } else {
+          logger.warn(
+            `[buyTextHandler] Balance still 0 for wallet ${wallet.id}, retrying...`
+          );
+          retryCount++;
+          if (retryCount < maxRetries) {
+            logger.info(`[buyTextHandler] Retrying in ${retryDelay}ms...`);
+            await new Promise((resolve) => setTimeout(resolve, retryDelay));
+          }
+        }
+      }
+
+      // Only create/update holding if balance > 0
+      if (tokenBalanceBN > 0n) {
+        await ctx.services.holdingService.updateHoldingFromChain({
+          userId: userId,
+          tokenId: tokenData.id,
+          walletId: wallet.id,
+          newBalance: tokenBalanceBN,
+        });
+        logger.info(
+          `[buyTextHandler] Updated token balance for wallet ${wallet.id}, token ${tokenData.symbol}: ${tokenBalanceBN}`
+        );
+      } else {
+        logger.debug(
+          `[buyTextHandler] Skipping holding update for wallet ${wallet.id}, token ${tokenData.symbol}: balance is 0`
+        );
+      }
+
+      // Step 4: Clear PnL cache for the user
       await ctx.services.pnlCacheService.clearUserPnlCache(userId);
       logger.info(`[buyTextHandler] Cleared PnL cache for user ${userId}`);
 
