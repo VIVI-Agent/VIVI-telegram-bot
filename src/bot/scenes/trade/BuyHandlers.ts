@@ -2,7 +2,8 @@ import { logger } from "@logger";
 import { GlobalSceneContext } from "../../types";
 import { Address, decodeEventLog, formatUnits, TransactionReceipt } from "viem";
 import { Token } from "@prisma/client";
-import { getTokenBalance, getWalletBalance } from "@blockchain";
+// getTokenBalance and getWalletBalance are no longer used here
+// Balance updates are now handled in TradeSubScene.handleTransactionSuccess
 import {
   VIVIAerodromeABI,
   VIVIApeStoreABI,
@@ -11,7 +12,6 @@ import {
   VIVIVirtualsHopABI,
   VIVIZoraMultiHopABI,
 } from "@abis";
-import { PnlServiceWithCache } from "blockchain/services/pnl/pnlServiceWithCache";
 
 /**
  * BuyHandlers: Static class that provides "parseLogsFn" and "onMinedFn" functions for different DEX
@@ -107,198 +107,114 @@ export class BuyHandlers {
         return;
       }
 
-      // If ETH > 0 was spent, update balances and handle success
-      if (ethInBN > 0n) {
-        try {
-          // 1. Update balances SYNCHRONOUSLY (critical for mode switching)
-          await this.updateBalancesAfterTransaction(
-            ctx,
-            wallet,
-            tokenData,
-            userId
-          );
+      // Update holding first (synchronously to avoid race conditions)
+      // Balance updates are now handled in TradeSubScene.handleTransactionSuccess
+      // to avoid duplication and ensure all wallets are updated consistently
+      const holdingUpdated = true; // Always true since we're not updating here anymore
 
-          // 2. Execute success callback IMMEDIATELY (with updated balances)
-          if (onTransactionSuccess) {
+      // **Register in BuyEvent if exists**
+      if (ctx.chat?.id && ethInBN > 0n) {
+        const groupChatId = ctx.chat.id.toString();
+
+        // Register purchase in active event (if exists) using the service
+        setImmediate(async () => {
+          try {
+            const { Prisma } = await import("@prisma/client");
+            const registered =
+              await ctx.services.buyEventService.registerPurchaseInActiveEvent(
+                tokenData.id,
+                groupChatId,
+                userId,
+                wallet.id,
+                txHash,
+                new Prisma.Decimal(ethInBN.toString()),
+                new Prisma.Decimal(tokensReceivedBN.toString())
+              );
+
+            if (registered) {
+              logger.info(
+                `Purchase registered in active buy event for user ${userId}`
+              );
+            }
+          } catch (error) {
+            logger.error(`Error registering purchase in buy event: ${error}`);
+          }
+        });
+      }
+
+      // If ETH > 0 was spent, update trade and user
+      if (ethInBN > 0n) {
+        // Create trade record synchronously
+        try {
+          if (!holdingUpdated) {
+            logger.warn(
+              `Skipping trade creation due to holding update failure for user ${userId}`
+            );
+            return;
+          }
+
+          // Create trade record
+          const newTrade = await ctx.services.tradeService.createBuyTrade({
+            userId,
+            tokenId: tokenData.id,
+            walletId: wallet.id,
+            txHash,
+            ethSpent: ethInBN,
+            tokensReceived: tokensReceivedBN,
+          });
+
+          // 🎯 Clear PnL cache for the user (adapted for fix/trade-balances)
+          try {
+            await ctx.services.pnlCacheService.clearUserPnlCache(userId);
+            logger.debug(`[BuyHandlers] Cleared PnL cache for user ${userId}`);
+          } catch (error) {
+            logger.error(`[BuyHandlers] Error clearing PnL cache:`, error);
+          }
+
+          logger.info(`User ${userId} buy transaction processed.`);
+        } catch (err) {
+          logger.error("createBuyTrade failed:", err);
+        }
+
+        setImmediate(async () => {
+          // update user points
+          try {
+            const tokenWL =
+              await ctx.services.feeWhitelistService.getTokenWhitelist(
+                tokenData.address
+              );
+            const bonusPercent = tokenWL?.bonusPointsPercent || 0;
+            await ctx.services.userService.updateUserPoints({
+              userId,
+              ethVolumeWei: ethInBN,
+              bonusPercent,
+            });
+          } catch (error) {
+            logger.error(`Error updating user points/volume: ${error}`);
+          }
+
+          try {
+            await ctx.services.userService.updateUserVolumeBuy(userId, ethInBN);
+          } catch (error) {
+            logger.error(`Error updating user volume: ${error}`);
+          }
+        });
+
+        // Call success callback after all updates are complete
+        if (onTransactionSuccess) {
+          try {
             await onTransactionSuccess();
             logger.info(
               `Transaction success callback executed for user ${userId}`
             );
+          } catch (error) {
+            logger.error(`Error in transaction success callback: ${error}`);
           }
-
-          // 3. Create trade and update PnL in background (not critical for mode switching)
-          setImmediate(async () => {
-            try {
-              await this.createTradeAndUpdatePnl(
-                ctx,
-                userId,
-                tokenData,
-                wallet,
-                txHash,
-                ethInBN,
-                tokensReceivedBN
-              );
-            } catch (err) {
-              logger.error(
-                "createTradeAndUpdatePnl failed in background:",
-                err
-              );
-            }
-          });
-
-          // 4. Update user points and volume in background
-          setImmediate(async () => {
-            try {
-              const tokenWL =
-                await ctx.services.feeWhitelistService.getTokenWhitelist(
-                  tokenData.address
-                );
-              const bonusPercent = tokenWL?.bonusPointsPercent || 0;
-              await ctx.services.userService.updateUserPoints({
-                userId,
-                ethVolumeWei: ethInBN,
-                bonusPercent,
-              });
-            } catch (error) {
-              logger.error(`Error updating user points: ${error}`);
-            }
-
-            try {
-              await ctx.services.userService.updateUserVolumeBuy(
-                userId,
-                ethInBN
-              );
-            } catch (error) {
-              logger.error(`Error updating user volume: ${error}`);
-            }
-          });
-
-          // 5. Register in BuyEvent if exists (in background)
-          if (ctx.chat?.id) {
-            const groupChatId = ctx.chat.id.toString();
-            setImmediate(async () => {
-              try {
-                const { Prisma } = await import("@prisma/client");
-                const registered =
-                  await ctx.services.buyEventService.registerPurchaseInActiveEvent(
-                    tokenData.id,
-                    groupChatId,
-                    userId,
-                    wallet.id,
-                    txHash,
-                    new Prisma.Decimal(ethInBN.toString()),
-                    new Prisma.Decimal(tokensReceivedBN.toString())
-                  );
-
-                if (registered) {
-                  logger.info(
-                    `Purchase registered in active buy event for user ${userId}`
-                  );
-                }
-              } catch (error) {
-                logger.error(
-                  `Error registering purchase in buy event: ${error}`
-                );
-              }
-            });
-          }
-        } catch (error) {
-          logger.error(`Error in onMinedFn for user ${userId}:`, error);
         }
       }
     };
 
     return { parseLogsFn, onMinedFn };
-  }
-
-  /**
-   * Update balances synchronously after transaction
-   */
-  private static async updateBalancesAfterTransaction(
-    ctx: GlobalSceneContext,
-    wallet: any,
-    tokenData: Token,
-    userId: number
-  ): Promise<void> {
-    try {
-      // Validate tokenData has required fields
-      if (!tokenData.address || !wallet.address) {
-        logger.warn(
-          `Skipping balance update: missing token address (${tokenData.address}) or wallet address (${wallet.address})`
-        );
-        return;
-      }
-
-      // Update ETH balance
-      const newEthBalanceBN = await getWalletBalance(wallet.address as Address);
-      await ctx.services.walletService.updateWalletBalance(
-        wallet.id,
-        newEthBalanceBN
-      );
-      logger.info(
-        `Updated ETH balance for wallet ${wallet.id}: ${newEthBalanceBN}`
-      );
-
-      // Update token balance
-      const newTokenBalanceBN = await getTokenBalance(
-        tokenData.address as Address,
-        wallet.address as Address
-      );
-      await ctx.services.holdingService.updateHoldingFromChain({
-        userId: userId,
-        tokenId: tokenData.id,
-        walletId: wallet.id,
-        newBalance: newTokenBalanceBN,
-      });
-      logger.info(
-        `Updated token balance for ${tokenData.symbol} in wallet ${wallet.id}: ${newTokenBalanceBN}`
-      );
-    } catch (err) {
-      logger.error(`Error updating balances for wallet ${wallet.id}:`, err);
-      throw err; // Re-throw to prevent callback execution if balances fail
-    }
-  }
-
-  /**
-   * Create trade and update PnL (non-critical, runs in background)
-   */
-  private static async createTradeAndUpdatePnl(
-    ctx: GlobalSceneContext,
-    userId: number,
-    tokenData: Token,
-    wallet: any,
-    txHash: Address,
-    ethInBN: bigint,
-    tokensReceivedBN: bigint
-  ): Promise<void> {
-    try {
-      // Create trade record
-      const newTrade = await ctx.services.tradeService.createBuyTrade({
-        userId,
-        tokenId: tokenData.id,
-        walletId: wallet.id,
-        txHash,
-        ethSpent: ethInBN,
-        tokensReceived: tokensReceivedBN,
-      });
-
-      // Update PnL after trade is created
-      await new PnlServiceWithCache().updatePnlForTrade(ctx, newTrade.id);
-      await new PnlServiceWithCache().updateUserPnlCacheInBackground(
-        ctx,
-        userId
-      );
-
-      logger.info(
-        `User ${userId} buy transaction processed. Trade ID: ${newTrade.id}`
-      );
-    } catch (err) {
-      logger.error(
-        `Error creating trade and updating PnL for user ${userId}:`,
-        err
-      );
-      throw err;
-    }
   }
 
   /**
