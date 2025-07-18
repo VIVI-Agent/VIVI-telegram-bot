@@ -1324,6 +1324,8 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
     transactionType: "buy" | "sell"
   ): () => Promise<void> {
     return async () => {
+      await this.service.handleRefreshFull(ctx);
+
       await this.handleTransactionSuccess(ctx, transactionType);
     };
   }
