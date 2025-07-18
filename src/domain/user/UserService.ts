@@ -288,22 +288,31 @@ export class UserService {
     userId: number,
     tokenId: number
   ): Promise<UserWithWalletsAndHolding | null> {
-    const result = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        wallets: {
-          orderBy: { createdAt: "asc" },
-          where: { isDeleted: false },
+    // Use a fresh transaction to avoid cache issues
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        return await tx.user.findUnique({
+          where: { id: userId },
           include: {
-            holdings: {
-              where: { tokenId },
-              include: { token: true },
-              take: 1, // Solo tomar el primer holding
+            wallets: {
+              orderBy: { createdAt: "asc" },
+              where: { isDeleted: false },
+              include: {
+                holdings: {
+                  where: { tokenId },
+                  include: { token: true },
+                  take: 1, // Solo tomar el primer holding
+                },
+              },
             },
           },
-        },
+        });
       },
-    });
+      {
+        maxWait: 5000,
+        timeout: 10000,
+      }
+    );
 
     if (!result) return null;
 

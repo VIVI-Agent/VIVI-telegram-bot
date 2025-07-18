@@ -42,6 +42,56 @@ export class HoldingService {
     }
   }
 
+  /**
+   * Force update holding from blockchain with retry mechanism
+   * This is used after transactions to ensure database consistency
+   */
+  async forceUpdateHoldingFromChain(params: {
+    userId: number;
+    tokenId: number;
+    walletId: number;
+    newBalance: bigint;
+  }): Promise<void> {
+    const { userId, tokenId, walletId, newBalance } = params;
+    const balanceStr = newBalance.toString();
+
+    // Use a transaction to ensure consistency
+    await this.prisma.$transaction(
+      async (tx) => {
+        // Buscar el holding existente
+        const existingHolding = await tx.holding.findFirst({
+          where: {
+            userId,
+            tokenId,
+            walletId,
+          },
+        });
+
+        if (!existingHolding) {
+          // Si no existe, crearlo
+          await tx.holding.create({
+            data: {
+              userId,
+              tokenId,
+              walletId,
+              balance: balanceStr,
+            },
+          });
+        } else {
+          // Si existe, actualizar el balance
+          await tx.holding.update({
+            where: { id: existingHolding.id },
+            data: { balance: balanceStr },
+          });
+        }
+      },
+      {
+        maxWait: 5000,
+        timeout: 10000,
+      }
+    );
+  }
+
   async getHoldingsByUserId(userId: number): Promise<HoldingWithToken[]> {
     return await this.prisma.holding.findMany({
       where: {

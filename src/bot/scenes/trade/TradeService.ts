@@ -15,6 +15,7 @@ import {
   getBestDexForBuyEthToToken,
   getBestDexForSellTokenToEth,
   handleTxNotificationsWithLinks,
+  getWalletBalance,
 } from "@blockchain";
 import { getTokenBalance } from "@blockchain";
 import { BaseService, GlobalSceneContext, TradeSceneData } from "../../types";
@@ -25,10 +26,85 @@ import { publicClientQuickNode } from "@client";
 import { FEE_TIERS } from "blockchain/services/const";
 import { BuyHandlers } from "./BuyHandlers";
 import { SellHandlers } from "./SellHandlers";
+import { WalletWithHoldings } from "@domain";
 
 export class TradeService extends BaseService {
   constructor(instanceId: string) {
     super(instanceId, "TradeService");
+  }
+
+  public async handleRefreshFull(ctx: GlobalSceneContext): Promise<boolean> {
+    this.log("info", ctx, "Refreshing menu");
+
+    try {
+      // Load fresh user data
+
+      const wallets =
+        await ctx.services.walletService.getUserWalletsWithHoldings(
+          ctx.user.id
+        );
+
+      if (!wallets) {
+        this.log("warn", ctx, "Failed to load user data");
+        await ctx.answerCbQuery("❌ Failed to refresh. Please try again.");
+        return false;
+      }
+
+      // Process all wallets in parallel
+      await Promise.all(
+        wallets.map(async (wallet: WalletWithHoldings) => {
+          try {
+            // Update ETH balance
+            const ethBalance = await getWalletBalance(
+              wallet.address as Address
+            );
+
+            await ctx.services.walletService.updateWalletBalance(
+              wallet.id,
+              ethBalance
+            );
+
+            const holdings = wallet.holdings;
+
+            // Update token balances in parallel
+            await Promise.all(
+              holdings.map(async (holding) => {
+                try {
+                  const token = holding.token;
+                  const chainBalance = await getTokenBalance(
+                    token.address as Address,
+                    wallet.address as Address
+                  );
+
+                  if (chainBalance !== BigInt(holding.balance)) {
+                    this.log("info", ctx, "Updating holding");
+                    await ctx.services.holdingService.updateHoldingFromChain({
+                      userId: ctx.user.id,
+                      tokenId: token.id,
+                      walletId: wallet.id,
+                      newBalance: chainBalance,
+                    });
+                  }
+                } catch (err) {
+                  this.logError(ctx, "handleRefresh", err);
+                  // Continue with other tokens even if one fails
+                }
+              })
+            );
+          } catch (err) {
+            this.logError(ctx, "handleRefresh", err);
+            // Continue with other wallets even if one fails
+          }
+        })
+      );
+
+      await ctx.answerCbQuery("✅ Balance refreshed!");
+      return true;
+    } catch (error) {
+      this.logError(ctx, "handleRefresh", error);
+      await ctx.answerCbQuery("❌ Failed to refresh. Please try again.");
+      return false;
+    }
   }
 
   /**

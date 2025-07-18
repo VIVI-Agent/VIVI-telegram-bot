@@ -1371,16 +1371,54 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
       await ctx.services.pnlCacheService.clearUserPnlCache(userId);
       this.log("info", ctx, `Cleared PnL cache for user ${userId}`);
 
-      // Step 3: Refresh user data with updated balances from database
+      // Step 3: Add a small delay to ensure database consistency after transaction
+      this.log(
+        "info",
+        ctx,
+        "Waiting for database consistency after transaction"
+      );
+      await new Promise((resolve) => setTimeout(resolve, 500)); // 500ms delay
+
+      // Step 4: Refresh user data with updated balances from database
       this.log(
         "info",
         ctx,
         "Refreshing user data from database after transaction"
       );
-      const [userWithSettings, wallets] = await Promise.all([
-        this.service.getUserWithSettings(ctx),
-        this.service.getUserWalletsWithHolding(ctx, tokenId),
-      ]);
+
+      // Retry mechanism for getting fresh data
+      let userWithSettings, wallets;
+      let retryCount = 0;
+      const maxRetries = 3;
+
+      while (retryCount < maxRetries) {
+        try {
+          [userWithSettings, wallets] = await Promise.all([
+            this.service.getUserWithSettings(ctx),
+            this.service.getUserWalletsWithHolding(ctx, tokenId),
+          ]);
+
+          if (userWithSettings && wallets) {
+            break; // Success, exit retry loop
+          }
+        } catch (error) {
+          this.log(
+            "warn",
+            ctx,
+            `Attempt ${retryCount + 1} failed to get user data: ${error}`
+          );
+        }
+
+        retryCount++;
+        if (retryCount < maxRetries) {
+          this.log(
+            "info",
+            ctx,
+            `Retrying in 200ms... (attempt ${retryCount + 1}/${maxRetries})`
+          );
+          await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+      }
 
       if (userWithSettings && wallets) {
         // Update scene data with fresh data from database
@@ -1405,7 +1443,7 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
           );
         }
 
-        // Step 4: Switch to opposite mode with fresh data
+        // Step 5: Switch to opposite mode with fresh data
         const newMode = transactionType === "buy" ? "trade_sell" : "trade_buy";
         await this.switchMode(ctx, newMode);
 
@@ -1415,7 +1453,7 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
           `Successfully switched to ${newMode} mode after ${transactionType}`
         );
 
-        // Step 5: Force update the menu to remove "⏳ Sending" state
+        // Step 6: Force update the menu to remove "⏳ Sending" state
         try {
           this.log("info", ctx, "Forcing menu update to remove sending state");
           await this.menus.showTradeMenu(
@@ -1560,10 +1598,10 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
             this.log(
               "info",
               ctx,
-              `Updating holding for wallet ${wallet.id}, token ${sceneData.token.symbol}: ${tokenBalanceBN}`
+              `Force updating holding for wallet ${wallet.id}, token ${sceneData.token.symbol}: ${tokenBalanceBN}`
             );
 
-            await ctx.services.holdingService.updateHoldingFromChain({
+            await ctx.services.holdingService.forceUpdateHoldingFromChain({
               userId: ctx.user.id,
               tokenId: sceneData.token.id,
               walletId: wallet.id,
@@ -1692,6 +1730,9 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
   ): Promise<void> {
     try {
       const sceneData = this.getSceneData(ctx);
+
+      // Add a small delay to ensure database consistency
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       const [userWithSettings, wallets] = await Promise.all([
         this.service.getUserWithSettings(ctx),
