@@ -1265,6 +1265,16 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
     try {
       const sceneData = this.getSceneData(ctx);
 
+      const [userWithSettings, wallets] = await Promise.all([
+        this.service.getUserWithSettings(ctx),
+        this.service.getUserWalletsWithHolding(ctx, sceneData.token?.id!),
+      ]);
+      if (userWithSettings && wallets) {
+        sceneData.userWithSettings = userWithSettings;
+        sceneData.userWithWallets = wallets;
+        this.updateSceneData(ctx, sceneData);
+      }
+
       // Get updated best dex quote
       const bestDex = await this.service.getBestDex(ctx, sceneData);
       if (bestDex) {
@@ -1682,6 +1692,17 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
   ): Promise<void> {
     try {
       const sceneData = this.getSceneData(ctx);
+
+      const [userWithSettings, wallets] = await Promise.all([
+        this.service.getUserWithSettings(ctx),
+        this.service.getUserWalletsWithHolding(ctx, sceneData.token?.id!),
+      ]);
+      if (userWithSettings && wallets) {
+        sceneData.userWithSettings = userWithSettings;
+        sceneData.userWithWallets = wallets;
+        this.updateSceneData(ctx, sceneData);
+      }
+
       sceneData.state = newMode;
       sceneData.selectedWallets = []; // Reset selected wallets
 
