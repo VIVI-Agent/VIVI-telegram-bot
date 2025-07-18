@@ -1344,6 +1344,18 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
       this.log("info", ctx, "Updating wallet balances after transaction");
       await this.updateWalletBalancesAfterTransaction(ctx, sceneData);
 
+      // Debug: Verify that holdings were created/updated
+      this.log(
+        "info",
+        ctx,
+        `Transaction type: ${transactionType}, Token ID: ${tokenId}`
+      );
+      this.log(
+        "info",
+        ctx,
+        `User ID: ${userId}, Token Address: ${tokenAddress}`
+      );
+
       // Step 2: Clear PnL cache for the user (adapted for fix/trade-balances)
       this.log("info", ctx, `Clearing PnL cache for user ${userId}`);
       await ctx.services.pnlCacheService.clearUserPnlCache(userId);
@@ -1371,6 +1383,17 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
           ctx,
           `Updated scene data with fresh user data: ${wallets.wallets.length} wallets`
         );
+
+        // Debug: Check if holdings are present in the refreshed data
+        for (const wallet of wallets.wallets) {
+          this.log(
+            "info",
+            ctx,
+            `Wallet ${wallet.id} (${
+              wallet.address
+            }) holdings after refresh: ${JSON.stringify(wallet.holdings)}`
+          );
+        }
 
         // Switch to opposite mode with fresh data
         const newMode = transactionType === "buy" ? "trade_sell" : "trade_buy";
@@ -1427,6 +1450,12 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
             );
 
             // Update holding balance
+            this.log(
+              "info",
+              ctx,
+              `Updating holding for wallet ${wallet.id}, token ${sceneData.token.symbol}: ${tokenBalanceBN}`
+            );
+
             await ctx.services.holdingService.updateHoldingFromChain({
               userId: ctx.user.id,
               tokenId: sceneData.token.id,
@@ -1437,7 +1466,7 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
             this.log(
               "info",
               ctx,
-              `Updated token balance for wallet ${wallet.id}, token ${sceneData.token.symbol}: ${tokenBalanceBN}`
+              `Successfully updated token balance for wallet ${wallet.id}, token ${sceneData.token.symbol}: ${tokenBalanceBN}`
             );
           }
         } catch (error) {
@@ -1561,6 +1590,21 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
             ctx,
             `SwitchMode: Wallet holdings: ${JSON.stringify(wallet.holdings)}`
           );
+
+          // Debug: Check if holdings exist and have balance
+          if (wallet.holdings) {
+            this.log(
+              "debug",
+              ctx,
+              `SwitchMode: Wallet ${wallet.id} has holdings: balance=${wallet.holdings.balance}, tokenId=${wallet.holdings.tokenId}`
+            );
+          } else {
+            this.log(
+              "debug",
+              ctx,
+              `SwitchMode: Wallet ${wallet.id} has NO holdings for token ${sceneData.token?.id}`
+            );
+          }
 
           const hasTokenBalance =
             wallet.holdings &&
