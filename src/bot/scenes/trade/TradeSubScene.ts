@@ -1339,9 +1339,6 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
         return;
       }
 
-      // Wait a moment to ensure all balance updates are complete
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
       // Force refresh user data with updated balances from database
       this.log(
         "info",
