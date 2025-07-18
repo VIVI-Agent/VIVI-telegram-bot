@@ -1340,7 +1340,7 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
         return;
       }
 
-      // Step 2: Update balances with retry until blockchain balances are updated
+      // Step 1: Update balances with retry until blockchain balances are updated
       this.log("info", ctx, "Updating wallet balances after transaction");
       await this.updateWalletBalancesAfterTransactionWithRetry(ctx, sceneData);
 
@@ -1395,7 +1395,7 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
           );
         }
 
-        // Switch to opposite mode with fresh data
+        // Step 4: Switch to opposite mode with fresh data
         const newMode = transactionType === "buy" ? "trade_sell" : "trade_buy";
         await this.switchMode(ctx, newMode);
 
@@ -1404,11 +1404,68 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
           ctx,
           `Successfully switched to ${newMode} mode after ${transactionType}`
         );
+
+        // Step 5: Force update the menu to remove "⏳ Sending" state
+        try {
+          this.log("info", ctx, "Forcing menu update to remove sending state");
+          await this.menus.showTradeMenu(
+            ctx,
+            sceneData,
+            sceneData.menuMessageId,
+            false // hideMenuKeyboard = false to show normal menu
+          );
+          this.log("info", ctx, "Menu updated successfully after transaction");
+        } catch (menuError) {
+          this.log(
+            "error",
+            ctx,
+            `Error updating menu after transaction: ${menuError}`
+          );
+        }
       } else {
         this.log("error", ctx, "Failed to get updated user data from database");
+
+        // Even if we fail to get updated data, try to update the menu to remove sending state
+        try {
+          this.log(
+            "info",
+            ctx,
+            "Attempting menu update despite data refresh failure"
+          );
+          await this.menus.showTradeMenu(
+            ctx,
+            sceneData,
+            sceneData.menuMessageId,
+            false // hideMenuKeyboard = false to show normal menu
+          );
+        } catch (menuError) {
+          this.log(
+            "error",
+            ctx,
+            `Error updating menu after data refresh failure: ${menuError}`
+          );
+        }
       }
     } catch (error) {
       this.log("error", ctx, `Error handling transaction success: ${error}`);
+
+      // Even if everything fails, try to update the menu to remove sending state
+      try {
+        const sceneData = this.getSceneData(ctx);
+        this.log("info", ctx, "Attempting menu update after transaction error");
+        await this.menus.showTradeMenu(
+          ctx,
+          sceneData,
+          sceneData.menuMessageId,
+          false
+        );
+      } catch (menuError) {
+        this.log(
+          "error",
+          ctx,
+          `Error updating menu after transaction error: ${menuError}`
+        );
+      }
     }
   }
 
