@@ -1546,33 +1546,25 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
               }
             }
 
-            // Only create/update holding if balance > 0
-            if (tokenBalanceBN > 0n) {
-              this.log(
-                "info",
-                ctx,
-                `Updating holding for wallet ${wallet.id}, token ${sceneData.token.symbol}: ${tokenBalanceBN}`
-              );
+            // Always update holding, even if balance is 0 (important for sell transactions)
+            this.log(
+              "info",
+              ctx,
+              `Updating holding for wallet ${wallet.id}, token ${sceneData.token.symbol}: ${tokenBalanceBN}`
+            );
 
-              await ctx.services.holdingService.updateHoldingFromChain({
-                userId: ctx.user.id,
-                tokenId: sceneData.token.id,
-                walletId: wallet.id,
-                newBalance: tokenBalanceBN,
-              });
+            await ctx.services.holdingService.updateHoldingFromChain({
+              userId: ctx.user.id,
+              tokenId: sceneData.token.id,
+              walletId: wallet.id,
+              newBalance: tokenBalanceBN,
+            });
 
-              this.log(
-                "info",
-                ctx,
-                `Successfully updated token balance for wallet ${wallet.id}, token ${sceneData.token.symbol}: ${tokenBalanceBN}`
-              );
-            } else {
-              this.log(
-                "debug",
-                ctx,
-                `Skipping holding update for wallet ${wallet.id}, token ${sceneData.token.symbol}: balance is 0`
-              );
-            }
+            this.log(
+              "info",
+              ctx,
+              `Successfully updated token balance for wallet ${wallet.id}, token ${sceneData.token.symbol}: ${tokenBalanceBN}`
+            );
           }
         } catch (error) {
           this.log(
