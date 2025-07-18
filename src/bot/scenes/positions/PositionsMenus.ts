@@ -135,15 +135,15 @@ export class PositionsMenus extends BaseMenus {
             4
           )}\n`;
         }
-        text += `   ${
-          POSITIONS_TEXTS.MESSAGES.TOTAL_VALUE
-        } ${this.formatNumberUS(
-          parseFloat(item.balance) * parseFloat(item.currentPrice),
-          6
-        )} ETH\n`;
-        text += `   ${POSITIONS_TEXTS.MESSAGES.TOTAL_PNL} ${formatPnl(
+
+        text += `${POSITIONS_TEXTS.MESSAGES.TOTAL_PNL} ${formatPnl(
           item.totalPnlEth
-        )} ETH (${pctFormatted}%)\n\n`;
+        )} Ξ (${pctFormatted}%)`;
+
+        text += ` ${POSITIONS_TEXTS.MESSAGES.TOTAL_VALUE} ${this.formatNumberUS(
+          parseFloat(item.balance) * parseFloat(item.currentPrice),
+          4
+        )} Ξ\n\n`;
       });
     }
 

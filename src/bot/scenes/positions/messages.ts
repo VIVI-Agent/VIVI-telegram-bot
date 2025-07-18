@@ -8,7 +8,7 @@ export const POSITIONS_TEXTS = {
   MESSAGES: {
     PORTFOLIO_TITLE: "<b>💰 Positions</b>",
     NO_TOKENS_MESSAGE: "You don't have any tokens yet.\n",
-    TOTAL_VALUE: "<b>Total Value:</b>",
-    TOTAL_PNL: "<b>Total PNL:</b>",
+    TOTAL_VALUE: "<b>Worth:</b>",
+    TOTAL_PNL: "<b>PNL:</b>",
   },
 } as const;
