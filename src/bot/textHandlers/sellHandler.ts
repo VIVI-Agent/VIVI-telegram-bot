@@ -53,12 +53,6 @@ function createTextHandlerTransactionSuccessCallback(
         `[sellTextHandler] Executing transaction success callback for user ${userId}`
       );
 
-      // Step 1: Wait 1.5 seconds for blockchain to update
-      logger.info(
-        `[sellTextHandler] Waiting 1.5 seconds for blockchain to update`
-      );
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
       // Step 2: Update ETH balance for the selected wallet
       const newEthBalanceBN = await getWalletBalance(wallet.address as Address);
       await ctx.services.walletService.updateWalletBalance(
