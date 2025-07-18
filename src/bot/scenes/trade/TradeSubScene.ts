@@ -1263,6 +1263,8 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
    */
   private async refreshQuoteAndMenu(ctx: GlobalSceneContext): Promise<void> {
     try {
+      await this.service.handleRefreshFull(ctx);
+
       const sceneData = this.getSceneData(ctx);
 
       const [userWithSettings, wallets] = await Promise.all([
