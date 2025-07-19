@@ -68,6 +68,7 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
         );
         scene = new BuyEventSubScene(instanceId);
         break;
+
       default:
         logger.error(`Unknown scene type: ${sceneType}`);
         throw new Error(`Unknown scene type: ${sceneType}`);

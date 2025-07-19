@@ -217,6 +217,7 @@ export class UserService {
         referralPoints: true,
         totalVolumeBoughtWei: true,
         totalVolumeSoldWei: true,
+        rewardWallet: true,
         referrals: {
           select: {
             tgUsername: true,
@@ -269,6 +270,7 @@ export class UserService {
       totalVolumeBoughtWei: user.totalVolumeBoughtWei,
       totalVolumeSoldWei: user.totalVolumeSoldWei,
       totalReferralVolume: referralVolumeEthString,
+      rewardWallet: user.rewardWallet,
       referrals: mappedReferrals,
     };
   }
@@ -436,5 +438,21 @@ export class UserService {
     );
 
     return userPointsAdded;
+  }
+
+  /**
+   * Update user's reward wallet
+   * @param id - The user ID
+   * @param rewardWallet - The reward wallet address or null to clear
+   * @returns The updated user or null if the user was not found
+   */
+  public async updateRewardWallet(
+    id: number,
+    rewardWallet: string | null
+  ): Promise<User | null> {
+    return this.prisma.user.update({
+      where: { id },
+      data: { rewardWallet },
+    });
   }
 }

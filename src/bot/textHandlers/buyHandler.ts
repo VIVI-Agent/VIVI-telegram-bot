@@ -530,7 +530,7 @@ async function executeBuyCommand(
 
       const handlers = BuyHandlers.buildApeStoreBuyHandlers(
         ctx,
-        { symbol: tokenInfo.symbol, decimals: tokenInfo.decimals } as any,
+        tokenInfo,
         user.id,
         wid,
         txHash,

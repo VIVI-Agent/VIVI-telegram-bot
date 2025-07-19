@@ -78,6 +78,33 @@ export async function buyTokenAerodrome({
   const user = await ctx.services.userService.getUserById(userId);
   const userSpeed = user?.speed || SpeedEnum.AUTO;
 
+  // ─────────────────────────────────────────────────────────────
+  // CHECK REFERRAL AND GET REWARD WALLET
+  // ─────────────────────────────────────────────────────────────
+  let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
+  if (user?.referredById) {
+    const referrer = await ctx.services.userService.getUserById(
+      user.referredById
+    );
+    if (referrer?.rewardWallet) {
+      additionalFeeReceivers = [
+        {
+          receiver: getAddress(referrer.rewardWallet),
+          bps: 2000n,
+        },
+      ];
+      logger.info(
+        `[buyTokenAerodrome] Referral fee will be sent to: ${referrer.rewardWallet} (2000 bps)`
+      );
+    } else {
+      logger.info(
+        `[buyTokenAerodrome] Referrer ${user.referredById} has no reward wallet configured`
+      );
+    }
+  } else {
+    logger.info(`[buyTokenAerodrome] User ${userId} has no referrer`);
+  }
+
   // Estimar gas si tenemos bestDex y es Aerodrome
   let estimatedGas: bigint | undefined;
   if (
@@ -94,6 +121,7 @@ export async function buyTokenAerodrome({
         amountEth,
         slippagePercent,
         feePercent,
+        additionalFeeReceivers,
       });
       logger.info(
         `[buyTokenAerodrome] Gas estimado para ${bestDex.dexName}: ${estimatedGas}`
@@ -142,6 +170,7 @@ export async function buyTokenAerodrome({
         },
         BigInt(feePercent),
         BigInt(slippagePercent),
+        additionalFeeReceivers,
       ],
       value: amountEth,
       maxFeePerGas: gasOverrides.maxFeePerGas,
@@ -365,6 +394,33 @@ export async function sellTokenAerodrome({
   const user = await ctx.services.userService.getUserById(userId);
   const userSpeed = user?.speed || SpeedEnum.AUTO;
 
+  // ─────────────────────────────────────────────────────────────
+  // CHECK REFERRAL AND GET REWARD WALLET
+  // ─────────────────────────────────────────────────────────────
+  let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
+  if (user?.referredById) {
+    const referrer = await ctx.services.userService.getUserById(
+      user.referredById
+    );
+    if (referrer?.rewardWallet) {
+      additionalFeeReceivers = [
+        {
+          receiver: getAddress(referrer.rewardWallet),
+          bps: 2000n,
+        },
+      ];
+      logger.info(
+        `[sellTokenAerodrome] Referral fee will be sent to: ${referrer.rewardWallet} (2000 bps)`
+      );
+    } else {
+      logger.info(
+        `[sellTokenAerodrome] Referrer ${user.referredById} has no reward wallet configured`
+      );
+    }
+  } else {
+    logger.info(`[sellTokenAerodrome] User ${userId} has no referrer`);
+  }
+
   // Si tenemos bestDex, usamos su valor de salida como estimated ETH value
   if (bestDex && !estimatedEthValue) {
     estimatedEthValue = BigInt(bestDex.amountOut || "0");
@@ -394,6 +450,7 @@ export async function sellTokenAerodrome({
         tokenAmount,
         slippagePercent,
         feePercent,
+        additionalFeeReceivers,
       });
       logger.info(
         `[sellTokenAerodrome] Gas estimado para ${bestDex.dexName}: ${estimatedGas}`
@@ -449,6 +506,7 @@ export async function sellTokenAerodrome({
         },
         BigInt(feePercent),
         BigInt(slippagePercent),
+        additionalFeeReceivers,
       ],
       maxFeePerGas: gasOverrides.maxFeePerGas,
       maxPriorityFeePerGas: gasOverrides.maxPriorityFeePerGas,

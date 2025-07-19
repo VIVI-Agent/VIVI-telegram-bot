@@ -70,6 +70,33 @@ export async function buyTokenZoraMultiHop({
   const user = await ctx.services.userService.getUserById(userId);
   const userSpeed = user?.speed || SpeedEnum.AUTO;
 
+  // ─────────────────────────────────────────────────────────────
+  // CHECK REFERRAL AND GET REWARD WALLET
+  // ─────────────────────────────────────────────────────────────
+  let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
+  if (user?.referredById) {
+    const referrer = await ctx.services.userService.getUserById(
+      user.referredById
+    );
+    if (referrer?.rewardWallet) {
+      additionalFeeReceivers = [
+        {
+          receiver: getAddress(referrer.rewardWallet),
+          bps: 2000n,
+        },
+      ];
+      logger.info(
+        `[buyTokenZoraMultiHop] Referral fee will be sent to: ${referrer.rewardWallet} (2000 bps)`
+      );
+    } else {
+      logger.info(
+        `[buyTokenZoraMultiHop] Referrer ${user.referredById} has no reward wallet configured`
+      );
+    }
+  } else {
+    logger.info(`[buyTokenZoraMultiHop] User ${userId} has no referrer`);
+  }
+
   // Estimar gas si tenemos bestDex y es ZoraMultiHop
   let estimatedGas: bigint | undefined;
   if (bestDex && bestDex.dexName === "ZoraMultiHop") {
@@ -82,6 +109,7 @@ export async function buyTokenZoraMultiHop({
         amountEth,
         slippagePercent,
         feePercent,
+        additionalFeeReceivers,
       });
       logger.info(
         `[buyTokenZoraMultiHop] Gas estimado para ${bestDex.dexName}: ${estimatedGas}`
@@ -126,6 +154,7 @@ export async function buyTokenZoraMultiHop({
           amountIn: amountEth,
         },
         feePercent,
+        additionalFeeReceivers,
       ],
       value: amountEth,
       maxFeePerGas: gasOverrides.maxFeePerGas,
@@ -359,6 +388,33 @@ export async function sellTokenZoraMultiHop({
   const user = await ctx.services.userService.getUserById(userId);
   const userSpeed = user?.speed || SpeedEnum.AUTO;
 
+  // ─────────────────────────────────────────────────────────────
+  // CHECK REFERRAL AND GET REWARD WALLET
+  // ─────────────────────────────────────────────────────────────
+  let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
+  if (user?.referredById) {
+    const referrer = await ctx.services.userService.getUserById(
+      user.referredById
+    );
+    if (referrer?.rewardWallet) {
+      additionalFeeReceivers = [
+        {
+          receiver: getAddress(referrer.rewardWallet),
+          bps: 2000n,
+        },
+      ];
+      logger.info(
+        `[sellTokenZoraMultiHop] Referral fee will be sent to: ${referrer.rewardWallet} (2000 bps)`
+      );
+    } else {
+      logger.info(
+        `[sellTokenZoraMultiHop] Referrer ${user.referredById} has no reward wallet configured`
+      );
+    }
+  } else {
+    logger.info(`[sellTokenZoraMultiHop] User ${userId} has no referrer`);
+  }
+
   // Si tenemos bestDex, usamos su valor de salida como estimated ETH value
   if (bestDex && !estimatedEthValue) {
     estimatedEthValue = BigInt(bestDex.amountOut || "0");
@@ -384,6 +440,7 @@ export async function sellTokenZoraMultiHop({
         tokenAmount,
         slippagePercent,
         feePercent,
+        additionalFeeReceivers,
       });
       logger.info(
         `[sellTokenZoraMultiHop] Gas estimado para ${bestDex.dexName}: ${estimatedGas}`
@@ -435,6 +492,7 @@ export async function sellTokenZoraMultiHop({
           amountIn: tokenAmount,
         },
         feePercent,
+        additionalFeeReceivers,
       ],
       maxFeePerGas: gasOverrides.maxFeePerGas,
       maxPriorityFeePerGas: gasOverrides.maxPriorityFeePerGas,

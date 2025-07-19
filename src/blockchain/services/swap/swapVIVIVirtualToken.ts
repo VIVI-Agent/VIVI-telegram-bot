@@ -75,6 +75,33 @@ export async function buyTokenVirtualToken({
   const user = await ctx.services.userService.getUserById(userId);
   const userSpeed = user?.speed || SpeedEnum.AUTO;
 
+  // ─────────────────────────────────────────────────────────────
+  // CHECK REFERRAL AND GET REWARD WALLET
+  // ─────────────────────────────────────────────────────────────
+  let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
+  if (user?.referredById) {
+    const referrer = await ctx.services.userService.getUserById(
+      user.referredById
+    );
+    if (referrer?.rewardWallet) {
+      additionalFeeReceivers = [
+        {
+          receiver: getAddress(referrer.rewardWallet),
+          bps: 2000n,
+        },
+      ];
+      logger.info(
+        `[buyTokenVirtualToken] Referral fee will be sent to: ${referrer.rewardWallet} (2000 bps)`
+      );
+    } else {
+      logger.info(
+        `[buyTokenVirtualToken] Referrer ${user.referredById} has no reward wallet configured`
+      );
+    }
+  } else {
+    logger.info(`[buyTokenVirtualToken] User ${userId} has no referrer`);
+  }
+
   // Estimar gas si tenemos bestDex y es VirtualToken
   let estimatedGas: bigint | undefined;
   if (bestDex && bestDex.dexName === "VirtualToken") {
@@ -87,6 +114,7 @@ export async function buyTokenVirtualToken({
         amountEth,
         slippagePercent,
         feePercent,
+        additionalFeeReceivers,
       });
       logger.info(
         `[buyTokenVirtualToken] Gas estimado para ${bestDex.dexName}: ${estimatedGas}`
@@ -132,6 +160,7 @@ export async function buyTokenVirtualToken({
             amountIn: amountEth,
           },
           BigInt(feePercent),
+          additionalFeeReceivers,
         ],
         value: amountEth,
         maxFeePerGas: gasOverrides.maxFeePerGas,
@@ -184,6 +213,33 @@ export async function sellTokenVirtualToken({
   const user = await ctx.services.userService.getUserById(userId);
   const userSpeed = user?.speed || SpeedEnum.AUTO;
 
+  // ─────────────────────────────────────────────────────────────
+  // CHECK REFERRAL AND GET REWARD WALLET
+  // ─────────────────────────────────────────────────────────────
+  let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
+  if (user?.referredById) {
+    const referrer = await ctx.services.userService.getUserById(
+      user.referredById
+    );
+    if (referrer?.rewardWallet) {
+      additionalFeeReceivers = [
+        {
+          receiver: getAddress(referrer.rewardWallet),
+          bps: 2000n,
+        },
+      ];
+      logger.info(
+        `[sellTokenVirtualToken] Referral fee will be sent to: ${referrer.rewardWallet} (2000 bps)`
+      );
+    } else {
+      logger.info(
+        `[sellTokenVirtualToken] Referrer ${user.referredById} has no reward wallet configured`
+      );
+    }
+  } else {
+    logger.info(`[sellTokenVirtualToken] User ${userId} has no referrer`);
+  }
+
   // Si tenemos bestDex, usamos su valor de salida como estimated ETH value
   if (bestDex && !estimatedEthValue) {
     estimatedEthValue = BigInt(bestDex.amountOut || "0");
@@ -209,6 +265,7 @@ export async function sellTokenVirtualToken({
         tokenAmount,
         slippagePercent,
         feePercent,
+        additionalFeeReceivers,
       });
       logger.info(
         `[sellTokenVirtualToken] Gas estimado para ${bestDex.dexName}: ${estimatedGas}`
@@ -265,6 +322,7 @@ export async function sellTokenVirtualToken({
             amountIn: tokenAmount,
           },
           BigInt(feePercent),
+          additionalFeeReceivers,
         ],
         maxFeePerGas: gasOverrides.maxFeePerGas,
         maxPriorityFeePerGas: gasOverrides.maxPriorityFeePerGas,

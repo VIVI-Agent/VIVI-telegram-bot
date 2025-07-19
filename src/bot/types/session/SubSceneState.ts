@@ -104,6 +104,7 @@ export type SellSettingsFieldName = keyof Pick<
 export interface ReferralSceneData {
   menuMessageId?: number;
   user?: any; // TODO: Define proper user type
+  expectingWalletInput?: boolean;
 }
 
 export interface PositionsSceneData {
