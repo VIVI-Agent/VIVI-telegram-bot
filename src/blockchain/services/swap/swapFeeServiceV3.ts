@@ -28,6 +28,7 @@ import {
 import { decryptPrivateKey } from "@services";
 
 import { GlobalSceneContext } from "@types";
+import { AddressValidator } from "@utils";
 
 const FEE_SWAP_WRAPPERV3 = getAddress(contracts.FEE_SWAP_WRAPPERV3 || "");
 const WETH_ADDRESS = getAddress(contracts.ETH || "");
@@ -82,12 +83,17 @@ export async function buyTokenV3({
       user.referredById
     );
     if (referrer?.rewardWallet) {
-      additionalFeeReceivers = [
-        {
-          receiver: getAddress(referrer.rewardWallet),
-          bps: 2000n, // 20% of 1% = 2000 bps
-        },
-      ];
+      const rewardWallet = AddressValidator.parseEthereumAddress(
+        referrer.rewardWallet
+      );
+      if (rewardWallet) {
+        additionalFeeReceivers = [
+          {
+            receiver: rewardWallet,
+            bps: 2000n,
+          },
+        ];
+      }
       logger.info(
         `[buyTokenV3] Referral fee will be sent to: ${referrer.rewardWallet} (2000 bps)`
       );
@@ -374,12 +380,17 @@ export async function sellTokenV3({
       user.referredById
     );
     if (referrer?.rewardWallet) {
-      additionalFeeReceivers = [
-        {
-          receiver: getAddress(referrer.rewardWallet),
-          bps: 2000n, // 20% of 1% = 2000 bps
-        },
-      ];
+      const rewardWallet = AddressValidator.parseEthereumAddress(
+        referrer.rewardWallet
+      );
+      if (rewardWallet) {
+        additionalFeeReceivers = [
+          {
+            receiver: rewardWallet,
+            bps: 2000n,
+          },
+        ];
+      }
       logger.info(
         `[sellTokenV3] Referral fee will be sent to: ${referrer.rewardWallet} (2000 bps)`
       );

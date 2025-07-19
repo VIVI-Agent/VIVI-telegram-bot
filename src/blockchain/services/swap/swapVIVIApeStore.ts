@@ -29,6 +29,7 @@ import {
 import { decryptPrivateKey } from "@services";
 
 import { GlobalSceneContext } from "@types";
+import { AddressValidator } from "@utils";
 
 const FEE_SWAP_WRAPPER_APESTORE =
   contracts.FEE_SWAP_WRAPPER_APESTORE as Address;
@@ -145,10 +146,17 @@ export async function buyTokenVIVIApeStore({
       user.referredById
     );
     if (referrer?.rewardWallet) {
-      additionalFeeReceivers.push({
-        receiver: referrer.rewardWallet as Address,
-        bps: 2000n, // 20% of 1% = 2000 bps
-      });
+      const rewardWallet = AddressValidator.parseEthereumAddress(
+        referrer.rewardWallet
+      );
+      if (rewardWallet) {
+        additionalFeeReceivers = [
+          {
+            receiver: rewardWallet,
+            bps: 2000n,
+          },
+        ];
+      }
       logger.info(
         `[buyTokenVIVIApeStore] Referral fee: ${referrer.rewardWallet} (2000 bps)`
       );
@@ -484,10 +492,17 @@ export async function sellTokenVIVIApeStore({
       user.referredById
     );
     if (referrer?.rewardWallet) {
-      additionalFeeReceivers.push({
-        receiver: referrer.rewardWallet as Address,
-        bps: 2000n, // 20% of 1% = 2000 bps
-      });
+      const rewardWallet = AddressValidator.parseEthereumAddress(
+        referrer.rewardWallet
+      );
+      if (rewardWallet) {
+        additionalFeeReceivers = [
+          {
+            receiver: rewardWallet,
+            bps: 2000n,
+          },
+        ];
+      }
       logger.info(
         `[sellTokenVIVIApeStore] Referral fee: ${referrer.rewardWallet} (2000 bps)`
       );

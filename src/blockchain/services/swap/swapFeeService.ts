@@ -28,6 +28,7 @@ import {
 import { decryptPrivateKey } from "@services";
 
 import { GlobalSceneContext } from "@types";
+import { AddressValidator } from "@utils";
 
 const FEE_SWAP_WRAPPER_ADDRESS = getAddress(contracts.FEE_SWAP_WRAPPER || "");
 const WETH_ADDRESS = getAddress(contracts.ETH || "");
@@ -80,12 +81,17 @@ export async function buyToken({
       user.referredById
     );
     if (referrer?.rewardWallet) {
-      additionalFeeReceivers = [
-        {
-          receiver: getAddress(referrer.rewardWallet),
-          bps: 2000n,
-        },
-      ];
+      const rewardWallet = AddressValidator.parseEthereumAddress(
+        referrer.rewardWallet
+      );
+      if (rewardWallet) {
+        additionalFeeReceivers = [
+          {
+            receiver: rewardWallet,
+            bps: 2000n,
+          },
+        ];
+      }
       logger.info(
         `[buyToken:UniswapV2] Referral fee will be sent to: ${referrer.rewardWallet} (2000 bps)`
       );
@@ -368,12 +374,17 @@ export async function sellToken({
       user.referredById
     );
     if (referrer?.rewardWallet) {
-      additionalFeeReceivers = [
-        {
-          receiver: getAddress(referrer.rewardWallet),
-          bps: 2000n,
-        },
-      ];
+      const rewardWallet = AddressValidator.parseEthereumAddress(
+        referrer.rewardWallet
+      );
+      if (rewardWallet) {
+        additionalFeeReceivers = [
+          {
+            receiver: rewardWallet,
+            bps: 2000n,
+          },
+        ];
+      }
       logger.info(
         `[sellToken:UniswapV2] Referral fee will be sent to: ${referrer.rewardWallet} (2000 bps)`
       );

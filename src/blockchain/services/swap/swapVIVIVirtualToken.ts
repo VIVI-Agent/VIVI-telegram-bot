@@ -84,12 +84,17 @@ export async function buyTokenVirtualToken({
       user.referredById
     );
     if (referrer?.rewardWallet) {
-      additionalFeeReceivers = [
-        {
-          receiver: getAddress(referrer.rewardWallet),
-          bps: 2000n,
-        },
-      ];
+      const rewardWallet = AddressValidator.parseEthereumAddress(
+        referrer.rewardWallet
+      );
+      if (rewardWallet) {
+        additionalFeeReceivers = [
+          {
+            receiver: rewardWallet,
+            bps: 2000n,
+          },
+        ];
+      }
       logger.info(
         `[buyTokenVirtualToken] Referral fee will be sent to: ${referrer.rewardWallet} (2000 bps)`
       );
@@ -222,12 +227,17 @@ export async function sellTokenVirtualToken({
       user.referredById
     );
     if (referrer?.rewardWallet) {
-      additionalFeeReceivers = [
-        {
-          receiver: getAddress(referrer.rewardWallet),
-          bps: 2000n,
-        },
-      ];
+      const rewardWallet = AddressValidator.parseEthereumAddress(
+        referrer.rewardWallet
+      );
+      if (rewardWallet) {
+        additionalFeeReceivers = [
+          {
+            receiver: rewardWallet,
+            bps: 2000n,
+          },
+        ];
+      }
       logger.info(
         `[sellTokenVirtualToken] Referral fee will be sent to: ${referrer.rewardWallet} (2000 bps)`
       );
