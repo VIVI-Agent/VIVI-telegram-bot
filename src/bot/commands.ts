@@ -35,6 +35,10 @@ export async function registerCommands(bot: Telegraf<GlobalSceneContext>) {
           command: "invite",
           description: "Generate registration link 🔗",
         },
+        {
+          command: "balance",
+          description: "Check your public wallet balance",
+        },
       ],
       {
         scope: {
@@ -65,6 +69,10 @@ export async function registerCommands(bot: Telegraf<GlobalSceneContext>) {
         {
           command: "invite",
           description: "Generate registration link 🔗",
+        },
+        {
+          command: "balance",
+          description: "Check your public wallet balance",
         },
       ],
       {

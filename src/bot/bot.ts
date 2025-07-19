@@ -196,9 +196,7 @@ bot.command("trade", async (ctx) => {
 
 // Handle balance command (groups only)
 bot.command("balance", async (ctx) => {
-  if (ctx.chat?.type === "private") {
-    await balanceHandler(ctx, ctx.message.message_id);
-  }
+  await balanceHandler(ctx, ctx.message.message_id);
 });
 
 // Handle invite command (groups only)
