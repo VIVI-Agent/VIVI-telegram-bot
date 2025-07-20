@@ -28,12 +28,12 @@ import {
   sellTokenVIVIApeStore,
   sellTokenVirtualToken,
 } from "../../blockchain/services/swap";
-import { findOrCreateToken } from "../../blockchain/services/token";
 import { replyTxNotificationsWithLinks } from "../../blockchain/services/swap/txNotifications";
 import { SellHandlers } from "../scenes/trade/SellHandlers";
 import { calculateFinalFee } from "../../utils/feeDiscounts";
 import { Token, User } from "@prisma/client";
 import { getTokenBalance, getWalletBalance } from "@blockchain";
+import { WalletWithHoldings } from "@domain";
 
 const logPrefix = "[sellTextHandler]";
 
@@ -52,6 +52,12 @@ function createTextHandlerTransactionSuccessCallback(
       logger.info(
         `[sellTextHandler] Executing transaction success callback for user ${userId}`
       );
+
+      try {
+        await handleRefreshFull(ctx);
+      } catch (error) {
+        logger.error(`[buyTextHandler] Error refreshing full:`, error);
+      }
 
       // Step 2: Update ETH balance for the selected wallet
       const newEthBalanceBN = await getWalletBalance(wallet.address as Address);
@@ -869,3 +875,72 @@ export const sellTextHandler: TextHandler = async (
     return true; // We handled it (even if with error)
   }
 };
+
+async function handleRefreshFull(ctx: GlobalSceneContext): Promise<void> {
+  try {
+    // Load fresh user data
+    const tgUserId = ctx.from?.id;
+    if (!tgUserId) return;
+
+    const user = await ctx.services.userService.getUserByTgId(
+      tgUserId.toString()
+    );
+    if (!user) return;
+
+    const wallets = await ctx.services.walletService.getUserWalletsWithHoldings(
+      user.id
+    );
+
+    if (!wallets) {
+      await ctx.answerCbQuery("❌ Failed to refresh. Please try again.");
+      return;
+    }
+
+    // Process all wallets in parallel
+    await Promise.all(
+      wallets.map(async (wallet: WalletWithHoldings) => {
+        try {
+          // Update ETH balance
+          const ethBalance = await getWalletBalance(wallet.address as Address);
+
+          await ctx.services.walletService.updateWalletBalance(
+            wallet.id,
+            ethBalance
+          );
+
+          const holdings = wallet.holdings;
+
+          // Update token balances in parallel
+          await Promise.all(
+            holdings.map(async (holding) => {
+              try {
+                const token = holding.token;
+                const chainBalance = await getTokenBalance(
+                  token.address as Address,
+                  wallet.address as Address
+                );
+
+                if (chainBalance !== BigInt(holding.balance)) {
+                  await ctx.services.holdingService.updateHoldingFromChain({
+                    userId: ctx.user.id,
+                    tokenId: token.id,
+                    walletId: wallet.id,
+                    newBalance: chainBalance,
+                  });
+                }
+              } catch (err) {
+                // Continue with other tokens even if one fails
+              }
+            })
+          );
+        } catch (err) {
+          // Continue with other wallets even if one fails
+        }
+      })
+    );
+
+    return;
+  } catch (error) {
+    return;
+  }
+}
