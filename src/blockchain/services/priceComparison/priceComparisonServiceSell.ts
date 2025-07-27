@@ -9,6 +9,7 @@ import {
 } from "@abis";
 import { contracts } from "@config";
 import { logger } from "@logger";
+import { getV4QuoteSell } from "../swap/uniswapV4Service";
 
 const ONLYSUMMARY = true;
 
@@ -19,6 +20,8 @@ export interface DexQuoteResultSell {
   feeTier: number;
   path?: string; // Para multi-hop
   fees?: number[]; // Para multi-hop con multiple fees
+  poolKey?: any; // Para V4
+  poolId?: string; // Para V4
 }
 
 /**
@@ -354,20 +357,76 @@ async function getZoraMultiHopQuoteSell(
   }
 }
 
+/**
+ * 6) UniswapV4
+ */
+async function getQuoteUniswapV4Sell(
+  publicClient: ReturnType<typeof createPublicClient>,
+  tokenIn: Address,
+  amountIn: bigint,
+  decimalsIn: number, // Decimales del token de entrada
+  decimalsOut: number
+): Promise<DexQuoteResultSell | null> {
+  try {
+    const v4Result = await getV4QuoteSell(
+      publicClient,
+      tokenIn,
+      amountIn,
+      decimalsIn,
+      decimalsOut
+    );
+
+    if (!v4Result) {
+      if (!ONLYSUMMARY) {
+        logger.error(
+          `UniswapV4 SELL failed - No pools found for token ${tokenIn}`
+        );
+      }
+      return null;
+    }
+
+    const result = {
+      dexName: "UniswapV4",
+      amountOut: v4Result.amountOut,
+      formattedOut: v4Result.formattedOut,
+      feeTier: v4Result.feeTier,
+      poolKey: v4Result.poolKey,
+      poolId: v4Result.poolId,
+    };
+
+    if (!ONLYSUMMARY) {
+      logger.info(
+        `UniswapV4 SELL Quote: ${result.formattedOut} ETH for ${formatUnits(
+          amountIn,
+          decimalsIn
+        )} tokens (Pool: ${v4Result.poolId})`
+      );
+    }
+    return result;
+  } catch (err) {
+    if (!ONLYSUMMARY) {
+      logger.error(`UniswapV4 SELL failed - ${err}`);
+    }
+    return null;
+  }
+}
+
 export async function getBestDexForSellTokenToEth({
   publicClient,
   tokenIn,
   feeTiers, // e.g. [100, 500, 3000, 10000]
   amountTokenIn,
+  decimalsIn = 18, // Decimales del token de entrada
 }: {
   publicClient: ReturnType<typeof createPublicClient>;
   tokenIn: Address;
   feeTiers: number[];
   amountTokenIn: bigint;
+  decimalsIn?: number;
 }) {
   logger.info(`\n=== SELL COMPARISON START ===`);
   logger.info(`Token: ${tokenIn}`);
-  logger.info(`Amount Tokens: ${formatUnits(amountTokenIn, 18)}`);
+  logger.info(`Amount Tokens: ${formatUnits(amountTokenIn, decimalsIn)}`);
   logger.info(`Fee tiers: [${feeTiers.join(", ")}]`);
   logger.info(`==============================`);
 
@@ -382,6 +441,7 @@ export async function getBestDexForSellTokenToEth({
     apeStoreQuote,
     virtualTokenQuote,
     zoraMultiHop,
+    v4Quote,
   ] = await Promise.all([
     getQuoteUniswapV2Sell(
       publicClient,
@@ -423,6 +483,13 @@ export async function getBestDexForSellTokenToEth({
       amountTokenIn,
       decimalsOut
     ),
+    getQuoteUniswapV4Sell(
+      publicClient,
+      tokenAddress,
+      amountTokenIn,
+      decimalsIn,
+      decimalsOut
+    ),
   ]);
 
   const quotes = [
@@ -433,6 +500,7 @@ export async function getBestDexForSellTokenToEth({
     apeStoreQuote,
     virtualTokenQuote,
     zoraMultiHop,
+    v4Quote,
   ].filter(Boolean) as DexQuoteResultSell[];
 
   if (quotes.length === 0) {
@@ -442,19 +510,33 @@ export async function getBestDexForSellTokenToEth({
     );
   }
 
+  // Priorizar V4: Si V4 tiene quote, usarlo como best
   let best = quotes[0];
   let bestAmountOut = BigInt(quotes[0].amountOut);
 
-  for (const q of quotes) {
-    const currentOut = BigInt(q.amountOut);
-    if (currentOut > bestAmountOut) {
-      best = q;
-      bestAmountOut = currentOut;
+  if (v4Quote) {
+    best = v4Quote;
+    bestAmountOut = BigInt(v4Quote.amountOut);
+    logger.info(`🏆 V4 PRIORITY: Using UniswapV4 as best option`);
+  } else {
+    // Si no hay V4, usar la lógica normal de mejor precio
+    for (const q of quotes) {
+      const currentOut = BigInt(q.amountOut);
+      if (currentOut > bestAmountOut) {
+        best = q;
+        bestAmountOut = currentOut;
+      }
     }
   }
 
   logger.info(`\n=== SELL RESULTS SUMMARY ===`);
-  logger.info(`🏆 BEST: ${best.dexName} - ${best.formattedOut} ETH`);
+  if (v4Quote) {
+    logger.info(
+      `🏆 BEST: ${best.dexName} - ${best.formattedOut} ETH (V4 PRIORITY)`
+    );
+  } else {
+    logger.info(`🏆 BEST: ${best.dexName} - ${best.formattedOut} ETH`);
+  }
   logger.info(`📊 All Quotes:`);
   logger.info(`  • UniswapV2: ${v2Quote?.formattedOut || "N/A"}`);
   logger.info(
@@ -471,6 +553,11 @@ export async function getBestDexForSellTokenToEth({
       zoraMultiHop ? `(fees: ${zoraMultiHop.fees?.join(",")})` : ""
     }`
   );
+  logger.info(
+    `  • UniswapV4: ${v4Quote?.formattedOut || "N/A"} ${
+      v4Quote ? "⭐ PRIORITY" : ""
+    }`
+  );
   logger.info(`===========================\n`);
 
   return {
@@ -482,5 +569,6 @@ export async function getBestDexForSellTokenToEth({
     apeStore: apeStoreQuote,
     virtualToken: virtualTokenQuote,
     zoraMultiHop,
+    v4: v4Quote,
   };
 }

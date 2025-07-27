@@ -9,5 +9,6 @@ export * from "./wrappers/VIVIApeStoreABI";
 export * from "./wrappers/VIVIApeStoreABI_NEW";
 export * from "./wrappers/VIVIUniswapV2ABI";
 export * from "./wrappers/VIVIUniswapV3ABI";
+export * from "./wrappers/VIVIUniswapV4ABI";
 export * from "./wrappers/VIVIVirtualsHopABI";
 export * from "./wrappers/VIVIZoraMultiHopABI";

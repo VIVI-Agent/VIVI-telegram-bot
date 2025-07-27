@@ -9,6 +9,7 @@ import {
   VIVIApeStoreABI,
   VIVIUniswapV2ABI,
   VIVIUniswapV3ABI,
+  VIVIUniswapV4ABI,
   VIVIVirtualsHopABI,
   VIVIZoraMultiHopABI,
 } from "@abis";
@@ -33,6 +34,7 @@ export class BuyHandlers {
     parseEvent: (args: any) => { ethIn: bigint; tokensOut: bigint };
     isGroup?: boolean;
     onTransactionSuccess?: () => Promise<void>; // Callback para notificar éxito
+    contractAddress?: Address; // Add contract address for filtering
   }) {
     const {
       ctx,
@@ -45,6 +47,7 @@ export class BuyHandlers {
       parseEvent,
       isGroup,
       onTransactionSuccess,
+      contractAddress,
     } = params;
 
     // parseLogsFn => handles formatting details
@@ -88,16 +91,28 @@ export class BuyHandlers {
       // Extract ethIn and tokensOut
       for (const log of receipt.logs) {
         try {
+          // Filter logs by contract address if provided
+          if (
+            contractAddress &&
+            log.address.toLowerCase() !== contractAddress.toLowerCase()
+          ) {
+            continue;
+          }
+
           const event = decodeEventLog({
             abi,
             eventName,
             data: log.data,
             topics: log.topics,
           });
+
           const result = parseEvent(event.args);
           ethInBN = result.ethIn;
           tokensReceivedBN = result.tokensOut;
-        } catch {}
+          break; // Exit after finding the first matching event
+        } catch (error) {
+          // Silently continue to next log
+        }
       }
 
       const wallet = await ctx.services.walletService.getWalletById(walletId);
@@ -211,6 +226,8 @@ export class BuyHandlers {
             logger.error(`Error in transaction success callback: ${error}`);
           }
         }
+      } else {
+        logger.warn(`No ETH spent in transaction for user ${userId}`);
       }
     };
 
@@ -354,6 +371,35 @@ export class BuyHandlers {
       onTransactionSuccess,
       abi: VIVIVirtualsHopABI,
       eventName: "Buy",
+      parseEvent: (args) => ({ ethIn: args.ethIn, tokensOut: args.tokensOut }),
+    });
+  }
+
+  public static buildUniswapV4BuyHandlers(
+    ctx: GlobalSceneContext,
+    tokenData: Token,
+    userId: number,
+    walletId: number,
+    txHash: Address,
+    isGroup?: boolean,
+    onTransactionSuccess?: () => Promise<void>
+  ) {
+    // Import contracts config to get V4 contract address
+    const { contracts } = require("@config");
+    const v4ContractAddress =
+      contracts.FEE_SWAP_WRAPPER_V4_ZORA_HOOK as Address;
+
+    return this.buildGenericBuyHandlers({
+      ctx,
+      tokenData,
+      userId,
+      walletId,
+      txHash,
+      isGroup,
+      onTransactionSuccess,
+      abi: VIVIUniswapV4ABI,
+      eventName: "Buy",
+      contractAddress: v4ContractAddress,
       parseEvent: (args) => ({ ethIn: args.ethIn, tokensOut: args.tokensOut }),
     });
   }

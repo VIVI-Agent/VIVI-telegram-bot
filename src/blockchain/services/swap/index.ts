@@ -7,3 +7,7 @@ export * from "./swapVIVIZoraMultiHop";
 export * from "./types";
 export * from "./helpers";
 export * from "./txNotifications";
+export * from "./uniswapV4Service";
+export * from "./viviUniswapV4TradeService";
+export * from "./viviV4IntegratedService";
+export * from "./viviV4WrapperService";

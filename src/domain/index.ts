@@ -7,6 +7,7 @@ export * from "./token/TokenService";
 export * from "./holdings/HoldingService";
 export * from "./pnlCache/PnlCacheService";
 export * from "./allowance/AllowanceService";
+export * from "./permit2/Permit2AllowanceService";
 export * from "./feeWhitelist/FeeWhitelistService";
 export * from "./externalTokenInfo/ExternalTokenInfoService";
 export * from "./bankrCache/BankrCacheService";

@@ -86,6 +86,7 @@ model Wallet {
     trades           Trade[]
     holdings         Holding[]
     Allowance        Allowance[]
+    Permit2Allowance Permit2Allowance[]
     Withdrawal       Withdrawal[]
     BuyEventPurchase BuyEventPurchase[]
     isDeleted        Boolean            @default(false)
@@ -135,6 +136,7 @@ model Token {
     holdings          Holding[]
     trades            Trade[]
     Allowance         Allowance[]
+    Permit2Allowance  Permit2Allowance[]
     Withdrawal        Withdrawal[]
     ExternalTokenInfo ExternalTokenInfo?
     ExternalPoolInfo  ExternalPoolInfo[]
@@ -223,6 +225,25 @@ model Allowance {
     spender   String
     allowance String
     updatedAt DateTime @updatedAt
+}
+
+model Permit2Allowance {
+    id             Int      @id @default(autoincrement())
+    walletId       Int
+    wallet         Wallet   @relation(fields: [walletId], references: [id])
+    tokenId        Int
+    token          Token    @relation(fields: [tokenId], references: [id])
+    spender        String // Dirección del contrato que puede gastar (ej: VIVIUniswapV4)
+    amount         String // Cantidad aprobada (string para BigInt, usamos máximo)
+    expiration     String // Timestamp de expiración (string para BigInt, usamos máximo)
+    permit2Address String // Dirección del contrato Permit2
+    createdAt      DateTime @default(now())
+    updatedAt      DateTime @updatedAt
+
+    @@unique([walletId, tokenId, spender, permit2Address])
+    @@index([walletId])
+    @@index([tokenId])
+    @@index([spender])
 }
 
 model Withdrawal {

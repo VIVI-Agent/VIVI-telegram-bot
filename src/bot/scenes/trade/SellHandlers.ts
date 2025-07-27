@@ -9,6 +9,7 @@ import {
   VIVIApeStoreABI,
   VIVIUniswapV2ABI,
   VIVIUniswapV3ABI,
+  VIVIUniswapV4ABI,
   VIVIVirtualsHopABI,
   VIVIZoraMultiHopABI,
 } from "@abis";
@@ -33,6 +34,7 @@ export class SellHandlers {
     parseEvent: (args: any) => { tokensIn: bigint; ethOut: bigint };
     isGroup?: boolean;
     onTransactionSuccess?: () => Promise<void>; // Callback para notificar éxito
+    contractAddress?: Address; // Added for V4 contract address
   }) {
     const {
       ctx,
@@ -45,6 +47,7 @@ export class SellHandlers {
       parseEvent,
       isGroup,
       onTransactionSuccess,
+      contractAddress,
     } = params;
 
     // parseLogsFn => handles formatting details
@@ -99,6 +102,7 @@ export class SellHandlers {
           const result = parseEvent(event.args);
           tokensSoldBN = result.tokensIn;
           ethReceivedBN = result.ethOut;
+          break; // Exit after finding the first matching event
         } catch {}
       }
 
@@ -340,6 +344,35 @@ export class SellHandlers {
       onTransactionSuccess,
       abi: VIVIVirtualsHopABI,
       eventName: "Sell",
+      parseEvent: (args) => ({ tokensIn: args.tokensIn, ethOut: args.ethOut }),
+    });
+  }
+
+  public static buildUniswapV4SellHandlers(
+    ctx: GlobalSceneContext,
+    tokenData: Token,
+    userId: number,
+    walletId: number,
+    txHash: Address,
+    isGroup?: boolean,
+    onTransactionSuccess?: () => Promise<void>
+  ) {
+    // Import contracts config to get V4 contract address
+    const { contracts } = require("@config");
+    const v4ContractAddress =
+      contracts.FEE_SWAP_WRAPPER_V4_ZORA_HOOK as Address;
+
+    return this.buildGenericSellHandlers({
+      ctx,
+      tokenData,
+      userId,
+      walletId,
+      txHash,
+      isGroup,
+      onTransactionSuccess,
+      abi: VIVIUniswapV4ABI,
+      eventName: "Sell",
+      contractAddress: v4ContractAddress, // Add contract address for filtering
       parseEvent: (args) => ({ tokensIn: args.tokensIn, ethOut: args.ethOut }),
     });
   }
