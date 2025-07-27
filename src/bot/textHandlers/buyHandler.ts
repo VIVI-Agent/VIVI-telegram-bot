@@ -27,6 +27,7 @@ import {
   buyTokenZoraMultiHop,
   buyTokenVIVIApeStore,
   buyTokenVirtualToken,
+  buyTokenV4,
 } from "../../blockchain/services/swap";
 import { findOrCreateToken } from "../../blockchain/services/token";
 import { BuyHandlers } from "../scenes/trade/BuyHandlers";
@@ -583,6 +584,43 @@ async function executeBuyCommand(
       );
 
       logger.info(`${logPrefix} VirtualToken TX: ${txHash}`);
+      await replyTxNotificationsWithLinks({
+        ctx,
+        userMessageId: ctx.message?.message_id!,
+        txHash,
+        waitReceipt,
+        parseLogsFn: handlers.parseLogsFn,
+        onMinedFn: handlers.onMinedFn,
+        swapType: "Buy",
+        amountIn: formatEther(amountEth),
+        symbol: tokenInfo.symbol,
+        tokenAddress,
+      });
+    } else if (bestDex === "UniswapV4") {
+      const result = await buyTokenV4({
+        ctx,
+        userId: user.id,
+        walletId: wid,
+        tokenAddress,
+        amountEth,
+        slippagePercent,
+        feePercent,
+        bestDex: best,
+      });
+      txHash = result.txHash;
+      waitReceipt = result.waitReceipt;
+
+      const handlers = BuyHandlers.buildUniswapV4BuyHandlers(
+        ctx,
+        tokenInfo,
+        user.id,
+        wid,
+        txHash,
+        false,
+        onTransactionSuccess
+      );
+
+      logger.info(`${logPrefix} UniswapV4 TX: ${txHash}`);
       await replyTxNotificationsWithLinks({
         ctx,
         userMessageId: ctx.message?.message_id!,

@@ -1324,7 +1324,27 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
     transactionType: "buy" | "sell"
   ): () => Promise<void> {
     return async () => {
-      await this.service.handleRefreshFull(ctx);
+      try {
+        await this.service.handleRefreshFull(ctx);
+      } catch (error) {
+        // Handle "query too old" errors gracefully
+        if (
+          error instanceof Error &&
+          error.message.includes("query is too old")
+        ) {
+          this.log(
+            "info",
+            ctx,
+            `Query expired during ${transactionType} refresh - skipping UI update (non-critical)`
+          );
+        } else {
+          this.log(
+            "error",
+            ctx,
+            `Error refreshing after ${transactionType}: ${error}`
+          );
+        }
+      }
 
       await this.handleTransactionSuccess(ctx, transactionType);
     };

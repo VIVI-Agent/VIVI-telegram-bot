@@ -13,6 +13,7 @@ import {
   VIVIVirtualsHopABI,
   VIVIApeStoreABI,
   VIVIApeStoreABI_NEW,
+  VIVIUniswapV4ABI,
 } from "@abis";
 
 export async function estimateBuyGas({
@@ -183,6 +184,51 @@ export async function estimateBuyGas({
         account: walletAddress,
         value: amountEth,
       });
+    } else if (dexName === "UniswapV4") {
+      // Para V4, DEBEMOS usar exactamente el mismo poolKey que funcionó en el quote
+      if (!bestDex.poolKey) {
+        throw new Error("V4 bestDex missing poolKey");
+      }
+
+      const v4ContractAddress =
+        contracts.FEE_SWAP_WRAPPER_V4_ZORA_HOOK as Address;
+      // TEMP: Use hardcoded address that we know works
+      const actualV4Address =
+        "0xdbE635854Fe75D0Fd4D92af632Edb4339565c03B" as Address;
+
+      logger.info(
+        `🔍 [GAS ESTIMATION V4] Config address: ${v4ContractAddress}`
+      );
+      logger.info(
+        `🔍 [GAS ESTIMATION V4] Using hardcoded address: ${actualV4Address}`
+      );
+      logger.info(`🔍 [GAS ESTIMATION V4] PoolKey: ${bestDex.poolKey}`);
+      logger.info(
+        `🔍 [GAS ESTIMATION V4] Token: ${tokenAddress}, Amount: ${amountEth}`
+      );
+
+      try {
+        return await publicClient.estimateContractGas({
+          address: actualV4Address,
+          abi: VIVIUniswapV4ABI,
+          functionName: "VIVIBuy",
+          args: [
+            bestDex.poolKey, // Usar el poolKey exacto del quote
+            0n, // minAmountOut (minimal for estimation)
+            BigInt(feePercent),
+            additionalFeeReceivers || [],
+          ],
+          account: walletAddress,
+          value: amountEth,
+        });
+      } catch (estimationError) {
+        // V4 gas estimation may fail due to missing Permit2 allowance
+        logger.warn(
+          `⚠️ V4 gas estimation failed (likely permit2 allowance): ${estimationError}`
+        );
+        logger.info(`🎯 Using default V4 buy gas: 800000`);
+        return 800000n; // Default gas for V4 buy operations
+      }
     }
 
     throw new Error("DEX no soportado para estimación de gas");
@@ -360,6 +406,41 @@ export async function estimateSellGas({
         ],
         account: walletAddress,
       });
+    } else if (dexName === "UniswapV4") {
+      // Para V4, DEBEMOS usar exactamente el mismo poolKey que funcionó en el quote
+      if (!bestDex.poolKey) {
+        throw new Error("V4 bestDex missing poolKey");
+      }
+
+      // TEMP: Use hardcoded address that we know works
+      const actualV4Address =
+        "0xdbE635854Fe75D0Fd4D92af632Edb4339565c03B" as Address;
+      logger.info(
+        `🔍 [GAS ESTIMATION V4 SELL] Using hardcoded address: ${actualV4Address}`
+      );
+
+      try {
+        return await publicClient.estimateContractGas({
+          address: actualV4Address,
+          abi: VIVIUniswapV4ABI,
+          functionName: "VIVISell",
+          args: [
+            bestDex.poolKey, // Usar el poolKey exacto del quote
+            tokenAmount, // amountIn
+            0n, // minAmountOut (minimal for estimation)
+            BigInt(feePercent),
+            additionalFeeReceivers || [],
+          ],
+          account: walletAddress,
+        });
+      } catch (estimationError) {
+        // V4 gas estimation may fail due to missing token allowance
+        logger.warn(
+          `⚠️ V4 sell gas estimation failed (likely token allowance): ${estimationError}`
+        );
+        logger.info(`🎯 Using default V4 sell gas: 700000`);
+        return 700000n; // Default gas for V4 sell operations
+      }
     }
 
     throw new Error("DEX no soportado para estimación de gas");

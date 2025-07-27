@@ -5,12 +5,14 @@ import {
   buyTokenVirtualToken,
   buyTokenVIVIApeStore,
   buyTokenZoraMultiHop,
+  buyTokenV4,
   sellToken,
   sellTokenAerodrome,
   sellTokenV3,
   sellTokenVirtualToken,
   sellTokenVIVIApeStore,
   sellTokenZoraMultiHop,
+  sellTokenV4,
   findOrCreateToken,
   getBestDexForBuyEthToToken,
   getBestDexForSellTokenToEth,
@@ -98,7 +100,11 @@ export class TradeService extends BaseService {
         })
       );
 
-      await ctx.answerCbQuery("✅ Balance refreshed!");
+      try {
+        await ctx.answerCbQuery("✅ Balance refreshed!");
+      } catch (cbError) {
+        // Ignore callback query errors in error handling
+      }
       return true;
     } catch (error) {
       this.logError(ctx, "handleRefresh", error);
@@ -509,6 +515,40 @@ export class TradeService extends BaseService {
           symbol: token!.symbol,
           tokenAddress: token!.address,
         });
+      } else if (bestDex?.dexName === "UniswapV4") {
+        const swapRes = await buyTokenV4({
+          ctx,
+          userId,
+          walletId,
+          tokenAddress: tokenAddress as Address,
+          amountEth,
+          slippagePercent: slippage,
+          feePercent,
+          bestDex: bestDex,
+        });
+        txHash = swapRes.txHash;
+        waitReceipt = swapRes.waitReceipt;
+
+        const { parseLogsFn, onMinedFn } =
+          BuyHandlers.buildUniswapV4BuyHandlers(
+            ctx,
+            token!,
+            userId,
+            walletId,
+            txHash,
+            undefined, // isGroup
+            onTransactionSuccess
+          );
+        await handleTxNotificationsWithLinks({
+          ctx,
+          txHash,
+          waitReceipt,
+          parseLogsFn,
+          onMinedFn,
+          swapType: "Buy",
+          symbol: token!.symbol,
+          tokenAddress: token!.address,
+        });
       } else {
         throw new Error(TRADE_TEXTS.ERRORS.NO_POOL);
       }
@@ -802,6 +842,41 @@ export class TradeService extends BaseService {
           waitReceipt,
           parseLogsFn: virtualParseLogsFn,
           onMinedFn: virtualOnMinedFn,
+          swapType: "Sell",
+          symbol: token!.symbol,
+          tokenAddress: token!.address,
+        });
+      } else if (bestDex?.dexName === "UniswapV4") {
+        const swapRes = await sellTokenV4({
+          ctx,
+          userId,
+          walletId,
+          tokenAddress: tokenAddress as Address,
+          tokenAmount,
+          slippagePercent: slippage,
+          feePercent,
+          bestDex,
+        });
+        txHash = swapRes.txHash;
+        waitReceipt = swapRes.waitReceipt;
+
+        const { parseLogsFn: v4ParseLogsFn, onMinedFn: v4OnMinedFn } =
+          SellHandlers.buildUniswapV4SellHandlers(
+            ctx,
+            token!,
+            userId,
+            walletId,
+            txHash,
+            undefined, // isGroup
+            onTransactionSuccess
+          );
+
+        await handleTxNotificationsWithLinks({
+          ctx,
+          txHash,
+          waitReceipt,
+          parseLogsFn: v4ParseLogsFn,
+          onMinedFn: v4OnMinedFn,
           swapType: "Sell",
           symbol: token!.symbol,
           tokenAddress: token!.address,

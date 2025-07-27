@@ -10,3 +10,4 @@ export * from "./services/swap";
 export * from "./services/nameResolution/resolveBNSName";
 export * from "./services/nameResolution/bankr";
 export * from "./services/pools";
+export * from "./services/permit2/ensurePermit2Allowance";

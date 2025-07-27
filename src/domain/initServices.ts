@@ -11,6 +11,7 @@ import {
   HoldingService,
   PnlCacheService,
   AllowanceService,
+  Permit2AllowanceService,
   FeeWhitelistService,
   ExternalTokenInfoService,
   BankrCacheService,
@@ -28,6 +29,7 @@ const tokenService = new TokenService(prisma);
 const holdingService = new HoldingService(prisma);
 const pnlCacheService = new PnlCacheService(prisma);
 const allowanceService = new AllowanceService(prisma);
+const permit2AllowanceService = new Permit2AllowanceService(prisma);
 const feeWhitelistService = new FeeWhitelistService(prisma);
 const externalTokenInfoService = new ExternalTokenInfoService(prisma, logger);
 const bankrCacheService = new BankrCacheService(prisma);
@@ -43,6 +45,7 @@ export const services = {
   holdingService,
   pnlCacheService,
   allowanceService,
+  permit2AllowanceService,
   feeWhitelistService,
   externalTokenInfoService,
   bankrCacheService,
@@ -61,6 +64,7 @@ export interface MyServices {
   holdingService: HoldingService;
   pnlCacheService: PnlCacheService;
   allowanceService: AllowanceService;
+  permit2AllowanceService: Permit2AllowanceService;
   feeWhitelistService: FeeWhitelistService;
   externalTokenInfoService: ExternalTokenInfoService;
   bankrCacheService: BankrCacheService;
