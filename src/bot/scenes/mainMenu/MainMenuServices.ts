@@ -2,9 +2,10 @@ import { WalletWithHoldings } from "@domain";
 import { getWalletBalance } from "@services";
 import { GENERIC_ERRORS } from "@texts";
 import { BaseService, GlobalSceneContext } from "@types";
-import { getTokenBalance } from "@blockchain";
+import { getTokenBalanceDRPC } from "@blockchain";
 import { Address } from "viem";
 import { loginHandler } from "../dashboard/login";
+import { publicClientDRPC } from "@client";
 
 /**
  * MainMenu business logic services
@@ -191,9 +192,10 @@ export class MainMenuServices extends BaseService {
               holdings.map(async (holding) => {
                 try {
                   const token = holding.token;
-                  const chainBalance = await getTokenBalance(
+                  const chainBalance = await getTokenBalanceDRPC(
                     token.address as Address,
-                    wallet.address as Address
+                    wallet.address as Address,
+                    publicClientDRPC
                   );
 
                   if (chainBalance !== BigInt(holding.balance)) {
