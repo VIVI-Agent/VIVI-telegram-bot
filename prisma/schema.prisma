@@ -424,3 +424,68 @@ model BankrCache {
     @@index([platform])
     @@index([lastAccessed])
 }
+
+// ===== MODELOS DEL BOT SECUNDARIO (KOL BOT) =====
+
+model KolUser {
+    id         Int      @id @default(autoincrement())
+    telegramId BigInt   @unique // Telegram user ID
+    username   String? // Telegram username
+    firstName  String? // Telegram first name
+    lastName   String? // Telegram last name
+    createdAt  DateTime @default(now())
+    updatedAt  DateTime @updatedAt
+
+    // Relación con grupos donde es owner
+    ownedGroups KolGroup[] @relation("KolGroupOwner")
+
+    @@map("kol_users")
+}
+
+model KolGroup {
+    id         Int      @id @default(autoincrement())
+    telegramId BigInt   @unique // Telegram group/channel ID
+    title      String // Group title
+    username   String? // Group username
+    type       String // "group", "supergroup", "channel"
+    ownerId    Int // ID del usuario owner
+    owner      KolUser  @relation("KolGroupOwner", fields: [ownerId], references: [id])
+    createdAt  DateTime @default(now())
+    updatedAt  DateTime @updatedAt
+
+    // Configuración del grupo
+    settings KolGroupSettings?
+
+    @@map("kol_groups")
+}
+
+model KolGroupSettings {
+    id      Int      @id @default(autoincrement())
+    groupId Int      @unique
+    group   KolGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+    // Configuración del bot
+    isEnabled     Boolean @default(false) // Si el bot responde a tokens (disabled by default)
+    walletAddress String? // Dirección de wallet para recibir rewards (solo owner puede configurar)
+    amount1       String  @default("0.02") // Monto del botón 1
+    amount2       String  @default("0.04") // Monto del botón 2
+    amount3       String  @default("0.07") // Monto del botón 3
+    amount4       String  @default("0.1") // Monto del botón 4
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@map("kol_group_settings")
+}
+
+model KolBotSession {
+    id        Int      @id @default(autoincrement())
+    sessionId String   @unique // ID único de la sesión
+    userId    Int // ID del usuario
+    groupId   Int? // ID del grupo (opcional, para sesiones de configuración)
+    data      Json // Datos de la sesión
+    expiresAt DateTime // Cuándo expira la sesión
+    createdAt DateTime @default(now())
+
+    @@map("kol_bot_sessions")
+}
