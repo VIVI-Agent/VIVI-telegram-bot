@@ -329,7 +329,8 @@ async function executeBuyCommand(
   wallet: any,
   tokenInfo: Token,
   amountEth: bigint,
-  user: User
+  user: User,
+  refererAddress?: string
 ): Promise<void> {
   try {
     // Set slippage
@@ -383,6 +384,7 @@ async function executeBuyCommand(
         slippagePercent,
         feePercent,
         bestDex: best,
+        refererAddress,
       });
       txHash = result.txHash;
       waitReceipt = result.waitReceipt;
@@ -710,7 +712,8 @@ function findTokenBySymbol<T extends { symbol: string }>(
  */
 export const buyTextHandler: TextHandler = async (
   ctx: GlobalSceneContext,
-  match: TextMatch
+  match: TextMatch,
+  refererAddress?: string
 ): Promise<boolean> => {
   try {
     logger.debug(
@@ -804,7 +807,15 @@ export const buyTextHandler: TextHandler = async (
     }
 
     // Execute the buy transaction
-    await executeBuyCommand(ctx, parsed, wallet, tokenInfo, amountEth, user);
+    await executeBuyCommand(
+      ctx,
+      parsed,
+      wallet,
+      tokenInfo,
+      amountEth,
+      user,
+      refererAddress
+    );
 
     return true; // Successfully handled
   } catch (error) {

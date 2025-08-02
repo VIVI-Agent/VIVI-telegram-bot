@@ -42,6 +42,7 @@ interface BuyUniV2Args {
   slippagePercent: number;
   feePercent: number;
   bestDex: DexQuoteResultBuy;
+  refererAddress?: string;
 }
 
 export async function buyToken({
@@ -53,6 +54,7 @@ export async function buyToken({
   slippagePercent,
   feePercent,
   bestDex,
+  refererAddress,
 }: BuyUniV2Args): Promise<SwapResult> {
   // ─────────────────────────────────────────────────────────────
   // SELECT WALLET
@@ -76,7 +78,17 @@ export async function buyToken({
   // CHECK REFERRAL AND GET REWARD WALLET
   // ─────────────────────────────────────────────────────────────
   let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
-  if (user?.referredById) {
+  if (refererAddress) {
+    const receiver = AddressValidator.parseEthereumAddress(refererAddress);
+    if (receiver) {
+      additionalFeeReceivers = [
+        {
+          receiver,
+          bps: 2000n,
+        },
+      ];
+    }
+  } else if (user?.referredById) {
     const referrer = await ctx.services.userService.getUserById(
       user.referredById
     );

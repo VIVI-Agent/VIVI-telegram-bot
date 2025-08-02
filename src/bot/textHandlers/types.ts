@@ -13,7 +13,8 @@ export interface TextMatch {
  */
 export type TextHandler = (
   ctx: GlobalSceneContext,
-  match: TextMatch
+  match: TextMatch,
+  refererAddress?: string
 ) => Promise<boolean>;
 
 /**

@@ -14,7 +14,7 @@ import { logger } from "@logger";
 import { GENERIC_ERRORS } from "@texts";
 import { registerCommands } from "./commands";
 import { balanceHandler, inviteTextHandler, textManager } from "./textHandlers";
-import { normalizeAmount } from "@utils";
+import { AddressValidator, normalizeAmount } from "@utils";
 
 // Import buyTextHandler
 import { buyTextHandler } from "./textHandlers/buyHandler";
@@ -80,6 +80,20 @@ bot.start(async (ctx) => {
           // Execute direct buy with amount
           await executeDirectBuy(ctx, tokenAddress, amount);
           return;
+        }
+
+        // Check for trade instruction UUID pattern
+        const tradeInstructionPattern =
+          /^trade_instruction_([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
+        const uuidMatch = startParams.match(tradeInstructionPattern);
+
+        if (uuidMatch) {
+          const [, uuid] = uuidMatch;
+          logger.info(`Processing trade instruction with UUID: ${uuid}`);
+
+          // Execute trade instruction
+          await executeTradeInstruction(ctx, uuid);
+          return;
         } else {
           // Fallback to old parsing for other cases
           const params = startParams.split("_");
@@ -116,7 +130,8 @@ bot.start(async (ctx) => {
 async function executeDirectBuy(
   ctx: any,
   tokenAddress: string,
-  amount: string
+  amount: string,
+  refererAddress?: string
 ) {
   try {
     logger.info(
@@ -132,13 +147,84 @@ async function executeDirectBuy(
     };
 
     // Use buyTextHandler directly
-    await buyTextHandler(ctx, simulatedMatch);
+    await buyTextHandler(ctx, simulatedMatch, refererAddress);
 
     logger.info(`Direct buy completed for user ${ctx.from?.id}`);
   } catch (error) {
     logger.error(`Error in direct buy:`, error);
     await ctx.reply(
       `❌ Buy failed: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`,
+      {
+        parse_mode: "HTML",
+        reply_parameters: { message_id: ctx.message?.message_id! },
+      }
+    );
+  }
+}
+
+/**
+ * Execute trade instruction from UUID
+ */
+async function executeTradeInstruction(ctx: any, uuid: string) {
+  try {
+    logger.info(`Processing trade instruction UUID: ${uuid}`);
+
+    // Find the trade instruction
+    const result = await services.tradeInstructionService.findByUuid(uuid);
+
+    if (!result.success) {
+      logger.warn(`Trade instruction not found or invalid: ${result.error}`);
+      await ctx.reply(`❌ Invalid or expired trading link: ${result.error}`, {
+        parse_mode: "HTML",
+        reply_parameters: { message_id: ctx.message?.message_id! },
+      });
+      return;
+    }
+
+    const instruction = result.data!;
+    logger.info(
+      `Found trade instruction: ${instruction.tokenAddress}, amount: ${instruction.amount}`
+    );
+
+    // Check if original user exists for referral system
+    const originalUser =
+      await services.tradeInstructionService.getOriginalUserByTgUserId(
+        instruction.originalTgUserId
+      );
+
+    if (originalUser) {
+      logger.info(
+        `Original user ${instruction.originalTgUserId} exists - referral will be applied`
+      );
+    } else {
+      logger.info(
+        `Original user ${instruction.originalTgUserId} does not exist - no referral applied`
+      );
+    }
+    let refererAddress: string | undefined;
+
+    if (originalUser?.rewardWallet) {
+      refererAddress = AddressValidator.parseEthereumAddress(
+        originalUser?.rewardWallet
+      );
+    }
+    // Execute the buy with the instruction data
+    await executeDirectBuy(
+      ctx,
+      instruction.tokenAddress,
+      instruction.amount,
+      refererAddress
+    );
+
+    logger.info(
+      `Trade instruction completed for user ${ctx.from?.id}, UUID: ${uuid}`
+    );
+  } catch (error) {
+    logger.error(`Error processing trade instruction:`, error);
+    await ctx.reply(
+      `❌ Failed to process trading link: ${
         error instanceof Error ? error.message : "Unknown error"
       }`,
       {

@@ -465,12 +465,13 @@ model KolGroupSettings {
     group   KolGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
     // Configuración del bot
-    isEnabled     Boolean @default(false) // Si el bot responde a tokens (disabled by default)
-    walletAddress String? // Dirección de wallet para recibir rewards (solo owner puede configurar)
-    amount1       String  @default("0.02") // Monto del botón 1
-    amount2       String  @default("0.04") // Monto del botón 2
-    amount3       String  @default("0.07") // Monto del botón 3
-    amount4       String  @default("0.1") // Monto del botón 4
+    isEnabledForOwner Boolean @default(false) // Si el bot responde al owner de la group (disabled by default)
+    isEnabledForUsers Boolean @default(false) // Si el bot responde a todos los usuarios de la group (disabled by default)
+    walletAddress     String? // Dirección de wallet para recibir rewards (solo owner puede configurar)
+    amount1           String  @default("0.02") // Monto del botón 1
+    amount2           String  @default("0.04") // Monto del botón 2
+    amount3           String  @default("0.07") // Monto del botón 3
+    amount4           String  @default("0.1") // Monto del botón 4
 
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
@@ -488,4 +489,27 @@ model KolBotSession {
     createdAt DateTime @default(now())
 
     @@map("kol_bot_sessions")
+}
+
+model TradeInstruction {
+    id           String  @id @default(uuid())
+    tokenAddress String
+    tokenName    String?
+    tokenSymbol  String?
+    amount       String
+
+    // Usuario original (para referrals)
+    originalTgUserId String
+
+    // Información del grupo
+    groupId    String
+    groupTitle String?
+
+    // TTL para limpiar registros viejos
+    expiresAt DateTime
+    createdAt DateTime @default(now())
+
+    @@index([id])
+    @@index([expiresAt])
+    @@map("trade_instructions")
 }
