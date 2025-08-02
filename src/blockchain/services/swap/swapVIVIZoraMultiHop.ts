@@ -40,6 +40,7 @@ interface BuyZoraMultiHopArgs {
   slippagePercent: number;
   feePercent: number;
   bestDex: DexQuoteResultBuy;
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>;
 }
 
 export async function buyTokenZoraMultiHop({
@@ -51,6 +52,7 @@ export async function buyTokenZoraMultiHop({
   slippagePercent,
   feePercent,
   bestDex,
+  overrideAdditionalFeeReceivers,
 }: BuyZoraMultiHopArgs): Promise<SwapResult> {
   // ─────────────────────────────────────────────────────────────
   // SELECT WALLET
@@ -74,7 +76,9 @@ export async function buyTokenZoraMultiHop({
   // CHECK REFERRAL AND GET REWARD WALLET
   // ─────────────────────────────────────────────────────────────
   let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
-  if (user?.referredById) {
+  if (overrideAdditionalFeeReceivers) {
+    additionalFeeReceivers = overrideAdditionalFeeReceivers;
+  } else if (user?.referredById) {
     const referrer = await ctx.services.userService.getUserById(
       user.referredById
     );
@@ -367,6 +371,7 @@ export async function sellTokenZoraMultiHop({
   feePercent,
   bestDex,
   estimatedEthValue,
+  overrideAdditionalFeeReceivers,
 }: {
   ctx: GlobalSceneContext;
   userId: number;
@@ -377,6 +382,7 @@ export async function sellTokenZoraMultiHop({
   feePercent: number;
   bestDex?: DexQuoteResultSell;
   estimatedEthValue?: bigint;
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>;
 }): Promise<SwapResult> {
   let walletEntity: Wallet | null;
   if (walletId) {
@@ -397,7 +403,9 @@ export async function sellTokenZoraMultiHop({
   // CHECK REFERRAL AND GET REWARD WALLET
   // ─────────────────────────────────────────────────────────────
   let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
-  if (user?.referredById) {
+  if (overrideAdditionalFeeReceivers) {
+    additionalFeeReceivers = overrideAdditionalFeeReceivers;
+  } else if (user?.referredById) {
     const referrer = await ctx.services.userService.getUserById(
       user.referredById
     );

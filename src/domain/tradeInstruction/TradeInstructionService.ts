@@ -1,4 +1,11 @@
-import { PrismaClient, TradeInstruction, User } from "@prisma/client";
+import {
+  KolGroup,
+  KolUser,
+  KolGroupSettings,
+  PrismaClient,
+  TradeInstruction,
+  User,
+} from "@prisma/client";
 
 export interface TradeInstructionData {
   id: string;
@@ -21,6 +28,21 @@ export interface TradeInstructionResult {
 
 export class TradeInstructionService {
   constructor(private prisma: PrismaClient) {}
+
+  async getKolGroupByTgChatId(
+    telegramId: number
+  ): Promise<
+    (KolGroup & { settings: KolGroupSettings | null; owner: KolUser }) | null
+  > {
+    const kolGroup = await this.prisma.kolGroup.findUnique({
+      where: { telegramId: telegramId.toString() },
+      include: {
+        settings: true,
+        owner: true,
+      },
+    });
+    return kolGroup;
+  }
 
   /**
    * Find a trade instruction by UUID

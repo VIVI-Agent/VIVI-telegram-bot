@@ -22,6 +22,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { createWalletClient, http, publicActions } from "viem";
 import { base } from "viem/chains";
 import { SwapResult } from "./types"; // Import SwapResult from types
+import { AddressValidator } from "@utils";
 
 // Usar la dirección del contrato V4 desde la configuración
 const VIVI_V4_CONTRACT_ADDRESS =
@@ -37,6 +38,7 @@ export interface BuyTokenV4Params {
   slippagePercent: number;
   feePercent: number;
   bestDex: DexQuoteResultBuy;
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>;
 }
 
 export interface SellTokenV4Params {
@@ -48,6 +50,7 @@ export interface SellTokenV4Params {
   slippagePercent: number;
   feePercent: number;
   bestDex: DexQuoteResultSell;
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>;
 }
 
 /**
@@ -65,6 +68,7 @@ export async function buyTokenV4(
     slippagePercent,
     feePercent,
     bestDex,
+    overrideAdditionalFeeReceivers,
   } = params;
 
   try {
@@ -93,12 +97,48 @@ export async function buyTokenV4(
         amountEth,
         slippagePercent,
         feePercent,
-        additionalFeeReceivers: [],
+        additionalFeeReceivers: overrideAdditionalFeeReceivers || [],
       });
       logger.info(`🔥 V4 Buy estimated gas: ${estimatedGas}`);
     } catch (gasEstimationError) {
       logger.warn(`⚠️ V4 Buy gas estimation failed: ${gasEstimationError}`);
       // Continuar con gas por defecto si falla la estimación
+    }
+
+    const user = await ctx.services.userService.getUserById(userId);
+
+    // ─────────────────────────────────────────────────────────────
+    // CHECK REFERRAL AND GET REWARD WALLET
+    // ─────────────────────────────────────────────────────────────
+    let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
+    if (overrideAdditionalFeeReceivers) {
+      additionalFeeReceivers = overrideAdditionalFeeReceivers;
+    } else if (user?.referredById) {
+      const referrer = await ctx.services.userService.getUserById(
+        user.referredById
+      );
+      if (referrer?.rewardWallet) {
+        const rewardWallet = AddressValidator.parseEthereumAddress(
+          referrer.rewardWallet
+        );
+        if (rewardWallet) {
+          additionalFeeReceivers = [
+            {
+              receiver: rewardWallet,
+              bps: 2000n,
+            },
+          ];
+        }
+        logger.info(
+          `[sellTokenZoraMultiHop] Referral fee will be sent to: ${referrer.rewardWallet} (2000 bps)`
+        );
+      } else {
+        logger.info(
+          `[sellTokenZoraMultiHop] Referrer ${user.referredById} has no reward wallet configured`
+        );
+      }
+    } else {
+      logger.info(`[sellTokenZoraMultiHop] User ${userId} has no referrer`);
     }
 
     // Preparar parámetros para V4
@@ -111,7 +151,7 @@ export async function buyTokenV4(
       ethAmount: amountEth,
       feeBps,
       slippagePercent,
-      additionalFeeReceivers: [], // Por defecto vacío, se puede personalizar
+      additionalFeeReceivers,
     };
 
     // Ejecutar compra V4
@@ -159,6 +199,7 @@ export async function sellTokenV4(
     slippagePercent,
     feePercent,
     bestDex,
+    overrideAdditionalFeeReceivers,
   } = params;
 
   try {
@@ -195,7 +236,7 @@ export async function sellTokenV4(
         tokenAmount,
         slippagePercent,
         feePercent,
-        additionalFeeReceivers: [],
+        additionalFeeReceivers: overrideAdditionalFeeReceivers || [],
       });
       logger.info(`🔥 V4 Sell estimated gas: ${estimatedGas}`);
     } catch (gasEstimationError) {
@@ -203,7 +244,42 @@ export async function sellTokenV4(
       // Continuar con gas por defecto si falla la estimación
     }
 
-    // Preparar parámetros para V4
+    const user = await ctx.services.userService.getUserById(userId);
+
+    // ─────────────────────────────────────────────────────────────
+    // CHECK REFERRAL AND GET REWARD WALLET
+    // ─────────────────────────────────────────────────────────────
+    let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
+    if (overrideAdditionalFeeReceivers) {
+      additionalFeeReceivers = overrideAdditionalFeeReceivers;
+    } else if (user?.referredById) {
+      const referrer = await ctx.services.userService.getUserById(
+        user.referredById
+      );
+      if (referrer?.rewardWallet) {
+        const rewardWallet = AddressValidator.parseEthereumAddress(
+          referrer.rewardWallet
+        );
+        if (rewardWallet) {
+          additionalFeeReceivers = [
+            {
+              receiver: rewardWallet,
+              bps: 2000n,
+            },
+          ];
+        }
+        logger.info(
+          `[sellTokenZoraMultiHop] Referral fee will be sent to: ${referrer.rewardWallet} (2000 bps)`
+        );
+      } else {
+        logger.info(
+          `[sellTokenZoraMultiHop] Referrer ${user.referredById} has no reward wallet configured`
+        );
+      }
+    } else {
+      logger.info(`[sellTokenZoraMultiHop] User ${userId} has no referrer`);
+    }
+
     const v4Params: V4IntegratedSellParams = {
       ctx,
       walletEntity,
@@ -214,7 +290,7 @@ export async function sellTokenV4(
       feeBps,
       slippagePercent,
       decimalsIn: tokenData.decimals,
-      additionalFeeReceivers: [], // Por defecto vacío
+      additionalFeeReceivers,
     };
 
     // Ejecutar venta V4

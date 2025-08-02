@@ -42,6 +42,7 @@ interface BuyV3Args {
   feePercent: number;
   feeTier: number;
   bestDex?: DexQuoteResultBuy;
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>;
 }
 
 export async function buyTokenV3({
@@ -53,6 +54,7 @@ export async function buyTokenV3({
   feePercent,
   feeTier,
   bestDex,
+  overrideAdditionalFeeReceivers,
 }: BuyV3Args): Promise<SwapResult> {
   // ─────────────────────────────────────────────────────────────
   // SELECT WALLET
@@ -77,7 +79,9 @@ export async function buyTokenV3({
   // ─────────────────────────────────────────────────────────────
   let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
 
-  if (user?.referredById) {
+  if (overrideAdditionalFeeReceivers) {
+    additionalFeeReceivers = overrideAdditionalFeeReceivers;
+  } else if (user?.referredById) {
     // Get the referrer user to check if they have a reward wallet
     const referrer = await ctx.services.userService.getUserById(
       user.referredById
@@ -343,6 +347,7 @@ export async function sellTokenV3({
   feeTier,
   bestDex,
   estimatedEthValue,
+  overrideAdditionalFeeReceivers,
 }: {
   ctx: GlobalSceneContext;
   userId: number;
@@ -353,6 +358,7 @@ export async function sellTokenV3({
   feeTier: number;
   bestDex?: DexQuoteResultSell;
   estimatedEthValue?: bigint;
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>;
 }): Promise<SwapResult> {
   let walletEntity: Wallet | null;
   if (walletId) {
@@ -374,7 +380,9 @@ export async function sellTokenV3({
   // ─────────────────────────────────────────────────────────────
   let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
 
-  if (user?.referredById) {
+  if (overrideAdditionalFeeReceivers) {
+    additionalFeeReceivers = overrideAdditionalFeeReceivers;
+  } else if (user?.referredById) {
     // Get the referrer user to check if they have a reward wallet
     const referrer = await ctx.services.userService.getUserById(
       user.referredById

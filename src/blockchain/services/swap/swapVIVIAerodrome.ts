@@ -47,6 +47,7 @@ interface BuyAerodromeArgs {
   feePercent: number;
   stable: boolean;
   bestDex: DexQuoteResultBuy;
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>;
 }
 
 export async function buyTokenAerodrome({
@@ -59,6 +60,7 @@ export async function buyTokenAerodrome({
   feePercent,
   stable,
   bestDex,
+  overrideAdditionalFeeReceivers,
 }: BuyAerodromeArgs): Promise<SwapResult> {
   // ─────────────────────────────────────────────────────────────
   // SELECT WALLET
@@ -82,7 +84,9 @@ export async function buyTokenAerodrome({
   // CHECK REFERRAL AND GET REWARD WALLET
   // ─────────────────────────────────────────────────────────────
   let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
-  if (user?.referredById) {
+  if (overrideAdditionalFeeReceivers) {
+    additionalFeeReceivers = overrideAdditionalFeeReceivers;
+  } else if (user?.referredById) {
     const referrer = await ctx.services.userService.getUserById(
       user.referredById
     );
@@ -372,6 +376,7 @@ export async function sellTokenAerodrome({
   stable,
   bestDex,
   estimatedEthValue,
+  overrideAdditionalFeeReceivers,
 }: {
   ctx: GlobalSceneContext;
   userId: number;
@@ -383,6 +388,7 @@ export async function sellTokenAerodrome({
   stable: boolean;
   bestDex?: DexQuoteResultSell;
   estimatedEthValue?: bigint;
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>;
 }): Promise<SwapResult> {
   let walletEntity: Wallet | null;
   if (walletId) {
@@ -403,7 +409,9 @@ export async function sellTokenAerodrome({
   // CHECK REFERRAL AND GET REWARD WALLET
   // ─────────────────────────────────────────────────────────────
   let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
-  if (user?.referredById) {
+  if (overrideAdditionalFeeReceivers) {
+    additionalFeeReceivers = overrideAdditionalFeeReceivers;
+  } else if (user?.referredById) {
     const referrer = await ctx.services.userService.getUserById(
       user.referredById
     );

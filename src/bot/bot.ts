@@ -1,10 +1,10 @@
 import { session, Telegraf } from "telegraf";
 import { message } from "telegraf/filters";
-import { Address, parseEther, formatEther } from "viem";
+import { Address } from "viem";
 
-import { redisStore, secrets, webhookServer } from "@config";
+import { secrets, webhookServer } from "@config";
 import { services } from "@domain";
-import { GlobalSceneContext, GlobalSessionData } from "@types";
+import { GlobalSceneContext } from "@types";
 
 import { GlobalSceneManagerImpl } from "./core/GlobalSceneManager";
 
@@ -25,16 +25,9 @@ const bot = new Telegraf<GlobalSceneContext>(secrets.TELEGRAM_BOT_TOKEN || "");
 // Create global scene manager
 const sceneManager = new GlobalSceneManagerImpl();
 
-// ← REDIS DISABLED - Using memory storage
-// const store = Redis<GlobalSessionData>({
-//   url: redisStore.REDIS_STORE_URL,
-//   config: { pingInterval: 30000 },
-// });
-
 // Session middleware with MEMORY storage
 bot.use(
   session({
-    // store, // ← DISABLED Redis store
     defaultSession: () => ({
       activeSubScenes: {},
       sceneOrder: [],
@@ -131,7 +124,7 @@ async function executeDirectBuy(
   ctx: any,
   tokenAddress: string,
   amount: string,
-  refererAddress?: string
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>
 ) {
   try {
     logger.info(
@@ -147,7 +140,7 @@ async function executeDirectBuy(
     };
 
     // Use buyTextHandler directly
-    await buyTextHandler(ctx, simulatedMatch, refererAddress);
+    await buyTextHandler(ctx, simulatedMatch, overrideAdditionalFeeReceivers);
 
     logger.info(`Direct buy completed for user ${ctx.from?.id}`);
   } catch (error) {
@@ -203,19 +196,99 @@ async function executeTradeInstruction(ctx: any, uuid: string) {
         `Original user ${instruction.originalTgUserId} does not exist - no referral applied`
       );
     }
-    let refererAddress: string | undefined;
 
-    if (originalUser?.rewardWallet) {
-      refererAddress = AddressValidator.parseEthereumAddress(
-        originalUser?.rewardWallet
+    let overrideAdditionalFeeReceivers:
+      | Array<{
+          receiver: Address;
+          bps: bigint;
+        }>
+      | undefined;
+
+    // TODO: Add overrideAdditionalFeeReceivers
+
+    const kolGroup =
+      await services.tradeInstructionService.getKolGroupByTgChatId(
+        Number(instruction.groupId)
       );
+
+    logger.info(
+      `Kol group: ${kolGroup?.owner.telegramId} - ${instruction.originalTgUserId}`
+    );
+
+    // If the original user is the owner of the group, add the owner's wallet to the additional fee receivers
+    if (kolGroup?.owner.telegramId === instruction.originalTgUserId) {
+      if (kolGroup.settings?.walletAddress) {
+        const walletAddress = AddressValidator.parseEthereumAddress(
+          kolGroup.settings.walletAddress
+        );
+        if (walletAddress) {
+          overrideAdditionalFeeReceivers = [
+            {
+              receiver: walletAddress,
+              bps: 1500n,
+            },
+          ];
+          logger.info(
+            `Added owner's wallet to additional fee receivers: ${walletAddress}`
+          );
+          logger.info(
+            `Added owner's wallet to additional fee receivers: ${overrideAdditionalFeeReceivers.toString()}`
+          );
+        }
+      }
+    } else {
+      // If the original message user is not the owner of the group.
+      // We need to add 2 additional fee receivers:
+      // 1. The owner of the group
+      if (kolGroup?.settings?.walletAddress) {
+        const walletAddress = AddressValidator.parseEthereumAddress(
+          kolGroup.settings.walletAddress
+        );
+        if (walletAddress) {
+          overrideAdditionalFeeReceivers = [
+            {
+              receiver: walletAddress,
+              bps: 1000n,
+            },
+          ];
+        }
+      }
+      // 2. The original message user
+      if (instruction.originalTgUserId) {
+        const originalUser = await services.userService.getUserByTgId(
+          instruction.originalTgUserId
+        );
+        if (originalUser?.rewardWallet) {
+          const rewardWallet = AddressValidator.parseEthereumAddress(
+            originalUser.rewardWallet
+          );
+          if (rewardWallet) {
+            overrideAdditionalFeeReceivers = [
+              ...(overrideAdditionalFeeReceivers || []),
+              {
+                receiver: rewardWallet,
+                bps: 500n,
+              },
+            ];
+          }
+        }
+      }
     }
+
+    if (overrideAdditionalFeeReceivers) {
+      overrideAdditionalFeeReceivers.map((fee, index) => {
+        logger.info(
+          `overrideAdditionalFeeReceiver ${index}: ${fee.receiver} - BPS: ${fee.bps}`
+        );
+      });
+    }
+
     // Execute the buy with the instruction data
     await executeDirectBuy(
       ctx,
       instruction.tokenAddress,
       instruction.amount,
-      refererAddress
+      overrideAdditionalFeeReceivers
     );
 
     logger.info(

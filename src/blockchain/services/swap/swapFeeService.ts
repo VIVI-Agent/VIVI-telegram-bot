@@ -42,7 +42,7 @@ interface BuyUniV2Args {
   slippagePercent: number;
   feePercent: number;
   bestDex: DexQuoteResultBuy;
-  refererAddress?: string;
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>;
 }
 
 export async function buyToken({
@@ -54,7 +54,7 @@ export async function buyToken({
   slippagePercent,
   feePercent,
   bestDex,
-  refererAddress,
+  overrideAdditionalFeeReceivers,
 }: BuyUniV2Args): Promise<SwapResult> {
   // ─────────────────────────────────────────────────────────────
   // SELECT WALLET
@@ -78,16 +78,8 @@ export async function buyToken({
   // CHECK REFERRAL AND GET REWARD WALLET
   // ─────────────────────────────────────────────────────────────
   let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
-  if (refererAddress) {
-    const receiver = AddressValidator.parseEthereumAddress(refererAddress);
-    if (receiver) {
-      additionalFeeReceivers = [
-        {
-          receiver,
-          bps: 2000n,
-        },
-      ];
-    }
+  if (overrideAdditionalFeeReceivers) {
+    additionalFeeReceivers = overrideAdditionalFeeReceivers;
   } else if (user?.referredById) {
     const referrer = await ctx.services.userService.getUserById(
       user.referredById
@@ -351,6 +343,7 @@ export async function sellToken({
   feePercent,
   bestDex,
   estimatedEthValue, // Opcional - se puede obtener de bestDex
+  overrideAdditionalFeeReceivers,
 }: {
   ctx: GlobalSceneContext;
   userId: number;
@@ -361,6 +354,7 @@ export async function sellToken({
   feePercent: number;
   bestDex?: DexQuoteResultSell;
   estimatedEthValue?: bigint;
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>;
 }): Promise<SwapResult> {
   let walletEntity: Wallet | null;
   if (walletId) {
@@ -381,7 +375,9 @@ export async function sellToken({
   // CHECK REFERRAL AND GET REWARD WALLET
   // ─────────────────────────────────────────────────────────────
   let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
-  if (user?.referredById) {
+  if (overrideAdditionalFeeReceivers) {
+    additionalFeeReceivers = overrideAdditionalFeeReceivers;
+  } else if (user?.referredById) {
     const referrer = await ctx.services.userService.getUserById(
       user.referredById
     );

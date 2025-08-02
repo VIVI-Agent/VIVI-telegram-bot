@@ -10,6 +10,7 @@ import {
   formatEther,
 } from "viem";
 import {
+  AddressValidator,
   BuyAmountValidator,
   CONNECTOR_WORDS,
   MULTI_WORD_ALIASES,
@@ -330,7 +331,7 @@ async function executeBuyCommand(
   tokenInfo: Token,
   amountEth: bigint,
   user: User,
-  refererAddress?: string
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>
 ): Promise<void> {
   try {
     // Set slippage
@@ -384,7 +385,7 @@ async function executeBuyCommand(
         slippagePercent,
         feePercent,
         bestDex: best,
-        refererAddress,
+        overrideAdditionalFeeReceivers,
       });
       txHash = result.txHash;
       waitReceipt = result.waitReceipt;
@@ -423,6 +424,7 @@ async function executeBuyCommand(
         feePercent,
         bestDex: best,
         stable,
+        overrideAdditionalFeeReceivers,
       });
       txHash = result.txHash;
       waitReceipt = result.waitReceipt;
@@ -461,6 +463,7 @@ async function executeBuyCommand(
         bestDex: best,
         feePercent,
         feeTier: best.feeTier,
+        overrideAdditionalFeeReceivers,
       });
       txHash = result.txHash;
       waitReceipt = result.waitReceipt;
@@ -497,6 +500,7 @@ async function executeBuyCommand(
         slippagePercent,
         feePercent,
         bestDex: best,
+        overrideAdditionalFeeReceivers,
       });
       txHash = result.txHash;
       waitReceipt = result.waitReceipt;
@@ -534,6 +538,7 @@ async function executeBuyCommand(
         slippagePercent,
         feePercent,
         bestDex: best,
+        overrideAdditionalFeeReceivers,
       });
       txHash = result.txHash;
       waitReceipt = result.waitReceipt;
@@ -571,6 +576,7 @@ async function executeBuyCommand(
         slippagePercent,
         feePercent,
         bestDex: best,
+        overrideAdditionalFeeReceivers,
       });
       txHash = result.txHash;
       waitReceipt = result.waitReceipt;
@@ -608,6 +614,7 @@ async function executeBuyCommand(
         slippagePercent,
         feePercent,
         bestDex: best,
+        overrideAdditionalFeeReceivers,
       });
       txHash = result.txHash;
       waitReceipt = result.waitReceipt;
@@ -713,7 +720,7 @@ function findTokenBySymbol<T extends { symbol: string }>(
 export const buyTextHandler: TextHandler = async (
   ctx: GlobalSceneContext,
   match: TextMatch,
-  refererAddress?: string
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>
 ): Promise<boolean> => {
   try {
     logger.debug(
@@ -814,7 +821,7 @@ export const buyTextHandler: TextHandler = async (
       tokenInfo,
       amountEth,
       user,
-      refererAddress
+      overrideAdditionalFeeReceivers
     );
 
     return true; // Successfully handled

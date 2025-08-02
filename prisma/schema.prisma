@@ -429,7 +429,7 @@ model BankrCache {
 
 model KolUser {
     id         Int      @id @default(autoincrement())
-    telegramId BigInt   @unique // Telegram user ID
+    telegramId String   @unique // Telegram user ID
     username   String? // Telegram username
     firstName  String? // Telegram first name
     lastName   String? // Telegram last name
@@ -444,7 +444,7 @@ model KolUser {
 
 model KolGroup {
     id         Int      @id @default(autoincrement())
-    telegramId BigInt   @unique // Telegram group/channel ID
+    telegramId String   @unique // Telegram group/channel ID
     title      String // Group title
     username   String? // Group username
     type       String // "group", "supergroup", "channel"
