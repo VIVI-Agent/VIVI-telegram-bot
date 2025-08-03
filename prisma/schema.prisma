@@ -467,6 +467,7 @@ model KolGroupSettings {
     // Configuración del bot
     isEnabledForOwner Boolean @default(false) // Si el bot responde al owner de la group (disabled by default)
     isEnabledForUsers Boolean @default(false) // Si el bot responde a todos los usuarios de la group (disabled by default)
+    allowUserFees     Boolean @default(false)
     walletAddress     String? // Dirección de wallet para recibir rewards (solo owner puede configurar)
     amount1           String  @default("0.02") // Monto del botón 1
     amount2           String  @default("0.04") // Monto del botón 2

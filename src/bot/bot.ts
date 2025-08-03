@@ -204,8 +204,8 @@ async function executeTradeInstruction(ctx: any, uuid: string) {
         }>
       | undefined;
 
-    // TODO: Add overrideAdditionalFeeReceivers
-
+    // OVERRIDE ADDITIONAL FEE RECEIVERS FROM KOL GROUP SETTINGS
+    // OVERRIDE ADDITIONAL FEE RECEIVERS FROM KOL GROUP SETTINGS
     const kolGroup =
       await services.tradeInstructionService.getKolGroupByTgChatId(
         Number(instruction.groupId)
@@ -214,6 +214,10 @@ async function executeTradeInstruction(ctx: any, uuid: string) {
     logger.info(
       `Kol group: ${kolGroup?.owner.telegramId} - ${instruction.originalTgUserId}`
     );
+
+    // Check if user fees are allowed for this group
+    const allowUserFees = kolGroup?.settings?.allowUserFees || false;
+    logger.info(`Group ${instruction.groupId} allowUserFees: ${allowUserFees}`);
 
     // If the original user is the owner of the group, add the owner's wallet to the additional fee receivers
     if (kolGroup?.owner.telegramId === instruction.originalTgUserId) {
@@ -229,47 +233,72 @@ async function executeTradeInstruction(ctx: any, uuid: string) {
             },
           ];
           logger.info(
-            `Added owner's wallet to additional fee receivers: ${walletAddress}`
-          );
-          logger.info(
-            `Added owner's wallet to additional fee receivers: ${overrideAdditionalFeeReceivers.toString()}`
+            `Original user is owner - Added owner's wallet to additional fee receivers: ${walletAddress} (1500 bps)`
           );
         }
       }
     } else {
-      // If the original message user is not the owner of the group.
-      // We need to add 2 additional fee receivers:
-      // 1. The owner of the group
-      if (kolGroup?.settings?.walletAddress) {
-        const walletAddress = AddressValidator.parseEthereumAddress(
-          kolGroup.settings.walletAddress
+      // If the original message user is not the owner of the group
+      if (allowUserFees) {
+        // Configuration ON: Split fees between owner and original user
+        logger.info(
+          `User fees enabled - splitting fees between owner and original user`
         );
-        if (walletAddress) {
-          overrideAdditionalFeeReceivers = [
-            {
-              receiver: walletAddress,
-              bps: 1000n,
-            },
-          ];
-        }
-      }
-      // 2. The original message user
-      if (instruction.originalTgUserId) {
-        const originalUser = await services.userService.getUserByTgId(
-          instruction.originalTgUserId
-        );
-        if (originalUser?.rewardWallet) {
-          const rewardWallet = AddressValidator.parseEthereumAddress(
-            originalUser.rewardWallet
+
+        // 1. The owner of the group
+        if (kolGroup?.settings?.walletAddress) {
+          const walletAddress = AddressValidator.parseEthereumAddress(
+            kolGroup.settings.walletAddress
           );
-          if (rewardWallet) {
+          if (walletAddress) {
             overrideAdditionalFeeReceivers = [
-              ...(overrideAdditionalFeeReceivers || []),
               {
-                receiver: rewardWallet,
-                bps: 500n,
+                receiver: walletAddress,
+                bps: 1000n,
               },
             ];
+            logger.info(`Added owner's wallet: ${walletAddress} (1000 bps)`);
+          }
+        }
+
+        // 2. The original message user
+        if (instruction.originalTgUserId) {
+          const originalUser = await services.userService.getUserByTgId(
+            instruction.originalTgUserId
+          );
+          if (originalUser?.rewardWallet) {
+            const rewardWallet = AddressValidator.parseEthereumAddress(
+              originalUser.rewardWallet
+            );
+            if (rewardWallet) {
+              overrideAdditionalFeeReceivers = [
+                ...(overrideAdditionalFeeReceivers || []),
+                {
+                  receiver: rewardWallet,
+                  bps: 500n,
+                },
+              ];
+              logger.info(
+                `Added original user's wallet: ${rewardWallet} (500 bps)`
+              );
+            }
+          }
+        }
+      } else {
+        // Configuration OFF: Only owner receives fees
+        logger.info(`User fees disabled - only owner receives fees`);
+        if (kolGroup?.settings?.walletAddress) {
+          const walletAddress = AddressValidator.parseEthereumAddress(
+            kolGroup.settings.walletAddress
+          );
+          if (walletAddress) {
+            overrideAdditionalFeeReceivers = [
+              {
+                receiver: walletAddress,
+                bps: 1500n,
+              },
+            ];
+            logger.info(`Added owner's wallet: ${walletAddress} (1500 bps)`);
           }
         }
       }
