@@ -1,10 +1,10 @@
 import { session, Telegraf } from "telegraf";
 import { message } from "telegraf/filters";
-import { Address, parseEther, formatEther } from "viem";
+import { Address } from "viem";
 
-import { redisStore, secrets, webhookServer } from "@config";
+import { secrets, webhookServer } from "@config";
 import { services } from "@domain";
-import { GlobalSceneContext, GlobalSessionData } from "@types";
+import { GlobalSceneContext } from "@types";
 
 import { GlobalSceneManagerImpl } from "./core/GlobalSceneManager";
 
@@ -14,7 +14,7 @@ import { logger } from "@logger";
 import { GENERIC_ERRORS } from "@texts";
 import { registerCommands } from "./commands";
 import { balanceHandler, inviteTextHandler, textManager } from "./textHandlers";
-import { normalizeAmount } from "@utils";
+import { AddressValidator, normalizeAmount } from "@utils";
 
 // Import buyTextHandler
 import { buyTextHandler } from "./textHandlers/buyHandler";
@@ -25,16 +25,9 @@ const bot = new Telegraf<GlobalSceneContext>(secrets.TELEGRAM_BOT_TOKEN || "");
 // Create global scene manager
 const sceneManager = new GlobalSceneManagerImpl();
 
-// ← REDIS DISABLED - Using memory storage
-// const store = Redis<GlobalSessionData>({
-//   url: redisStore.REDIS_STORE_URL,
-//   config: { pingInterval: 30000 },
-// });
-
 // Session middleware with MEMORY storage
 bot.use(
   session({
-    // store, // ← DISABLED Redis store
     defaultSession: () => ({
       activeSubScenes: {},
       sceneOrder: [],
@@ -80,6 +73,20 @@ bot.start(async (ctx) => {
           // Execute direct buy with amount
           await executeDirectBuy(ctx, tokenAddress, amount);
           return;
+        }
+
+        // Check for trade instruction UUID pattern
+        const tradeInstructionPattern =
+          /^trade_instruction_([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
+        const uuidMatch = startParams.match(tradeInstructionPattern);
+
+        if (uuidMatch) {
+          const [, uuid] = uuidMatch;
+          logger.info(`Processing trade instruction with UUID: ${uuid}`);
+
+          // Execute trade instruction
+          await executeTradeInstruction(ctx, uuid);
+          return;
         } else {
           // Fallback to old parsing for other cases
           const params = startParams.split("_");
@@ -116,7 +123,8 @@ bot.start(async (ctx) => {
 async function executeDirectBuy(
   ctx: any,
   tokenAddress: string,
-  amount: string
+  amount: string,
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>
 ) {
   try {
     logger.info(
@@ -132,13 +140,193 @@ async function executeDirectBuy(
     };
 
     // Use buyTextHandler directly
-    await buyTextHandler(ctx, simulatedMatch);
+    await buyTextHandler(ctx, simulatedMatch, overrideAdditionalFeeReceivers);
 
     logger.info(`Direct buy completed for user ${ctx.from?.id}`);
   } catch (error) {
     logger.error(`Error in direct buy:`, error);
     await ctx.reply(
       `❌ Buy failed: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`,
+      {
+        parse_mode: "HTML",
+        reply_parameters: { message_id: ctx.message?.message_id! },
+      }
+    );
+  }
+}
+
+/**
+ * Execute trade instruction from UUID
+ */
+async function executeTradeInstruction(ctx: any, uuid: string) {
+  try {
+    logger.info(`Processing trade instruction UUID: ${uuid}`);
+
+    // Find the trade instruction
+    const result = await services.tradeInstructionService.findByUuid(uuid);
+
+    if (!result.success) {
+      logger.warn(`Trade instruction not found or invalid: ${result.error}`);
+      await ctx.reply(`❌ Invalid or expired trading link: ${result.error}`, {
+        parse_mode: "HTML",
+        reply_parameters: { message_id: ctx.message?.message_id! },
+      });
+      return;
+    }
+
+    const instruction = result.data!;
+    logger.info(
+      `Found trade instruction: ${instruction.tokenAddress}, amount: ${instruction.amount}`
+    );
+
+    // Check if original user exists for referral system
+    const originalUser =
+      await services.tradeInstructionService.getOriginalUserByTgUserId(
+        instruction.originalTgUserId
+      );
+
+    if (originalUser) {
+      logger.info(
+        `Original user ${instruction.originalTgUserId} exists - referral will be applied`
+      );
+    } else {
+      logger.info(
+        `Original user ${instruction.originalTgUserId} does not exist - no referral applied`
+      );
+    }
+
+    let overrideAdditionalFeeReceivers:
+      | Array<{
+          receiver: Address;
+          bps: bigint;
+        }>
+      | undefined;
+
+    // OVERRIDE ADDITIONAL FEE RECEIVERS FROM KOL GROUP SETTINGS
+    // OVERRIDE ADDITIONAL FEE RECEIVERS FROM KOL GROUP SETTINGS
+    const kolGroup =
+      await services.tradeInstructionService.getKolGroupByTgChatId(
+        Number(instruction.groupId)
+      );
+
+    logger.info(
+      `Kol group: ${kolGroup?.owner.telegramId} - ${instruction.originalTgUserId}`
+    );
+
+    // Check if user fees are allowed for this group
+    const allowUserFees = kolGroup?.settings?.allowUserFees || false;
+    logger.info(`Group ${instruction.groupId} allowUserFees: ${allowUserFees}`);
+
+    // If the original user is the owner of the group, add the owner's wallet to the additional fee receivers
+    if (kolGroup?.owner.telegramId === instruction.originalTgUserId) {
+      if (kolGroup.settings?.walletAddress) {
+        const walletAddress = AddressValidator.parseEthereumAddress(
+          kolGroup.settings.walletAddress
+        );
+        if (walletAddress) {
+          overrideAdditionalFeeReceivers = [
+            {
+              receiver: walletAddress,
+              bps: 1500n,
+            },
+          ];
+          logger.info(
+            `Original user is owner - Added owner's wallet to additional fee receivers: ${walletAddress} (1500 bps)`
+          );
+        }
+      }
+    } else {
+      // If the original message user is not the owner of the group
+      if (allowUserFees) {
+        // Configuration ON: Split fees between owner and original user
+        logger.info(
+          `User fees enabled - splitting fees between owner and original user`
+        );
+
+        // 1. The owner of the group
+        if (kolGroup?.settings?.walletAddress) {
+          const walletAddress = AddressValidator.parseEthereumAddress(
+            kolGroup.settings.walletAddress
+          );
+          if (walletAddress) {
+            overrideAdditionalFeeReceivers = [
+              {
+                receiver: walletAddress,
+                bps: 1000n,
+              },
+            ];
+            logger.info(`Added owner's wallet: ${walletAddress} (1000 bps)`);
+          }
+        }
+
+        // 2. The original message user
+        if (instruction.originalTgUserId) {
+          const originalUser = await services.userService.getUserByTgId(
+            instruction.originalTgUserId
+          );
+          if (originalUser?.rewardWallet) {
+            const rewardWallet = AddressValidator.parseEthereumAddress(
+              originalUser.rewardWallet
+            );
+            if (rewardWallet) {
+              overrideAdditionalFeeReceivers = [
+                ...(overrideAdditionalFeeReceivers || []),
+                {
+                  receiver: rewardWallet,
+                  bps: 500n,
+                },
+              ];
+              logger.info(
+                `Added original user's wallet: ${rewardWallet} (500 bps)`
+              );
+            }
+          }
+        }
+      } else {
+        // Configuration OFF: Only owner receives fees
+        logger.info(`User fees disabled - only owner receives fees`);
+        if (kolGroup?.settings?.walletAddress) {
+          const walletAddress = AddressValidator.parseEthereumAddress(
+            kolGroup.settings.walletAddress
+          );
+          if (walletAddress) {
+            overrideAdditionalFeeReceivers = [
+              {
+                receiver: walletAddress,
+                bps: 1500n,
+              },
+            ];
+            logger.info(`Added owner's wallet: ${walletAddress} (1500 bps)`);
+          }
+        }
+      }
+    }
+
+    if (overrideAdditionalFeeReceivers) {
+      overrideAdditionalFeeReceivers.map((fee, index) => {
+        logger.info(
+          `overrideAdditionalFeeReceiver ${index}: ${fee.receiver} - BPS: ${fee.bps}`
+        );
+      });
+    }
+
+    // Execute the buy with the instruction data
+    await executeDirectBuy(
+      ctx,
+      instruction.tokenAddress,
+      instruction.amount,
+      overrideAdditionalFeeReceivers
+    );
+
+    logger.info(
+      `Trade instruction completed for user ${ctx.from?.id}, UUID: ${uuid}`
+    );
+  } catch (error) {
+    logger.error(`Error processing trade instruction:`, error);
+    await ctx.reply(
+      `❌ Failed to process trading link: ${
         error instanceof Error ? error.message : "Unknown error"
       }`,
       {

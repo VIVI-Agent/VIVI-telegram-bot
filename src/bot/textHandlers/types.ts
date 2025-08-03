@@ -1,3 +1,4 @@
+import { Address } from "viem";
 import { GlobalSceneContext } from "@types";
 
 /**
@@ -13,7 +14,8 @@ export interface TextMatch {
  */
 export type TextHandler = (
   ctx: GlobalSceneContext,
-  match: TextMatch
+  match: TextMatch,
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>
 ) => Promise<boolean>;
 
 /**

@@ -109,6 +109,7 @@ interface BuyApeStoreArgs {
   slippagePercent: number;
   feePercent: number;
   bestDex?: DexQuoteResultBuy;
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>;
 }
 
 export async function buyTokenVIVIApeStore({
@@ -120,6 +121,7 @@ export async function buyTokenVIVIApeStore({
   slippagePercent,
   feePercent,
   bestDex,
+  overrideAdditionalFeeReceivers,
 }: BuyApeStoreArgs): Promise<SwapResult> {
   // ─────────────────────────────────────────────────────────────
   // SELECT WALLET
@@ -141,7 +143,9 @@ export async function buyTokenVIVIApeStore({
 
   // Check referral fee logic
   let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
-  if (user?.referredById) {
+  if (overrideAdditionalFeeReceivers) {
+    additionalFeeReceivers = overrideAdditionalFeeReceivers;
+  } else if (user?.referredById) {
     const referrer = await ctx.services.userService.getUserById(
       user.referredById
     );
@@ -456,6 +460,7 @@ export async function sellTokenVIVIApeStore({
   feePercent,
   bestDex,
   estimatedEthValue,
+  overrideAdditionalFeeReceivers,
 }: {
   ctx: GlobalSceneContext;
   userId: number;
@@ -466,6 +471,7 @@ export async function sellTokenVIVIApeStore({
   feePercent: number;
   bestDex?: DexQuoteResultSell;
   estimatedEthValue?: bigint;
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>;
 }): Promise<SwapResult> {
   // ─────────────────────────────────────────────────────────────
   // SELECT WALLET
@@ -487,7 +493,9 @@ export async function sellTokenVIVIApeStore({
 
   // Check referral fee logic
   let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
-  if (user?.referredById) {
+  if (overrideAdditionalFeeReceivers) {
+    additionalFeeReceivers = overrideAdditionalFeeReceivers;
+  } else if (user?.referredById) {
     const referrer = await ctx.services.userService.getUserById(
       user.referredById
     );

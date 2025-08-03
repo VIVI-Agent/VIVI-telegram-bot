@@ -33,6 +33,7 @@ interface BuyVirtualTokenArgs {
   slippagePercent: number;
   feePercent: number;
   bestDex?: DexQuoteResultBuy;
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>;
 }
 
 interface SellVirtualTokenArgs {
@@ -45,6 +46,7 @@ interface SellVirtualTokenArgs {
   feePercent: number;
   bestDex?: DexQuoteResultSell;
   estimatedEthValue?: bigint;
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>;
 }
 
 export async function buyTokenVirtualToken({
@@ -56,6 +58,7 @@ export async function buyTokenVirtualToken({
   slippagePercent,
   feePercent,
   bestDex,
+  overrideAdditionalFeeReceivers,
 }: BuyVirtualTokenArgs): Promise<SwapResult> {
   // ─────────────────────────────────────────────────────────────
   // SELECT WALLET
@@ -79,7 +82,9 @@ export async function buyTokenVirtualToken({
   // CHECK REFERRAL AND GET REWARD WALLET
   // ─────────────────────────────────────────────────────────────
   let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
-  if (user?.referredById) {
+  if (overrideAdditionalFeeReceivers) {
+    additionalFeeReceivers = overrideAdditionalFeeReceivers;
+  } else if (user?.referredById) {
     const referrer = await ctx.services.userService.getUserById(
       user.referredById
     );
@@ -199,6 +204,7 @@ export async function sellTokenVirtualToken({
   feePercent,
   bestDex,
   estimatedEthValue,
+  overrideAdditionalFeeReceivers,
 }: SellVirtualTokenArgs): Promise<SwapResult> {
   // ─────────────────────────────────────────────────────────────
   // SELECT WALLET
@@ -222,7 +228,9 @@ export async function sellTokenVirtualToken({
   // CHECK REFERRAL AND GET REWARD WALLET
   // ─────────────────────────────────────────────────────────────
   let additionalFeeReceivers: Array<{ receiver: Address; bps: bigint }> = [];
-  if (user?.referredById) {
+  if (overrideAdditionalFeeReceivers) {
+    additionalFeeReceivers = overrideAdditionalFeeReceivers;
+  } else if (user?.referredById) {
     const referrer = await ctx.services.userService.getUserById(
       user.referredById
     );
