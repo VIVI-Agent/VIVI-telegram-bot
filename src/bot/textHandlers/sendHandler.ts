@@ -66,6 +66,29 @@ function isValidTelegramUsername(username: string): boolean {
 }
 
 /**
+ * Parse and validate amount, supporting "all" and "half" keywords
+ */
+function parseAmount(rawAmount: string): number {
+  const rawAmountLower = rawAmount.toLowerCase();
+
+  if (rawAmountLower === "half") {
+    return 0.5; // 50% as decimal
+  } else if (rawAmountLower === "all") {
+    return 1.0; // 100% as decimal
+  } else {
+    // Use normalizeAmount to handle comma separators and validate format
+    const normalizedAmount = normalizeAmount(rawAmount);
+    const amount = parseFloat(normalizedAmount);
+
+    if (isNaN(amount) || amount <= 0) {
+      throw new Error("Invalid amount, must be a positive number (or half/all)");
+    }
+
+    return amount;
+  }
+}
+
+/**
  * Send text handler - adapted for TextManager
  * Handles complex send commands with multiple formats:
  * - send 1 BOBR @username
@@ -112,6 +135,8 @@ export const sendTextHandler: TextHandler = async (
           "• send 1 BOBR @username\n" +
           "• send 0.1 ETH to alice.base.eth\n" +
           "• send 100 tokens to @user1 @user2\n" +
+          "• send all BOBR @user1 @user2\n" +
+          "• send half ETH to @username\n" +
           "• send 50 BOBR bx@vitalik (Twitter)\n" +
           "• send 25 BOBR bf@dwr (Farcaster)",
         {
@@ -246,8 +271,43 @@ export const sendTextHandler: TextHandler = async (
       };
 
       // Calculate total amount based on valid recipients
-      const totalAmount =
-        parseFloat(parsed.amount) * validatedRecipients.length;
+      const parsedAmount = parseFloat(parsed.amount);
+      let totalAmount: number;
+      
+      // Check if this is a percentage-based amount (all = 1.0, half = 0.5)
+      if (parsedAmount <= 1.0) {
+        // This is a percentage-based amount - calculate based on actual balance
+        if (parsed.isEthTransfer) {
+          // For ETH transfers, get balance from chain
+          const walletAddress = senderWallet.address as Address;
+          const ethBalance = await publicClientQuickNode.getBalance({
+            address: walletAddress,
+          });
+          const percentage = parsedAmount;
+          const totalBalanceForTransfer = (ethBalance * BigInt(Math.floor(percentage * 100))) / 100n;
+          totalAmount = Number(totalBalanceForTransfer) / Math.pow(10, 18); // Convert from wei to ETH
+        } else {
+          // For token transfers, get balance from holdings
+          const walletWithHoldings = await ctx.services.walletService.getWalletWithHoldings(senderWallet.id);
+          if (!walletWithHoldings) {
+            throw new Error(`Wallet with holdings not found for wallet ${senderWallet.id}`);
+          }
+          const holding = ctx.services.holdingService.getHoldingBySymbolOrAddress(
+            walletWithHoldings,
+            parsed.token
+          );
+          if (!holding) {
+            throw new Error(`No holding found for token ${parsed.token}`);
+          }
+          const userBalance = BigInt(holding.balance);
+          const percentage = parsedAmount;
+          const totalBalanceForTransfer = (userBalance * BigInt(Math.floor(percentage * 100))) / 100n;
+          totalAmount = Number(totalBalanceForTransfer) / Math.pow(10, resolvedToken.decimals);
+        }
+      } else {
+        // This is a fixed amount per recipient
+        totalAmount = parsedAmount * validatedRecipients.length;
+      }
 
       // Send confirmation message
       let confirmationMessage = `🔐 <b>Transfer Confirmation Required</b>\n\n`;
@@ -370,12 +430,12 @@ async function parseSendCommand(
 
   // First word should be the amount
   const amount = words[0];
-  // Use normalizeAmount to handle comma separators and validate format
-  const normalizedAmount = normalizeAmount(amount);
-  if (
-    !/^\d*\.?\d+$/.test(normalizedAmount) ||
-    parseFloat(normalizedAmount) <= 0
-  ) {
+  
+  // Parse amount (supports "all", "half", or numeric values)
+  let parsedAmount: number;
+  try {
+    parsedAmount = parseAmount(amount);
+  } catch (error) {
     logger.warn(`${logPrefix} Invalid amount format: ${amount}`);
     return null;
   }
@@ -426,13 +486,13 @@ async function parseSendCommand(
   const isEthTransfer = token.toLowerCase() === "eth";
 
   logger.debug(
-    `${logPrefix} Parsed - Amount: ${normalizedAmount}, Token: ${token}, Recipients: ${recipients.join(
+    `${logPrefix} Parsed - Amount: ${parsedAmount}, Token: ${token}, Recipients: ${recipients.join(
       ", "
     )}`
   );
 
   return {
-    amount: normalizedAmount,
+    amount: parsedAmount.toString(),
     token,
     tokenAddress,
     recipients,
@@ -681,14 +741,28 @@ async function validateETHBalance(
       address: walletAddress,
     });
 
-    // Calculate total amount needed (amount per recipient * number of recipients)
-    const amountPerRecipient = BigInt(
-      parseFloat(parsed.amount) * Math.pow(10, 18) // ETH has 18 decimals
-    );
+    const parsedAmount = parseFloat(parsed.amount);
+    
+    // Calculate amount per recipient
+    let amountPerRecipient: bigint;
+    
+    // Check if this is a percentage-based amount (all = 1.0, half = 0.5)
+    if (parsedAmount <= 1.0) {
+      // This is a percentage-based amount
+      const percentage = parsedAmount;
+      const totalBalanceForTransfer = (ethBalance * BigInt(Math.floor(percentage * 100))) / 100n;
+      amountPerRecipient = totalBalanceForTransfer / BigInt(recipientCount);
+    } else {
+      // This is a fixed amount per recipient
+      amountPerRecipient = BigInt(
+        parsedAmount * Math.pow(10, 18) // ETH has 18 decimals
+      );
+    }
+    
     const totalAmountNeeded = amountPerRecipient * BigInt(recipientCount);
 
     logger.debug(
-      `${logPrefix} User ETH balance: ${ethBalance}, Total needed: ${totalAmountNeeded}`
+      `${logPrefix} User ETH balance: ${ethBalance}, Total needed: ${totalAmountNeeded}, Amount per recipient: ${amountPerRecipient}`
     );
 
     if (ethBalance < totalAmountNeeded) {
@@ -761,15 +835,29 @@ async function validateTokenBalance(
       return false;
     }
 
-    // Calculate total amount needed (amount per recipient * number of recipients)
-    const amountPerRecipient = BigInt(
-      parseFloat(parsed.amount) * Math.pow(10, resolvedToken.decimals)
-    );
-    const totalAmountNeeded = amountPerRecipient * BigInt(recipientCount);
     const userBalance = BigInt(holding.balance);
+    const parsedAmount = parseFloat(parsed.amount);
+    
+    // Calculate amount per recipient
+    let amountPerRecipient: bigint;
+    
+    // Check if this is a percentage-based amount (all = 1.0, half = 0.5)
+    if (parsedAmount <= 1.0) {
+      // This is a percentage-based amount
+      const percentage = parsedAmount;
+      const totalBalanceForTransfer = (userBalance * BigInt(Math.floor(percentage * 100))) / 100n;
+      amountPerRecipient = totalBalanceForTransfer / BigInt(recipientCount);
+    } else {
+      // This is a fixed amount per recipient
+      amountPerRecipient = BigInt(
+        parsedAmount * Math.pow(10, resolvedToken.decimals)
+      );
+    }
+    
+    const totalAmountNeeded = amountPerRecipient * BigInt(recipientCount);
 
     logger.debug(
-      `${logPrefix} User balance: ${userBalance}, Total needed: ${totalAmountNeeded}`
+      `${logPrefix} User balance: ${userBalance}, Total needed: ${totalAmountNeeded}, Amount per recipient: ${amountPerRecipient}`
     );
 
     if (userBalance < totalAmountNeeded) {
@@ -921,9 +1009,45 @@ async function executeSendCommand(
     });
 
     // Calculate amount with correct decimals
-    const amountWithDecimals = BigInt(
-      parseFloat(parsed.amount) * Math.pow(10, tokenDecimals)
-    );
+    const parsedAmount = parseFloat(parsed.amount);
+    let amountWithDecimals: bigint;
+    
+    // Check if this is a percentage-based amount (all = 1.0, half = 0.5)
+    if (parsedAmount <= 1.0) {
+      // This is a percentage-based amount - we need to get the actual balance first
+      if (parsed.isEthTransfer) {
+        // For ETH transfers, get balance from chain
+        const walletAddress = senderWallet.address as Address;
+        const ethBalance = await publicClientQuickNode.getBalance({
+          address: walletAddress,
+        });
+        const percentage = parsedAmount;
+        const totalBalanceForTransfer = (ethBalance * BigInt(Math.floor(percentage * 100))) / 100n;
+        amountWithDecimals = totalBalanceForTransfer / BigInt(recipients.length);
+      } else {
+        // For token transfers, get balance from holdings
+        const walletWithHoldings = await ctx.services.walletService.getWalletWithHoldings(senderWallet.id);
+        if (!walletWithHoldings) {
+          throw new Error(`Wallet with holdings not found for wallet ${senderWallet.id}`);
+        }
+        const holding = ctx.services.holdingService.getHoldingBySymbolOrAddress(
+          walletWithHoldings,
+          parsed.token
+        );
+        if (!holding) {
+          throw new Error(`No holding found for token ${parsed.token}`);
+        }
+        const userBalance = BigInt(holding.balance);
+        const percentage = parsedAmount;
+        const totalBalanceForTransfer = (userBalance * BigInt(Math.floor(percentage * 100))) / 100n;
+        amountWithDecimals = totalBalanceForTransfer / BigInt(recipients.length);
+      }
+    } else {
+      // This is a fixed amount per recipient
+      amountWithDecimals = BigInt(
+        parsedAmount * Math.pow(10, tokenDecimals)
+      );
+    }
 
     let result;
 
@@ -968,16 +1092,16 @@ async function executeSendCommand(
     )}\n`;
     message += `👥 <b>Recipients:</b> ${recipients
       .map((r) => r.displayName)
-      .join(", ")}`;
+      .join(", ")}\n`;
 
     // Add invalid recipients if any
     if (invalidRecipients.length > 0) {
-      message += `\n❌ <b>Invalid:</b> ${invalidRecipients
+      message += `❌ <b>Invalid:</b> ${invalidRecipients
         .map((inv) => inv.original)
-        .join(", ")}`;
+        .join(", ")}\n`;
     }
 
-    message += `\n🌐 <a href="https://basescan.org/tx/${result.txHash}">View on BaseScan</a>`;
+    message += `🌐 <a href="https://basescan.org/tx/${result.txHash}">View on BaseScan</a>`;
 
     if (ctx.chat?.type === "group" || ctx.chat?.type === "supergroup") {
       message += `\n${viviJoin(ctx.from?.username)}`;
@@ -991,8 +1115,190 @@ async function executeSendCommand(
       {
         parse_mode: "HTML",
         link_preview_options: { is_disabled: true },
+        reply_markup:
+          ctx.chat?.type === "private"
+            ? {
+                inline_keyboard: [
+                  [
+                    {
+                      text: "⏩ Let 'Em Know",
+                      url: `https://t.me/share/url?url=${encodeURIComponent(
+                        generateShareableTransferMessage(
+                          parsed.amount,
+                          parsed.token,
+                          result.txHash,
+                          ctx.from?.username
+                        )
+                      )}`,
+                    },
+                  ],
+                ],
+              }
+            : undefined,
       }
     );
+
+    logger.info(
+      `${logPrefix} Transfer completed successfully: ${result.txHash}`
+    );
+
+    // Update balances in background
+    setImmediate(async () => {
+      try {
+        await sleep(2000);
+        logger.debug(
+          `${logPrefix} Starting background balance updates for ${result.txHash}`
+        );
+
+        // Get wallet record for sender
+        const walletRecord =
+          await ctx.services.walletService.getWalletWithHoldings(
+            senderWallet.id
+          );
+        if (!walletRecord) {
+          logger.error(
+            `${logPrefix} Sender wallet not found: ${senderWallet.id}`
+          );
+          return;
+        }
+
+        if (parsed.isEthTransfer) {
+          // ETH transfer - update ETH balances
+          const [newSenderEthBalance] = await Promise.all([
+            getWalletBalance(senderWallet.address as Address),
+          ]);
+
+          await ctx.services.walletService.updateWalletBalance(
+            senderWallet.id,
+            newSenderEthBalance
+          );
+
+          logger.debug(`${logPrefix} Updated sender ETH balance`);
+
+          // Update recipient balances for Telegram users
+          for (const recipient of recipients) {
+            if (recipient.userId && recipient.type === "username") {
+              try {
+                const recipientWallet =
+                  await ctx.services.walletService.getSelectedWallet(
+                    recipient.userId
+                  );
+                if (recipientWallet) {
+                  const newRecipientEthBalance = await getWalletBalance(
+                    recipient.address
+                  );
+                  await ctx.services.walletService.updateWalletBalance(
+                    recipientWallet.id,
+                    newRecipientEthBalance
+                  );
+                  logger.debug(
+                    `${logPrefix} Updated recipient ETH balance for user ${recipient.userId}`
+                  );
+                }
+              } catch (err) {
+                logger.error(
+                  `${logPrefix} Error updating recipient ETH balance for user ${recipient.userId}:`,
+                  err
+                );
+              }
+            }
+          }
+        } else {
+          // Token transfer - update both ETH and token balances
+          const tokenInfo =
+            await ctx.services.holdingService.getHoldingBySymbolOrAddress(
+              walletRecord,
+              parsed.token
+            );
+
+          if (!tokenInfo?.token) {
+            logger.error(
+              `${logPrefix} Token info not found for ${parsed.token}`
+            );
+            return;
+          }
+
+          const [newSenderEthBalance, newSenderTokenBalance] =
+            await Promise.all([
+              getWalletBalance(walletRecord.address as Address),
+              getTokenBalance(
+                tokenInfo.token.address as Address,
+                walletRecord.address as Address
+              ),
+            ]);
+
+          // Update sender balances
+          await ctx.services.walletService.updateWalletBalance(
+            walletRecord.id,
+            newSenderEthBalance
+          );
+
+          await ctx.services.holdingService.updateHoldingFromChain({
+            userId: walletRecord.userId,
+            tokenId: tokenInfo.token.id,
+            walletId: walletRecord.id,
+            newBalance: newSenderTokenBalance,
+          });
+
+          logger.debug(
+            `${logPrefix} Updated sender token and ETH balances`
+          );
+
+          // Update recipient balances for Telegram users
+          for (const recipient of recipients) {
+            if (recipient.userId && recipient.type === "username") {
+              try {
+                const recipientWallet =
+                  await ctx.services.walletService.getSelectedWallet(
+                    recipient.userId
+                  );
+                if (recipientWallet) {
+                  const [newRecipientEthBalance, newRecipientTokenBalance] =
+                    await Promise.all([
+                      getWalletBalance(recipient.address),
+                      getTokenBalance(
+                        tokenInfo.token.address as Address,
+                        recipient.address
+                      ),
+                    ]);
+
+                  await ctx.services.walletService.updateWalletBalance(
+                    recipientWallet.id,
+                    newRecipientEthBalance
+                  );
+
+                  await ctx.services.holdingService.updateHoldingFromChain({
+                    userId: recipient.userId,
+                    tokenId: tokenInfo.token.id,
+                    walletId: recipientWallet.id,
+                    newBalance: newRecipientTokenBalance,
+                  });
+
+                  logger.debug(
+                    `${logPrefix} Updated recipient token and ETH balances for user ${recipient.userId}`
+                  );
+                }
+              } catch (err) {
+                logger.error(
+                  `${logPrefix} Error updating recipient balances for user ${recipient.userId}:`,
+                  err
+                );
+              }
+            }
+          }
+        }
+
+        logger.debug(
+          `${logPrefix} Balance updates completed for ${result.txHash}`
+        );
+      } catch (err) {
+        logger.error(
+          `${logPrefix} Background balance update error: ${
+            err instanceof Error ? err.stack : err
+          }`
+        );
+      }
+    });
 
     // Wait for confirmation
     try {
@@ -1059,164 +1365,6 @@ async function executeSendCommand(
         logger.info(
           `${logPrefix} Transfer completed successfully: ${result.txHash}`
         );
-
-        // Update balances in background
-        setImmediate(async () => {
-          try {
-            await sleep(2000);
-            logger.debug(
-              `${logPrefix} Starting background balance updates for ${result.txHash}`
-            );
-
-            // Get wallet record for sender
-            const walletRecord =
-              await ctx.services.walletService.getWalletWithHoldings(
-                senderWallet.id
-              );
-            if (!walletRecord) {
-              logger.error(
-                `${logPrefix} Sender wallet not found: ${senderWallet.id}`
-              );
-              return;
-            }
-
-            if (parsed.isEthTransfer) {
-              // ETH transfer - update ETH balances
-              const [newSenderEthBalance] = await Promise.all([
-                getWalletBalance(senderWallet.address as Address),
-              ]);
-
-              await ctx.services.walletService.updateWalletBalance(
-                senderWallet.id,
-                newSenderEthBalance
-              );
-
-              logger.debug(`${logPrefix} Updated sender ETH balance`);
-
-              // Update recipient balances for Telegram users
-              for (const recipient of recipients) {
-                if (recipient.userId && recipient.type === "username") {
-                  try {
-                    const recipientWallet =
-                      await ctx.services.walletService.getSelectedWallet(
-                        recipient.userId
-                      );
-                    if (recipientWallet) {
-                      const newRecipientEthBalance = await getWalletBalance(
-                        recipient.address
-                      );
-                      await ctx.services.walletService.updateWalletBalance(
-                        recipientWallet.id,
-                        newRecipientEthBalance
-                      );
-                      logger.debug(
-                        `${logPrefix} Updated recipient ETH balance for user ${recipient.userId}`
-                      );
-                    }
-                  } catch (err) {
-                    logger.error(
-                      `${logPrefix} Error updating recipient ETH balance for user ${recipient.userId}:`,
-                      err
-                    );
-                  }
-                }
-              }
-            } else {
-              // Token transfer - update both ETH and token balances
-              const tokenInfo =
-                await ctx.services.holdingService.getHoldingBySymbolOrAddress(
-                  walletRecord,
-                  parsed.token
-                );
-
-              if (!tokenInfo?.token) {
-                logger.error(
-                  `${logPrefix} Token info not found for ${parsed.token}`
-                );
-                return;
-              }
-
-              const [newSenderEthBalance, newSenderTokenBalance] =
-                await Promise.all([
-                  getWalletBalance(walletRecord.address as Address),
-                  getTokenBalance(
-                    tokenInfo.token.address as Address,
-                    walletRecord.address as Address
-                  ),
-                ]);
-
-              // Update sender balances
-              await ctx.services.walletService.updateWalletBalance(
-                walletRecord.id,
-                newSenderEthBalance
-              );
-
-              await ctx.services.holdingService.updateHoldingFromChain({
-                userId: walletRecord.userId,
-                tokenId: tokenInfo.token.id,
-                walletId: walletRecord.id,
-                newBalance: newSenderTokenBalance,
-              });
-
-              logger.debug(
-                `${logPrefix} Updated sender token and ETH balances`
-              );
-
-              // Update recipient balances for Telegram users
-              for (const recipient of recipients) {
-                if (recipient.userId && recipient.type === "username") {
-                  try {
-                    const recipientWallet =
-                      await ctx.services.walletService.getSelectedWallet(
-                        recipient.userId
-                      );
-                    if (recipientWallet) {
-                      const [newRecipientEthBalance, newRecipientTokenBalance] =
-                        await Promise.all([
-                          getWalletBalance(recipient.address),
-                          getTokenBalance(
-                            tokenInfo.token.address as Address,
-                            recipient.address
-                          ),
-                        ]);
-
-                      await ctx.services.walletService.updateWalletBalance(
-                        recipientWallet.id,
-                        newRecipientEthBalance
-                      );
-
-                      await ctx.services.holdingService.updateHoldingFromChain({
-                        userId: recipient.userId,
-                        tokenId: tokenInfo.token.id,
-                        walletId: recipientWallet.id,
-                        newBalance: newRecipientTokenBalance,
-                      });
-
-                      logger.debug(
-                        `${logPrefix} Updated recipient token and ETH balances for user ${recipient.userId}`
-                      );
-                    }
-                  } catch (err) {
-                    logger.error(
-                      `${logPrefix} Error updating recipient balances for user ${recipient.userId}:`,
-                      err
-                    );
-                  }
-                }
-              }
-            }
-
-            logger.debug(
-              `${logPrefix} Balance updates completed for ${result.txHash}`
-            );
-          } catch (err) {
-            logger.error(
-              `${logPrefix} Background balance update error: ${
-                err instanceof Error ? err.stack : err
-              }`
-            );
-          }
-        });
       } else {
         // Transaction failed
         message = `❌ <b>Transfer Failed!</b>\n`;
