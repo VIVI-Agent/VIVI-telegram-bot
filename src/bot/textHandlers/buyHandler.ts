@@ -59,11 +59,11 @@ function createTextHandlerTransactionSuccessCallback(
   return async () => {
     try {
       logger.info(
-        `[buyTextHandler] Executing transaction success callback for user ${userId}`
+        `[buyTextHandler] 🚀 STARTING transaction success callback for user ${userId}, wallet ${wallet.id}, token ${tokenData.symbol}`
       );
 
       try {
-        await handleRefreshFull(ctx);
+        await handleRefreshFull(ctx, userId);
       } catch (error) {
         logger.error(`[buyTextHandler] Error refreshing full:`, error);
       }
@@ -117,18 +117,28 @@ function createTextHandlerTransactionSuccessCallback(
 
       // Only create/update holding if balance > 0
       if (tokenBalanceBN > 0n) {
-        await ctx.services.holdingService.updateHoldingFromChain({
-          userId: userId,
-          tokenId: tokenData.id,
-          walletId: wallet.id,
-          newBalance: tokenBalanceBN,
-        });
         logger.info(
-          `[buyTextHandler] Updated token balance for wallet ${wallet.id}, token ${tokenData.symbol}: ${tokenBalanceBN}`
+          `[buyTextHandler] Creating/updating holding - userId: ${userId}, tokenId: ${tokenData.id}, walletId: ${wallet.id}, balance: ${tokenBalanceBN}`
         );
+        try {
+          await ctx.services.holdingService.updateHoldingFromChain({
+            userId: userId,
+            tokenId: tokenData.id,
+            walletId: wallet.id,
+            newBalance: tokenBalanceBN,
+          });
+          logger.info(
+            `[buyTextHandler] ✅ Successfully updated token balance for wallet ${wallet.id}, token ${tokenData.symbol}: ${tokenBalanceBN}`
+          );
+        } catch (holdingError) {
+          logger.error(
+            `[buyTextHandler] ❌ Failed to update holding:`,
+            holdingError
+          );
+        }
       } else {
-        logger.debug(
-          `[buyTextHandler] Skipping holding update for wallet ${wallet.id}, token ${tokenData.symbol}: balance is 0`
+        logger.warn(
+          `[buyTextHandler] ⚠️  Skipping holding update for wallet ${wallet.id}, token ${tokenData.symbol}: balance is 0`
         );
       }
 
@@ -137,11 +147,11 @@ function createTextHandlerTransactionSuccessCallback(
       logger.info(`[buyTextHandler] Cleared PnL cache for user ${userId}`);
 
       logger.info(
-        `[buyTextHandler] Transaction success callback completed for user ${userId}`
+        `[buyTextHandler] 🎉 Transaction success callback COMPLETED for user ${userId}`
       );
     } catch (error) {
       logger.error(
-        `[buyTextHandler] Error in transaction success callback:`,
+        `[buyTextHandler] ❌ ERROR in transaction success callback for user ${userId}:`,
         error
       );
     }
@@ -728,15 +738,21 @@ export const buyTextHandler: TextHandler = async (
       match.params
     );
     const tgUsername = ctx.from?.username;
-    if (!tgUsername) {
-      await ctx.reply(GENERIC_ERRORS.USERNAME_NOT_SET, {
+    const tgUserId = ctx.from?.id;
+    
+    logger.info(`${logPrefix} Context debug - tgUsername: ${tgUsername}, tgUserId: ${tgUserId}`);
+    
+    if (!tgUserId) {
+      await ctx.reply("❌ User ID not found. Please try again.", {
         parse_mode: "HTML",
         reply_parameters: { message_id: ctx.message?.message_id! },
       });
       return true;
     }
 
-    const user = await ctx.services.userService.getUserByTgUsername(tgUsername);
+    // Use tgUserId instead of tgUsername for more reliable user lookup
+    const user = await ctx.services.userService.getUserByTgId(tgUserId.toString());
+    logger.info(`${logPrefix} User found by tgUserId: ${user?.id} (tgUserId: ${tgUserId}, tgUsername: ${user?.tgUsername})`);
     if (!user) {
       await ctx.reply(GENERIC_ERRORS.USER_NOT_FOUND, {
         parse_mode: "HTML",
@@ -842,15 +858,10 @@ export const buyTextHandler: TextHandler = async (
   }
 };
 
-async function handleRefreshFull(ctx: GlobalSceneContext): Promise<void> {
+async function handleRefreshFull(ctx: GlobalSceneContext, userId: number): Promise<void> {
   try {
-    // Load fresh user data
-    const tgUserId = ctx.from?.id;
-    if (!tgUserId) return;
-
-    const user = await ctx.services.userService.getUserByTgId(
-      tgUserId.toString()
-    );
+    // Use the provided userId instead of ctx.user.id to ensure consistency
+    const user = await ctx.services.userService.getUserById(userId);
     if (!user) return;
 
     const wallets = await ctx.services.walletService.getUserWalletsWithHoldings(
@@ -858,7 +869,7 @@ async function handleRefreshFull(ctx: GlobalSceneContext): Promise<void> {
     );
 
     if (!wallets) {
-      await ctx.answerCbQuery("❌ Failed to refresh. Please try again.");
+      logger.warn(`[buyTextHandler] No wallets found for user ${userId}`);
       return;
     }
 
@@ -888,7 +899,7 @@ async function handleRefreshFull(ctx: GlobalSceneContext): Promise<void> {
 
                 if (chainBalance !== BigInt(holding.balance)) {
                   await ctx.services.holdingService.updateHoldingFromChain({
-                    userId: ctx.user.id,
+                    userId: userId, // Use the provided userId parameter
                     tokenId: token.id,
                     walletId: wallet.id,
                     newBalance: chainBalance,
@@ -907,6 +918,7 @@ async function handleRefreshFull(ctx: GlobalSceneContext): Promise<void> {
 
     return;
   } catch (error) {
+    logger.error(`[buyTextHandler] Error in handleRefreshFull for user ${userId}:`, error);
     return;
   }
 }

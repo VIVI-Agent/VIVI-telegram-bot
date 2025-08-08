@@ -228,6 +228,20 @@ export class BuyHandlers {
         }
       } else {
         logger.warn(`No ETH spent in transaction for user ${userId}`);
+        
+        // Execute callback anyway for text handlers (trade instructions)
+        // since the transaction was successful even if log parsing failed
+        if (onTransactionSuccess) {
+          try {
+            logger.info(`Executing fallback callback for user ${userId} due to log parsing failure`);
+            await onTransactionSuccess();
+            logger.info(
+              `Fallback transaction success callback executed for user ${userId}`
+            );
+          } catch (error) {
+            logger.error(`Error in fallback transaction success callback: ${error}`);
+          }
+        }
       }
     };
 
