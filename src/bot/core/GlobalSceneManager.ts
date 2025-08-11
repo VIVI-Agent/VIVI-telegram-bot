@@ -147,6 +147,19 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
     logger.info(`🔄 Routing callback: ${callback}`);
     logger.info(`🔄 Active scenes:`, Object.keys(ctx.session.activeSubScenes));
     try {
+      // Handle buy confirmation callbacks FIRST (highest priority)
+      if (callback === "buy_cancel" || callback.startsWith("buy_confirm:")) {
+        logger.info(`🔄 Handling buy confirmation callback: ${callback}`);
+        const { handleBuyConfirmationCallback } = await import(
+          "../textHandlers/buyHandler"
+        );
+        const handled = await handleBuyConfirmationCallback(ctx, callback, undefined);
+        logger.info(`🔄 Buy confirmation callback handled: ${handled}`);
+        if (handled) {
+          return;
+        }
+      }
+
       // Handle global callbacks that don't belong to any specific scene
       if (callback.startsWith("DISMISS_TX_MSG:")) {
         const messageId = callback.split(":")[1];
@@ -213,6 +226,8 @@ export class GlobalSceneManagerImpl implements GlobalSceneManager {
         await handleSendCancel(ctx);
         return;
       }
+
+
     } catch (error) {
       await ctx.answerCbQuery();
       await ctx.reply(GENERIC_ERRORS.OLD_VERSION);

@@ -19,6 +19,12 @@ export interface PendingTransfer {
   messageId: number; // ID of the confirmation message
 }
 
+export interface PendingBuyConfirmation {
+  tokenAddress: string;
+  amountEth: string;
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>;
+}
+
 export interface GlobalSessionData {
   activeSubScenes: Record<string, SubSceneState>;
   sceneOrder: string[]; // FIFO order of scene instanceIds
@@ -27,4 +33,5 @@ export interface GlobalSessionData {
   creatingEvent?: boolean;
   buyEventSceneInstanceId?: string;
   pendingTransfer?: PendingTransfer; // Only one pending transfer allowed
+  pendingBuyConfirmations?: Record<string, PendingBuyConfirmation>; // Multiple pending buy confirmations allowed
 }

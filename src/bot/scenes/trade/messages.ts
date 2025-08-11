@@ -148,45 +148,56 @@ ${ethBalanceLines.join("\n")}`;
         ? `${outputAmount} ETH`
         : `${outputAmount} ${tokenSymbol} \n`;
 
-      // Token info section (show if we have either token info or liquidity)
+      // Token info section (always show liquidity info)
       logger.info( 
         `[TradeMessages] Liquidity param received: ${dexscreenerLiquidityUsd}`
       );
       let tokenInfoSection = "";
       const hasLiquidity = typeof dexscreenerLiquidityUsd === "number";
-      logger.info(`[TradeMessages] hasLiquidity: ${hasLiquidity}`);
-      if (tokenInfo || hasLiquidity) {
-        const marketCap = tokenInfo
-          ? formatMarketCap(tokenInfo.marketCap) 
-          : undefined;
+      const isApeStore = bestDex.dexName === "ApeStore";
+      logger.info(`[TradeMessages] hasLiquidity: ${hasLiquidity}, isApeStore: ${isApeStore}`);
+      
+      const marketCap = tokenInfo
+        ? formatMarketCap(tokenInfo.marketCap) 
+        : undefined;
 
-        const lines: string[] = [];
-        if (hasLiquidity) {
-          const liquidityFormatted = dexscreenerLiquidityUsd!.toLocaleString("en-US", {
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0,
-          });
-          
-          // Add warning for low liquidity pools with different severity levels
-          let liquidityLine = `💧 <b>Liquidity:</b> $${liquidityFormatted}`;
-          
-          if (dexscreenerLiquidityUsd! < 1000) {
-            liquidityLine += ` 🚨 <i>Low Liquidity (&lt;1K USD)</i>`;
-          } else if (dexscreenerLiquidityUsd! < 5000) {
-            liquidityLine += ` ⚠️ <i>Low Liquidity (&lt;5K USD)</i>`;
-          } else if (dexscreenerLiquidityUsd! < 10000) {
-            liquidityLine += ` 💡 <i>Low Liquidity (&lt;10K USD)</i>`;
-          }
-          
-          lines.push(liquidityLine);
+      const lines: string[] = [];
+      
+      // Always show liquidity line with appropriate message
+      if (hasLiquidity) {
+        const liquidityFormatted = dexscreenerLiquidityUsd!.toLocaleString("en-US", {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        });
+        
+        // Add warning for low liquidity pools with different severity levels
+        let liquidityLine = `💧 <b>Liquidity:</b> $${liquidityFormatted}`;
+        
+        if (dexscreenerLiquidityUsd! < 1000) {
+          liquidityLine += ` 🚨 <i>Low Liquidity (&lt;1K USD)</i>`;
+        } else if (dexscreenerLiquidityUsd! < 5000) {
+          liquidityLine += ` ⚠️ <i>Low Liquidity (&lt;5K USD)</i>`;
+        } else if (dexscreenerLiquidityUsd! < 10000) {
+          liquidityLine += ` 💡 <i>Low Liquidity (&lt;10K USD)</i>`;
         }
-        if (marketCap) lines.push(`📊 <b>MarketCap:</b> ${marketCap}`);
-
-        tokenInfoSection = `${lines.join("\n")}\n`;
-        logger.info(
-          `[TradeMessages] TokenInfoSection built. Includes liquidity: ${hasLiquidity}`
-        );
+        
+        lines.push(liquidityLine);
+      } else if (isApeStore) {
+        // Special case for ApeStore
+        const liquidityLine = `💧 <b>Liquidity:</b> <a href="https://ape.store/base/${tokenAddress}">Check ApeStore 🍌</a> `;
+        lines.push(liquidityLine);
+      } else {
+        // Unknown liquidity case
+        const liquidityLine = `💧 <b>Liquidity:</b> 💡 <i>Not available yet - token may be recently deployed</i>`;
+        lines.push(liquidityLine);
       }
+      
+      if (marketCap) lines.push(`📊 <b>MarketCap:</b> ${marketCap}`);
+
+      tokenInfoSection = `${lines.join("\n")}\n`;
+      logger.info(
+        `[TradeMessages] TokenInfoSection built. Includes liquidity: true`
+      );
 
       // Social links section
       const socialLinks = buildSocialLinks(tokenAddress, bestDex.dexName);

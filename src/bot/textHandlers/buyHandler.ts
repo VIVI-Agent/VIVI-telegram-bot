@@ -16,6 +16,7 @@ import {
   MULTI_WORD_ALIASES,
   TOKEN_ALIASES,
   normalizeAmount,
+  selectBestPool,
 } from "@utils";
 import { TextHandler, TextMatch } from "./types";
 import { GENERIC_ERRORS } from "@texts";
@@ -37,6 +38,7 @@ import { calculateFinalFee } from "../../utils/feeDiscounts";
 import { Token, User } from "@prisma/client";
 import { getTokenBalance, getWalletBalance } from "@blockchain";
 import { WalletWithHoldings } from "@domain";
+import { getDexscreenerTokenPools } from "@services";
 
 const logPrefix = "[buyTextHandler]";
 
@@ -44,6 +46,236 @@ interface ParsedBuyCommand {
   amount: string;
   token: string;
   tokenAddress?: Address;
+}
+
+interface LiquidityInfo {
+  liquidityUsd?: number;
+  poolUrl?: string;
+  isLowLiquidity: boolean;
+  warningLevel: "none" | "moderate" | "low" | "very_low" | "unknown";
+  hasLiquidityData: boolean;
+}
+
+/**
+ * Get liquidity information from Dexscreener for the best DEX
+ */
+async function getLiquidityInfo(
+  tokenAddress: Address,
+  bestDexName: string
+): Promise<LiquidityInfo> {
+  // Special case for ApeStore - it doesn't appear in Dexscreener
+  if (bestDexName === "ApeStore") {
+    return {
+      isLowLiquidity: true,
+      warningLevel: "unknown",
+      hasLiquidityData: false,
+      poolUrl: `https://ape.store/base/${tokenAddress}`,
+    };
+  }
+
+  try {
+    const pools = await getDexscreenerTokenPools("base", tokenAddress);
+    const chosenPool = selectBestPool(pools, bestDexName, tokenAddress);
+
+    if (!chosenPool || !chosenPool.liquidity?.usd) {
+      return {
+        isLowLiquidity: true,
+        warningLevel: "unknown",
+        hasLiquidityData: false,
+      };
+    }
+
+    const liquidityUsd = chosenPool.liquidity.usd;
+    const poolUrl = chosenPool.url;
+
+    let warningLevel: "none" | "moderate" | "low" | "very_low" = "none";
+    let isLowLiquidity = false;
+
+    if (liquidityUsd < 1000) {
+      warningLevel = "very_low";
+      isLowLiquidity = true;
+    } else if (liquidityUsd < 5000) {
+      warningLevel = "low";
+      isLowLiquidity = true;
+    } else if (liquidityUsd < 10000) {
+      warningLevel = "moderate";
+      isLowLiquidity = true;
+    }
+
+    return {
+      liquidityUsd,
+      poolUrl,
+      isLowLiquidity,
+      warningLevel,
+      hasLiquidityData: true,
+    };
+  } catch (error) {
+    logger.error(`${logPrefix} Error getting liquidity info:`, error);
+    return {
+      isLowLiquidity: true,
+      warningLevel: "unknown",
+      hasLiquidityData: false,
+    };
+  }
+}
+
+/**
+ * Show liquidity warning and confirmation message for private chats
+ */
+async function showLiquidityConfirmation(
+  ctx: GlobalSceneContext,
+  tokenInfo: Token,
+  amountEth: string,
+  liquidityInfo: LiquidityInfo,
+  bestDexName: string,
+  bestDex: any,
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>
+): Promise<boolean> {
+  try {
+    let liquidityLine = "";
+    let warningEmoji = "";
+    let warningText = "";
+
+    if (
+      liquidityInfo.hasLiquidityData &&
+      liquidityInfo.liquidityUsd !== undefined
+    ) {
+      const liquidityFormatted = liquidityInfo.liquidityUsd.toLocaleString(
+        "en-US",
+        {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }
+      );
+
+      liquidityLine = `💧 <b>Liquidity:</b> $${liquidityFormatted}`;
+
+      switch (liquidityInfo.warningLevel) {
+        case "very_low":
+          warningEmoji = "🚨";
+          warningText = "Very Low Liquidity (&lt;1K USD)";
+          break;
+        case "low":
+          warningEmoji = "⚠️";
+          warningText = "Low Liquidity (&lt;5K USD)";
+          break;
+        case "moderate":
+          warningEmoji = "💡";
+          warningText = "Moderate Liquidity (&lt;10K USD)";
+          break;
+        default:
+          return true; // No warning needed
+      }
+    } else {
+      // Unknown liquidity case
+      if (bestDexName === "ApeStore") {
+        liquidityLine = `💧 <b>Liquidity:</b> <a href="https://ape.store/base/${tokenInfo.address}">Check ApeStore 🍌</a>`;
+        warningEmoji = "";
+        warningText = "";
+      } else {
+        liquidityLine = `💧 <b>Liquidity:</b>`;
+        warningEmoji = "💡";
+        warningText = "Not available yet - token may be recently deployed";
+      }
+    }
+
+    // Format DEX name similar to messages.ts
+    let dexName = "";
+    const feeTier = ""; // We don't have fee tier info in this context
+
+    if (bestDexName === "ZoraMultiHop") {
+      dexName = `🦄 ZoraToken | 1%`;
+    } else if (bestDexName === "ApeStore") {
+      dexName = `🍌 ApeStore | 1%`;
+    } else if (bestDexName === "VirtualToken") {
+      dexName = `🦄 VirtualToken ${feeTier}`;
+    } else {
+      const emoji = bestDexName.includes("Uniswap") ? "🦄" : "✈️";
+      dexName = `${emoji} ${bestDexName} ${feeTier}`;
+    }
+
+    // Build social links similar to messages.ts
+    const socialLinks = buildSocialLinksForBuyHandler(
+      tokenInfo.address,
+      bestDexName,
+      liquidityInfo.poolUrl
+    );
+
+    // Format the output amount with thousand separators (commas) and 4 decimals
+    const rawAmount = parseFloat(bestDex.formattedOut);
+    const outputAmount = rawAmount.toLocaleString("en-US", {
+      minimumFractionDigits: 4,
+      maximumFractionDigits: 4,
+    });
+
+    const message = `<b>${
+      tokenInfo.symbol
+    }</b> <a href="https://basescan.org/token/${tokenInfo.address}">🔗BASE</a>
+<code>${tokenInfo.address}</code>
+
+${dexName}
+${liquidityLine} ${warningEmoji} <i>${warningText}</i>
+
+<b>Swap Info:</b>
+💸 <b>Buy:</b> ${amountEth} Ξ
+💰 <b>Out:</b> ${outputAmount} ${tokenInfo.symbol}
+
+${bestDexName === "ApeStore" ? "" : `<i>⚠️ ${liquidityInfo.hasLiquidityData ? "This pool has low liquidity which may result in high slippage or failed transactions." : "Liquidity information is not available. This token may be recently deployed or have limited trading activity."} Do you want to proceed?</i>`}
+
+${socialLinks}`;
+
+    // Store overrideAdditionalFeeReceivers in session for later use
+    const callbackId = `buy_${Date.now()}_${Math.random()
+      .toString(36)
+      .substr(2, 9)}`;
+    ctx.session.pendingBuyConfirmations =
+      ctx.session.pendingBuyConfirmations || {};
+    ctx.session.pendingBuyConfirmations[callbackId] = {
+      tokenAddress: tokenInfo.address,
+      amountEth,
+      overrideAdditionalFeeReceivers:
+        overrideAdditionalFeeReceivers || undefined,
+    };
+
+    const callbackData = `buy_confirm:${callbackId}`;
+    logger.info(
+      `${logPrefix} Generated callback data: ${callbackData} (length: ${callbackData.length})`
+    );
+
+    // Check if callback_data is too long (Telegram limit is 64 bytes)
+    if (callbackData.length > 64) {
+      logger.error(
+        `${logPrefix} Callback data too long: ${callbackData.length} bytes`
+      );
+    }
+
+    const keyboard = {
+      inline_keyboard: [
+        [
+          {
+            text: "✅ Proceed with Trade",
+            callback_data: callbackData,
+          },
+          {
+            text: "❌ Cancel",
+            callback_data: "buy_cancel",
+          },
+        ],
+      ],
+    };
+
+    await ctx.reply(message, {
+      parse_mode: "HTML",
+      reply_markup: keyboard,
+      link_preview_options: { is_disabled: true },
+      reply_parameters: { message_id: ctx.message?.message_id! },
+    });
+
+    return false; // Don't proceed with trade yet
+  } catch (error) {
+    logger.error(`${logPrefix} Error showing liquidity confirmation:`, error);
+    return true; // Proceed with trade if error
+  }
 }
 
 /**
@@ -341,7 +573,8 @@ async function executeBuyCommand(
   tokenInfo: Token,
   amountEth: bigint,
   user: User,
-  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>,
+  skipLiquidityCheck: boolean = false
 ): Promise<void> {
   try {
     // Set slippage
@@ -367,6 +600,35 @@ async function executeBuyCommand(
     logger.info(
       `${logPrefix} Best DEX: ${bestDex}, feeTier: ${best.feeTier || "N/A"}`
     );
+
+    // Check liquidity for private chats only (skip if already confirmed)
+    const isPrivateChat = ctx.chat?.type === "private";
+    if (isPrivateChat && !skipLiquidityCheck) {
+      logger.info(`${logPrefix} Private chat detected, checking liquidity...`);
+
+      const liquidityInfo = await getLiquidityInfo(tokenAddress, bestDex);
+      logger.info(`${logPrefix} Liquidity info:`, liquidityInfo);
+
+      if (liquidityInfo.isLowLiquidity || !liquidityInfo.hasLiquidityData) {
+        const amountEthFormatted = formatEther(amountEth);
+        const shouldProceed = await showLiquidityConfirmation(
+          ctx,
+          tokenInfo,
+          amountEthFormatted,
+          liquidityInfo,
+          bestDex,
+          best,
+          overrideAdditionalFeeReceivers
+        );
+
+        if (!shouldProceed) {
+          logger.info(
+            `${logPrefix} User needs to confirm trade (low liquidity or unknown liquidity)`
+          );
+          return; // Stop execution, wait for user confirmation
+        }
+      }
+    }
 
     // Calculate fees
     const feePercent = await calculateFinalFee(ctx, tokenAddress, user.id);
@@ -739,9 +1001,11 @@ export const buyTextHandler: TextHandler = async (
     );
     const tgUsername = ctx.from?.username;
     const tgUserId = ctx.from?.id;
-    
-    logger.info(`${logPrefix} Context debug - tgUsername: ${tgUsername}, tgUserId: ${tgUserId}`);
-    
+
+    logger.info(
+      `${logPrefix} Context debug - tgUsername: ${tgUsername}, tgUserId: ${tgUserId}`
+    );
+
     if (!tgUserId) {
       await ctx.reply("❌ User ID not found. Please try again.", {
         parse_mode: "HTML",
@@ -751,8 +1015,12 @@ export const buyTextHandler: TextHandler = async (
     }
 
     // Use tgUserId instead of tgUsername for more reliable user lookup
-    const user = await ctx.services.userService.getUserByTgId(tgUserId.toString());
-    logger.info(`${logPrefix} User found by tgUserId: ${user?.id} (tgUserId: ${tgUserId}, tgUsername: ${user?.tgUsername})`);
+    const user = await ctx.services.userService.getUserByTgId(
+      tgUserId.toString()
+    );
+    logger.info(
+      `${logPrefix} User found by tgUserId: ${user?.id} (tgUserId: ${tgUserId}, tgUsername: ${user?.tgUsername})`
+    );
     if (!user) {
       await ctx.reply(GENERIC_ERRORS.USER_NOT_FOUND, {
         parse_mode: "HTML",
@@ -837,7 +1105,8 @@ export const buyTextHandler: TextHandler = async (
       tokenInfo,
       amountEth,
       user,
-      overrideAdditionalFeeReceivers
+      overrideAdditionalFeeReceivers,
+      false // skipLiquidityCheck = false for initial execution
     );
 
     return true; // Successfully handled
@@ -858,7 +1127,10 @@ export const buyTextHandler: TextHandler = async (
   }
 };
 
-async function handleRefreshFull(ctx: GlobalSceneContext, userId: number): Promise<void> {
+async function handleRefreshFull(
+  ctx: GlobalSceneContext,
+  userId: number
+): Promise<void> {
   try {
     // Use the provided userId instead of ctx.user.id to ensure consistency
     const user = await ctx.services.userService.getUserById(userId);
@@ -918,7 +1190,520 @@ async function handleRefreshFull(ctx: GlobalSceneContext, userId: number): Promi
 
     return;
   } catch (error) {
-    logger.error(`[buyTextHandler] Error in handleRefreshFull for user ${userId}:`, error);
+    logger.error(
+      `[buyTextHandler] Error in handleRefreshFull for user ${userId}:`,
+      error
+    );
     return;
+  }
+}
+
+/**
+ * Build social links string for buy handler (similar to messages.ts)
+ */
+function buildSocialLinksForBuyHandler(
+  address: string,
+  bestDexName?: string,
+  poolUrl?: string
+): string {
+  const defaultLinks = [
+    `<a href="https://basescan.org/token/${address}">BScan</a>`,
+    `<a href="https://www.geckoterminal.com/base/pools/${address}">CG</a>`,
+    `<a href="https://dexscreener.com/base/${address}">DexSc</a>`,
+    `<a href="https://www.dextools.io/app/en/base/pair-explorer/${address}">DexT</a>`,
+    `<a href="https://www.defined.fi/base/${address}">Def</a>`,
+  ];
+
+  // Add Apestore link if bestDexName is "ApeStore"
+  if (bestDexName === "ApeStore") {
+    defaultLinks.push(`<a href="https://ape.store/base/${address}">Ape</a>`);
+  }
+
+  // Add specific pool link if available
+  if (poolUrl) {
+    defaultLinks.push(`<a href="${poolUrl}">Pool</a>`);
+  }
+
+  return defaultLinks.join(" | ");
+}
+
+/**
+ * Execute buy transaction without liquidity check (for confirmed trades)
+ */
+async function executeConfirmedBuyCommand(
+  ctx: GlobalSceneContext,
+  tokenAddress: Address,
+  amountEth: bigint,
+  user: User,
+  wallet: any,
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>
+): Promise<void> {
+  try {
+    logger.info(
+      `${logPrefix} Executing confirmed buy command for user ${
+        user.id
+      }, wallet ${wallet.id}, amount ${formatEther(amountEth)} ETH`
+    );
+
+    // Get token info
+    const tokenInfo = await findOrCreateToken(ctx, tokenAddress);
+    if (!tokenInfo) {
+      throw new Error("Token not found");
+    }
+
+    // Set slippage
+    const slippagePercent = 50;
+
+    // Find best DEX
+    const feeTiers = [100, 500, 3000, 10000];
+    const { best } = await getBestDexForBuyEthToToken({
+      publicClient: publicClientQuickNode,
+      tokenOut: tokenAddress,
+      decimalsOut: tokenInfo.decimals,
+      feeTiers,
+      amountEth,
+    });
+
+    if (!best) {
+      throw new Error("No liquidity found on any DEX");
+    }
+
+    const bestDex = best.dexName;
+    logger.info(
+      `${logPrefix} Best DEX for confirmed buy: ${bestDex}, feeTier: ${
+        best.feeTier || "N/A"
+      }`
+    );
+
+    // Calculate fees
+    const feePercent = await calculateFinalFee(ctx, tokenAddress, user.id);
+    logger.info(`${logPrefix} Final fee percent: ${feePercent}`);
+
+    // Create transaction success callback for balance updates
+    const onTransactionSuccess = createTextHandlerTransactionSuccessCallback(
+      ctx,
+      wallet,
+      tokenInfo,
+      user.id
+    );
+
+    // Execute buy based on best DEX (same logic as executeBuyCommand but without liquidity check)
+    let txHash: Hash;
+    let waitReceipt: Promise<TransactionReceipt>;
+    const wid = wallet.id;
+
+    if (bestDex === "UniswapV2") {
+      const result = await buyToken({
+        ctx,
+        userId: user.id,
+        tokenAddress,
+        amountEth,
+        slippagePercent,
+        feePercent,
+        bestDex: best,
+        overrideAdditionalFeeReceivers,
+      });
+      txHash = result.txHash;
+      waitReceipt = result.waitReceipt;
+
+      const handlers = BuyHandlers.buildUniV2BuyHandlers(
+        ctx,
+        tokenInfo,
+        user.id,
+        wid,
+        txHash,
+        false,
+        onTransactionSuccess
+      );
+
+      logger.info(`${logPrefix} UniV2 TX: ${txHash}`);
+      await replyTxNotificationsWithLinks({
+        ctx,
+        userMessageId: ctx.message?.message_id!,
+        txHash,
+        waitReceipt,
+        parseLogsFn: handlers.parseLogsFn,
+        onMinedFn: handlers.onMinedFn,
+        swapType: "Buy",
+        amountIn: formatEther(amountEth),
+        symbol: tokenInfo.symbol,
+        tokenAddress,
+      });
+    } else if (bestDex.startsWith("Aerodrome")) {
+      const stable = bestDex === "AerodromeStable";
+      const result = await buyTokenAerodrome({
+        ctx,
+        userId: user.id,
+        tokenAddress,
+        amountEth,
+        slippagePercent,
+        feePercent,
+        bestDex: best,
+        stable,
+        overrideAdditionalFeeReceivers,
+      });
+      txHash = result.txHash;
+      waitReceipt = result.waitReceipt;
+
+      const handlers = BuyHandlers.buildAeroBuyHandlers(
+        ctx,
+        tokenInfo,
+        user.id,
+        wid,
+        txHash,
+        false,
+        onTransactionSuccess
+      );
+
+      logger.info(`${logPrefix} Aerodrome TX: ${txHash}`);
+      await replyTxNotificationsWithLinks({
+        ctx,
+        userMessageId: ctx.message?.message_id!,
+        txHash,
+        waitReceipt,
+        parseLogsFn: handlers.parseLogsFn,
+        onMinedFn: handlers.onMinedFn,
+        swapType: "Buy",
+        amountIn: formatEther(amountEth),
+        symbol: tokenInfo.symbol,
+        tokenAddress,
+      });
+    } else if (bestDex === "UniswapV3") {
+      if (!best.feeTier) throw new Error("Missing fee tier");
+
+      const result = await buyTokenV3({
+        ctx,
+        userId: user.id,
+        tokenAddress,
+        amountEth,
+        bestDex: best,
+        feePercent,
+        feeTier: best.feeTier,
+        overrideAdditionalFeeReceivers,
+      });
+      txHash = result.txHash;
+      waitReceipt = result.waitReceipt;
+
+      const handlers = BuyHandlers.buildUniV3BuyHandlers(
+        ctx,
+        tokenInfo,
+        user.id,
+        wid,
+        txHash,
+        false,
+        onTransactionSuccess
+      );
+
+      logger.info(`${logPrefix} UniV3 TX: ${txHash}`);
+      await replyTxNotificationsWithLinks({
+        ctx,
+        userMessageId: ctx.message?.message_id!,
+        txHash,
+        waitReceipt,
+        parseLogsFn: handlers.parseLogsFn,
+        onMinedFn: handlers.onMinedFn,
+        swapType: "Buy",
+        amountIn: formatEther(amountEth),
+        symbol: tokenInfo.symbol,
+        tokenAddress,
+      });
+    } else if (bestDex === "ZoraMultiHop") {
+      const result = await buyTokenZoraMultiHop({
+        ctx,
+        userId: user.id,
+        tokenAddress,
+        amountEth,
+        slippagePercent,
+        feePercent,
+        bestDex: best,
+        overrideAdditionalFeeReceivers,
+      });
+      txHash = result.txHash;
+      waitReceipt = result.waitReceipt;
+
+      const handlers = BuyHandlers.buildZoraBuyHandlers(
+        ctx,
+        tokenInfo,
+        user.id,
+        wid,
+        txHash,
+        false,
+        onTransactionSuccess
+      );
+
+      logger.info(`${logPrefix} ZoraMultiHop TX: ${txHash}`);
+      await replyTxNotificationsWithLinks({
+        ctx,
+        userMessageId: ctx.message?.message_id!,
+        txHash,
+        waitReceipt,
+        parseLogsFn: handlers.parseLogsFn,
+        onMinedFn: handlers.onMinedFn,
+        swapType: "Buy",
+        amountIn: formatEther(amountEth),
+        symbol: tokenInfo.symbol,
+        tokenAddress,
+      });
+    } else if (bestDex === "ApeStore") {
+      const result = await buyTokenVIVIApeStore({
+        ctx,
+        userId: user.id,
+        walletId: wid,
+        tokenAddress,
+        amountEth,
+        slippagePercent,
+        feePercent,
+        bestDex: best,
+        overrideAdditionalFeeReceivers,
+      });
+      txHash = result.txHash;
+      waitReceipt = result.waitReceipt;
+
+      const handlers = BuyHandlers.buildApeStoreBuyHandlers(
+        ctx,
+        tokenInfo,
+        user.id,
+        wid,
+        txHash,
+        false,
+        onTransactionSuccess
+      );
+
+      logger.info(`${logPrefix} ApeStore TX: ${txHash}`);
+      await replyTxNotificationsWithLinks({
+        ctx,
+        userMessageId: ctx.message?.message_id!,
+        txHash,
+        waitReceipt,
+        parseLogsFn: handlers.parseLogsFn,
+        onMinedFn: handlers.onMinedFn,
+        swapType: "Buy",
+        amountIn: formatEther(amountEth),
+        symbol: tokenInfo.symbol,
+        tokenAddress,
+      });
+    } else if (bestDex === "VirtualToken") {
+      const result = await buyTokenVirtualToken({
+        ctx,
+        userId: user.id,
+        walletId: wid,
+        tokenAddress,
+        amountEth,
+        slippagePercent,
+        feePercent,
+        bestDex: best,
+        overrideAdditionalFeeReceivers,
+      });
+      txHash = result.txHash;
+      waitReceipt = result.waitReceipt;
+
+      const handlers = BuyHandlers.buildVirtualTokenBuyHandlers(
+        ctx,
+        tokenInfo,
+        user.id,
+        wid,
+        txHash,
+        false,
+        onTransactionSuccess
+      );
+
+      logger.info(`${logPrefix} VirtualToken TX: ${txHash}`);
+      await replyTxNotificationsWithLinks({
+        ctx,
+        userMessageId: ctx.message?.message_id!,
+        txHash,
+        waitReceipt,
+        parseLogsFn: handlers.parseLogsFn,
+        onMinedFn: handlers.onMinedFn,
+        swapType: "Buy",
+        amountIn: formatEther(amountEth),
+        symbol: tokenInfo.symbol,
+        tokenAddress,
+      });
+    } else if (bestDex === "UniswapV4") {
+      const result = await buyTokenV4({
+        ctx,
+        userId: user.id,
+        walletId: wid,
+        tokenAddress,
+        amountEth,
+        slippagePercent,
+        feePercent,
+        bestDex: best,
+        overrideAdditionalFeeReceivers,
+      });
+      txHash = result.txHash;
+      waitReceipt = result.waitReceipt;
+
+      const handlers = BuyHandlers.buildUniswapV4BuyHandlers(
+        ctx,
+        tokenInfo,
+        user.id,
+        wid,
+        txHash,
+        false,
+        onTransactionSuccess
+      );
+
+      logger.info(`${logPrefix} UniswapV4 TX: ${txHash}`);
+      await replyTxNotificationsWithLinks({
+        ctx,
+        userMessageId: ctx.message?.message_id!,
+        txHash,
+        waitReceipt,
+        parseLogsFn: handlers.parseLogsFn,
+        onMinedFn: handlers.onMinedFn,
+        swapType: "Buy",
+        amountIn: formatEther(amountEth),
+        symbol: tokenInfo.symbol,
+        tokenAddress,
+      });
+    } else {
+      throw new Error("Unsupported DEX");
+    }
+
+    logger.info(`${logPrefix} Confirmed buy completed for ${user.id}`);
+  } catch (error) {
+    logger.error(`${logPrefix} Confirmed buy execution error:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Handle buy confirmation callbacks for low liquidity trades
+ */
+export async function handleBuyConfirmationCallback(
+  ctx: GlobalSceneContext,
+  callbackData: string,
+  overrideAdditionalFeeReceivers?: Array<{ receiver: Address; bps: bigint }>
+): Promise<boolean> {
+  try {
+    logger.info(
+      `${logPrefix} Handling buy confirmation callback: ${callbackData}`
+    );
+
+    if (callbackData === "buy_cancel") {
+      logger.info(`${logPrefix} User cancelled the trade`);
+      await ctx.answerCbQuery("❌ Trade cancelled");
+      await ctx.deleteMessage(ctx.callbackQuery?.message?.message_id!);
+      return true;
+    }
+
+    if (callbackData.startsWith("buy_confirm:")) {
+      logger.info(`${logPrefix} User confirmed the trade`);
+      const [, callbackId] = callbackData.split(":");
+
+      logger.info(
+        `${logPrefix} Parsed callback data - callbackId: ${callbackId}`
+      );
+
+      if (!callbackId) {
+        logger.error(
+          `${logPrefix} Invalid confirmation data - callbackId: ${callbackId}`
+        );
+        await ctx.answerCbQuery("❌ Invalid confirmation data");
+        return true;
+      }
+
+      // Get stored confirmation data from session
+      const confirmationData =
+        ctx.session.pendingBuyConfirmations?.[callbackId];
+      if (!confirmationData) {
+        logger.error(
+          `${logPrefix} No confirmation data found for callbackId: ${callbackId}`
+        );
+        await ctx.answerCbQuery("❌ Confirmation data not found");
+        return true;
+      }
+
+      const { tokenAddress, amountEth, overrideAdditionalFeeReceivers } =
+        confirmationData;
+      logger.info(
+        `${logPrefix} Retrieved confirmation data - tokenAddress: ${tokenAddress}, amountEth: ${amountEth}`
+      );
+
+      // Delete the confirmation message immediately
+      await ctx.deleteMessage(ctx.callbackQuery?.message?.message_id!);
+      logger.info(`${logPrefix} Confirmation message deleted immediately`);
+
+      await ctx.answerCbQuery("✅ Proceeding with trade...");
+
+      // Get user info
+      const tgUserId = ctx.from?.id;
+      if (!tgUserId) {
+        await ctx.reply("❌ User ID not found. Please try again.");
+        return true;
+      }
+
+      const user = await ctx.services.userService.getUserByTgId(
+        tgUserId.toString()
+      );
+      if (!user) {
+        await ctx.reply(GENERIC_ERRORS.USER_NOT_FOUND);
+        return true;
+      }
+
+      // Get user's selected wallet
+      const userWithWallet =
+        await ctx.services.userService.getUserWithSelectedWalletAndHoldingsByUserId(
+          user.id
+        );
+      if (!userWithWallet?.wallets?.[0]) {
+        await ctx.reply("❌ No wallet found. Please create a wallet first.");
+        return true;
+      }
+
+      const wallet = userWithWallet.wallets[0];
+
+      // Get token info
+      const tokenInfo = await findOrCreateToken(ctx, tokenAddress as Address);
+      if (!tokenInfo) {
+        await ctx.reply("❌ Token not found. Please try again.");
+        return true;
+      }
+
+      // Parse amount
+      const amountEthBN = parseEther(amountEth);
+
+      // Validate ETH balance
+      if (!(await validateEthBalance(ctx, amountEthBN, wallet))) {
+        return true;
+      }
+
+      logger.info(
+        `${logPrefix} About to execute buy command for user ${user.id}, wallet ${wallet.id}, token ${tokenInfo.symbol}, amount ${amountEth} ETH`
+      );
+
+      // Execute the confirmed buy transaction (without liquidity check)
+      await executeConfirmedBuyCommand(
+        ctx,
+        tokenAddress as Address,
+        amountEthBN,
+        user,
+        wallet,
+        overrideAdditionalFeeReceivers
+      );
+
+      logger.info(`${logPrefix} Buy command executed successfully`);
+
+      // Clean up session data
+      delete ctx.session.pendingBuyConfirmations![callbackId];
+
+      logger.info(`${logPrefix} Session cleaned`);
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    logger.error(
+      `${logPrefix} Error handling buy confirmation callback:`,
+      error
+    );
+    try {
+      await ctx.answerCbQuery("❌ Error processing confirmation");
+    } catch (answerError) {
+      logger.error(`${logPrefix} Error answering callback query:`, answerError);
+    }
+    return true;
   }
 }
