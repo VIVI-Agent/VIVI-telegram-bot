@@ -161,13 +161,25 @@ ${ethBalanceLines.join("\n")}`;
           : undefined;
 
         const lines: string[] = [];
-        if (hasLiquidity)
-          lines.push(
-            `💧 <b>Liquidity:</b> $${dexscreenerLiquidityUsd!.toLocaleString("en-US", {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 0,
-            })}`
-          );
+        if (hasLiquidity) {
+          const liquidityFormatted = dexscreenerLiquidityUsd!.toLocaleString("en-US", {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+          });
+          
+          // Add warning for low liquidity pools with different severity levels
+          let liquidityLine = `💧 <b>Liquidity:</b> $${liquidityFormatted}`;
+          
+          if (dexscreenerLiquidityUsd! < 1000) {
+            liquidityLine += ` 🚨 <i>Low Liquidity (&lt;1K USD)</i>`;
+          } else if (dexscreenerLiquidityUsd! < 5000) {
+            liquidityLine += ` ⚠️ <i>Low Liquidity (&lt;5K USD)</i>`;
+          } else if (dexscreenerLiquidityUsd! < 10000) {
+            liquidityLine += ` 💡 <i>Low Liquidity (&lt;10K USD)</i>`;
+          }
+          
+          lines.push(liquidityLine);
+        }
         if (marketCap) lines.push(`📊 <b>MarketCap:</b> ${marketCap}`);
 
         tokenInfoSection = `${lines.join("\n")}\n`;
