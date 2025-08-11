@@ -151,4 +151,8 @@ export interface TradeSceneData {
   tempCustomPercentageMessageIds?: number[];
   tempCustomSlippageMessageIds?: number[];
   gasSpeed?: "auto" | "fast" | "turbo";
+
+  // Dexscreener info (computed on the fly per best DEX)
+  dexscreenerLiquidityUsd?: number;
+  dexscreenerPoolUrl?: string;
 }

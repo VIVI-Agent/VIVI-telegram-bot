@@ -6,6 +6,7 @@ import {
 import { Token, Wallet, Holding } from "@prisma/client";
 import { formatEthBalanceWithSymbol } from "@utils";
 import { formatUnits } from "viem";
+import { logger } from "@logger";
 
 // Type for wallets as they appear in TradeSceneData
 type TradeWallet = Wallet & {
@@ -43,7 +44,8 @@ export const TRADE_TEXTS = {
       amount: string,
       isSell?: boolean,
       tokenInfo?: TokenInfoSummary | null,
-      totalHoldings?: string
+      totalHoldings?: string,
+      dexscreenerLiquidityUsd?: number
     ) => {
       const tokenSymbol = token.symbol;
       const tokenAddress = token.address;
@@ -144,21 +146,34 @@ ${ethBalanceLines.join("\n")}`;
       const outputLabel = isSell ? "💰 <b>Out:</b> " : "💰 <b>Out:</b> ";
       const outputValue = isSell
         ? `${outputAmount} ETH`
-        : `${outputAmount} ${tokenSymbol}`;
+        : `${outputAmount} ${tokenSymbol} \n`;
 
-      // Token info section
+      // Token info section (show if we have either token info or liquidity)
+      logger.info( 
+        `[TradeMessages] Liquidity param received: ${dexscreenerLiquidityUsd}`
+      );
       let tokenInfoSection = "";
-      if (tokenInfo) {
-        const holders = formatHolders(tokenInfo.holders);
-        const marketCap = formatMarketCap(tokenInfo.marketCap);
-        const supply = formatSupply(tokenInfo.totalSupply);
+      const hasLiquidity = typeof dexscreenerLiquidityUsd === "number";
+      logger.info(`[TradeMessages] hasLiquidity: ${hasLiquidity}`);
+      if (tokenInfo || hasLiquidity) {
+        const marketCap = tokenInfo
+          ? formatMarketCap(tokenInfo.marketCap) 
+          : undefined;
 
-        tokenInfoSection = `
-<b>Token Info:</b>
-📊 <b>MarketCap:</b> ${marketCap}
-👥 <b>Holders:</b> ${holders}
-📜 <b>Supply:</b> ${supply}
-`;
+        const lines: string[] = [];
+        if (hasLiquidity)
+          lines.push(
+            `💧 <b>Liquidity:</b> $${dexscreenerLiquidityUsd!.toLocaleString("en-US", {
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 0,
+            })}`
+          );
+        if (marketCap) lines.push(`📊 <b>MarketCap:</b> ${marketCap}`);
+
+        tokenInfoSection = `${lines.join("\n")}\n`;
+        logger.info(
+          `[TradeMessages] TokenInfoSection built. Includes liquidity: ${hasLiquidity}`
+        );
       }
 
       // Social links section
@@ -167,10 +182,10 @@ ${ethBalanceLines.join("\n")}`;
       return `<b>${tokenSymbol}</b> <a href="https://basescan.org/token/${tokenAddress}">🔗BASE</a>
 <code>${tokenAddress}</code>
 
+${dexName}${tokenInfoSection}
 <b>Swap Info:</b>
 ${amountLabel}${amount}${amountSuffix}
 ${outputLabel}${outputValue}
-${dexName}${tokenInfoSection}
 ${walletBalances}
 
 ℹ️ Press refresh to monitor
@@ -218,27 +233,6 @@ export function formatMarketCap(marketCap?: string): string {
   })}`;
 }
 
-/**
- * Format supply with appropriate units
- */
-export function formatSupply(supply?: string): string {
-  if (!supply) return "N/A";
-
-  const value = parseFloat(supply);
-  if (isNaN(value)) return "N/A";
-
-  if (value >= 1000000000000) {
-    return `${(value / 1000000000000).toFixed(2)}T`;
-  } else if (value >= 1000000000) {
-    return `${(value / 1000000000).toFixed(2)}B`;
-  } else if (value >= 1000000) {
-    return `${(value / 1000000).toFixed(2)}M`;
-  } else if (value >= 1000) {
-    return `${(value / 1000).toFixed(2)}K`;
-  } else {
-    return `${Math.floor(value).toLocaleString()}`;
-  }
-}
 
 /**
  * Format holders count

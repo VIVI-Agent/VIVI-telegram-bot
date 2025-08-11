@@ -1,8 +1,11 @@
 import { GENERIC_BUTTONS, GENERIC_ERRORS } from "@texts";
 import { BaseMenus, GlobalSceneContext, TradeSceneData } from "../../types";
+import { getDexscreenerTokenPools } from "@services";
+import { Address } from "viem";
 import { CB } from "./callbacks";
 import { TRADE_TEXTS, formatTotalHoldings } from "./messages";
 import { Markup } from "telegraf";
+import { selectBestPool } from "@utils";
 
 export class TradeMenus extends BaseMenus {
   constructor(instanceId: string) {
@@ -94,6 +97,34 @@ export class TradeMenus extends BaseMenus {
         return acc + formattedBalance;
       }, 0);
 
+      // Ensure liquidity is available for first render (fallback fetch here if missing)
+      let dexsLiquidity = sceneData.dexscreenerLiquidityUsd;
+      if (
+        dexsLiquidity === undefined &&
+        token?.address &&
+        bestDex?.dexName
+      ) {
+        try {
+          const pools = await getDexscreenerTokenPools(
+            "base",
+            token.address as Address
+          );
+
+          const chosenPool = selectBestPool(pools, bestDex.dexName, token.address as Address);
+          if (chosenPool) {
+            dexsLiquidity = chosenPool.liquidity?.usd;
+          }
+        } catch (e) {
+          this.log("error", ctx, `Error fetching initial liquidity: ${e}`);
+        }
+      }
+
+      this.log(
+        "info",
+        ctx,
+        `Render menu with dex liquidity: ${dexsLiquidity}`
+      );
+
       const text = TRADE_TEXTS.FUNCTIONS.getTradeMessage(
         token!,
         bestDex!,
@@ -101,7 +132,8 @@ export class TradeMenus extends BaseMenus {
         amount!,
         sceneData.state === "trade_sell", // Pass mode to determine message type
         sceneData.externalTokenInfo, // Pass token info from scene data
-        formatTotalHoldings(totalHoldings?.toString())
+        formatTotalHoldings(totalHoldings?.toString()),
+        dexsLiquidity
       );
 
       if (hideMenuKeyboard) {
@@ -549,4 +581,6 @@ export class TradeMenus extends BaseMenus {
     });
     return sentMessage.message_id;
   }
+
+
 }

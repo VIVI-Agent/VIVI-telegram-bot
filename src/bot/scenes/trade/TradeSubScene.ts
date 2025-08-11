@@ -1,10 +1,11 @@
 import { GENERIC_ERRORS } from "@texts";
 import { BaseSubScene, GlobalSceneContext, TradeSceneData } from "../../types";
+import { getDexscreenerTokenPools } from "@services";
 import { TradeMenus } from "./TradeMenus";
 import { TradeService } from "./TradeService";
 import { CB } from "./callbacks";
 import { TRADE_TEXTS } from "./messages";
-import { AddressValidator, BuyAmountValidator } from "@utils";
+import { AddressValidator, BuyAmountValidator, selectBestPool } from "@utils";
 import { bigint } from "zod";
 import {
   TokenInfoServiceWithCache,
@@ -252,11 +253,13 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
               const bestDex = await this.service.getBestDex(ctx, sceneData);
               if (bestDex) {
                 sceneData.bestDex = bestDex.best;
+                // Fetch liquidity immediately for first render
+                await this.fetchDexscreenerLiquidity(ctx, sceneData);
               }
             }
           }
 
-          // Show trade menu
+          // Show trade menu (now includes Liquidity if available)
           menuMessageId = await this.menus.showTradeMenu(ctx, sceneData);
         }
       }
@@ -973,6 +976,8 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
               const bestDex = await this.service.getBestDex(ctx, sceneData);
               if (bestDex) {
                 sceneData.bestDex = bestDex.best;
+                // Fetch liquidity immediately for first render (address typed flow)
+                await this.fetchDexscreenerLiquidity(ctx, sceneData);
               }
 
               this.updateSceneData(ctx, sceneData);
@@ -1286,6 +1291,8 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
         this.log("info", ctx, "Quote refreshed successfully");
       }
 
+      await this.fetchDexscreenerLiquidity(ctx, sceneData);
+
       // Force refresh token info (holders, supply, marketcap)
       if (sceneData.token?.address) {
         this.log("info", ctx, "Forcing token info refresh");
@@ -1312,9 +1319,38 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
     }
   }
 
-  /**
-   * Helper function to refresh balances from blockchain and update the menu
-   */
+  private async fetchDexscreenerLiquidity(
+    ctx: GlobalSceneContext,
+    sceneData: TradeSceneData
+  ): Promise<void> {
+    if (!sceneData.token?.address || !sceneData.bestDex?.dexName) return;
+    try {
+      const chainId = "base";
+      const tokenAddress = sceneData.token.address as Address;
+      const pools = await getDexscreenerTokenPools(chainId, tokenAddress);
+
+      const chosenPool = selectBestPool(pools, sceneData.bestDex.dexName, tokenAddress);
+
+      if (chosenPool) {
+        sceneData.dexscreenerLiquidityUsd = chosenPool.liquidity?.usd || 0;
+        sceneData.dexscreenerPoolUrl = chosenPool.url;
+        this.log(
+          "info",
+          ctx,
+          `Dexscreener chosen pool liquidity: $${sceneData.dexscreenerLiquidityUsd} | url: ${sceneData.dexscreenerPoolUrl}`
+        );
+        this.updateSceneData(ctx, sceneData);
+      } else {
+        this.log(
+          "info",
+          ctx,
+          `Dexscreener chosen pool not found. Pools count: ${Array.isArray(pools) ? pools.length : 0}`
+        );
+      }
+    } catch (error) {
+      this.log("error", ctx, `Error fetching Dexscreener liquidity: ${error}`);
+    }
+  }
 
   /**
    * Public method to create transaction success callback
