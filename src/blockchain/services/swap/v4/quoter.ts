@@ -1,13 +1,9 @@
 // src/blockchain/services/swap/v4/quoter.ts
 import { Address, createPublicClient, formatUnits } from "viem";
-import { V4_QUOTER_ADDRESS, ZORA_V4_FEE, V4_POOL_VARIANTS } from "./constants";
+import { V4_QUOTER_ADDRESS, V4_POOL_VARIANTS } from "./constants";
 import { logger } from "@logger";
 import { PoolKey, V4PoolInfo, V4QuoteResult } from "../types";
-import {
-  calculatePoolId,
-  generateCanonicalPoolKey,
-  generateVariantPoolKey,
-} from "./poolKey";
+import { calculatePoolId, generateVariantPoolKey } from "./poolKey";
 import { checkPoolExists } from "./stateView";
 
 export const V4_QUOTER_ABI = [
