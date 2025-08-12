@@ -9,7 +9,7 @@ import {
 } from "@abis";
 import { contracts } from "@config";
 import { logger } from "@logger";
-import { getV4QuoteSell } from "../swap/uniswapV4Service";
+import { getV4QuoteSell } from "../swap/v4/quoter";
 
 const ONLYSUMMARY = true;
 
