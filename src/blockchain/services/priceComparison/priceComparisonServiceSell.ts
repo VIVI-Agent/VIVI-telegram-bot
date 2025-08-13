@@ -9,7 +9,14 @@ import {
 } from "@abis";
 import { contracts } from "@config";
 import { logger } from "@logger";
-import { getV4QuoteSell } from "../swap/v4/quoter";
+import { V4_QUOTER_ABI } from "../swap/v4/quoter";
+import {
+  V4_POOL_VARIANTS,
+  V4_QUOTER_ADDRESS,
+  STATE_VIEW_ADDRESS,
+} from "../swap/v4/constants";
+import { generateVariantPoolKey, calculatePoolId } from "../swap/v4/poolKey";
+import { STATE_VIEW_ABI } from "../swap/v4/stateView";
 
 const ONLYSUMMARY = true;
 
@@ -357,59 +364,7 @@ async function getZoraMultiHopQuoteSell(
   }
 }
 
-/**
- * 6) UniswapV4
- */
-async function getQuoteUniswapV4Sell(
-  publicClient: ReturnType<typeof createPublicClient>,
-  tokenIn: Address,
-  amountIn: bigint,
-  decimalsIn: number, // Decimales del token de entrada
-  decimalsOut: number
-): Promise<DexQuoteResultSell | null> {
-  try {
-    const v4Result = await getV4QuoteSell(
-      publicClient,
-      tokenIn,
-      amountIn,
-      decimalsIn,
-      decimalsOut
-    );
-
-    if (!v4Result) {
-      if (!ONLYSUMMARY) {
-        logger.error(
-          `UniswapV4 SELL failed - No pools found for token ${tokenIn}`
-        );
-      }
-      return null;
-    }
-
-    const result = {
-      dexName: "UniswapV4",
-      amountOut: v4Result.amountOut,
-      formattedOut: v4Result.formattedOut,
-      feeTier: v4Result.feeTier,
-      poolKey: v4Result.poolKey,
-      poolId: v4Result.poolId,
-    };
-
-    if (!ONLYSUMMARY) {
-      logger.info(
-        `UniswapV4 SELL Quote: ${result.formattedOut} ETH for ${formatUnits(
-          amountIn,
-          decimalsIn
-        )} tokens (Pool: ${v4Result.poolId})`
-      );
-    }
-    return result;
-  } catch (err) {
-    if (!ONLYSUMMARY) {
-      logger.error(`UniswapV4 SELL failed - ${err}`);
-    }
-    return null;
-  }
-}
+// V4 is handled inline via multicall above
 
 export async function getBestDexForSellTokenToEth({
   publicClient,
@@ -433,75 +388,287 @@ export async function getBestDexForSellTokenToEth({
   const decimalsOut = 18;
   const tokenAddress = tokenIn.toLowerCase() as Address;
 
-  const [
-    v2Quote,
-    v3Quote,
-    aeroVolatile,
-    aeroStable,
-    apeStoreQuote,
-    virtualTokenQuote,
-    zoraMultiHop,
-    v4Quote,
-  ] = await Promise.all([
-    getQuoteUniswapV2Sell(
-      publicClient,
-      tokenAddress,
-      amountTokenIn,
-      decimalsOut
-    ),
-    getBestQuoteUniswapV3Sell(
-      publicClient,
-      tokenAddress,
-      feeTiers,
-      amountTokenIn,
-      decimalsOut
-    ),
-    getQuoteAerodromeSell(
-      publicClient,
-      tokenAddress,
-      amountTokenIn,
-      decimalsOut,
-      false
-    ),
-    getQuoteAerodromeSell(
-      publicClient,
-      tokenAddress,
-      amountTokenIn,
-      decimalsOut,
-      true
-    ),
-    getQuoteApeStoreSell(publicClient, tokenAddress, amountTokenIn),
-    getVirtualTokenQuoteSell(
-      publicClient,
-      tokenAddress,
-      amountTokenIn,
-      decimalsOut
-    ),
-    getZoraMultiHopQuoteSell(
-      publicClient,
-      tokenAddress,
-      amountTokenIn,
-      decimalsOut
-    ),
-    getQuoteUniswapV4Sell(
-      publicClient,
-      tokenAddress,
-      amountTokenIn,
-      decimalsIn,
-      decimalsOut
-    ),
-  ]);
+  // Build multicall batch for all non-V4 quotes
+  const calls: any[] = [];
+  const callMeta: Array<
+    | { type: "v2" }
+    | { type: "v3"; fee: number }
+    | { type: "aero"; stable: boolean }
+    | { type: "ape" }
+    | { type: "zora"; path: string }
+    | { type: "virtual" }
+    | { type: "v4_state"; name: string; poolId: string }
+    | {
+        type: "v4_quote";
+        name: string;
+        poolId: string;
+        isTokenCurrency0: boolean;
+        poolKey: any;
+      }
+  > = [];
 
-  const quotes = [
-    v2Quote,
-    v3Quote,
-    aeroVolatile,
-    aeroStable,
-    apeStoreQuote,
-    virtualTokenQuote,
-    zoraMultiHop,
-    v4Quote,
-  ].filter(Boolean) as DexQuoteResultSell[];
+  // V2 TOKEN -> ETH
+  calls.push({
+    address: contracts.UNISWAPV2_ROUTER as Address,
+    abi: uniswapV2RouterAbi,
+    functionName: "getAmountsOut",
+    args: [amountTokenIn, [tokenAddress, contracts.ETH as Address]],
+  });
+  callMeta.push({ type: "v2" });
+
+  // V3 single-hop across fee tiers TOKEN -> ETH
+  for (const fee of feeTiers) {
+    calls.push({
+      address: contracts.UNISWAP_V3_QUOTER_ADDRESS as Address,
+      abi: uniswapV3QuoterAbi,
+      functionName: "quoteExactInputSingle",
+      args: [
+        {
+          tokenIn: tokenAddress,
+          tokenOut: contracts.ETH as Address,
+          fee,
+          amountIn: amountTokenIn,
+          sqrtPriceLimitX96: 0n,
+        },
+      ],
+    });
+    callMeta.push({ type: "v3", fee });
+  }
+
+  // Aerodrome volatile/stable TOKEN -> WETH
+  const AERO_ROUTER = "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43" as Address;
+  const AERO_VOL_FACTORY =
+    "0x420dd381b31aef6683db6b902084cb0ffece40da" as Address;
+  const AERO_STABLE_FACTORY =
+    "0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A" as Address;
+  calls.push({
+    address: AERO_ROUTER,
+    abi: aerodromeRouterAbi,
+    functionName: "getAmountsOut",
+    args: [
+      amountTokenIn,
+      [
+        {
+          from: tokenAddress,
+          to: contracts.ETH as Address,
+          stable: false,
+          factory: AERO_VOL_FACTORY,
+        },
+      ],
+    ],
+  });
+  callMeta.push({ type: "aero", stable: false });
+  calls.push({
+    address: AERO_ROUTER,
+    abi: aerodromeRouterAbi,
+    functionName: "getAmountsOut",
+    args: [
+      amountTokenIn,
+      [
+        {
+          from: tokenAddress,
+          to: contracts.ETH as Address,
+          stable: true,
+          factory: AERO_STABLE_FACTORY,
+        },
+      ],
+    ],
+  });
+  callMeta.push({ type: "aero", stable: true });
+
+  // ApeStore sellQuote
+  calls.push({
+    address: contracts.APESTORE_ROUTER_ADDRESS as Address,
+    abi: apeStoreRouterAbi,
+    functionName: "sellQuote",
+    args: [tokenAddress, amountTokenIn],
+  });
+  callMeta.push({ type: "ape" });
+
+  // VirtualToken TOKEN -> VIRTUAL -> ETH (V2 path)
+  const VIRTUAL_TOKEN = "0x0b3e328455c4059eeb9e3f84b5543f74e24e7e1b" as Address;
+  calls.push({
+    address: contracts.UNISWAPV2_ROUTER as Address,
+    abi: uniswapV2RouterAbi,
+    functionName: "getAmountsOut",
+    args: [
+      amountTokenIn,
+      [tokenAddress, VIRTUAL_TOKEN, contracts.ETH as Address],
+    ],
+  });
+  callMeta.push({ type: "virtual" });
+
+  // V4 variants: add existence check and quoter call per variant
+  for (const variant of V4_POOL_VARIANTS) {
+    const { poolKey, isTokenCurrency0 } = generateVariantPoolKey(
+      tokenAddress,
+      variant
+    );
+    const poolId = calculatePoolId(poolKey);
+    // Existence check (optional)
+    calls.push({
+      address: STATE_VIEW_ADDRESS as Address,
+      abi: STATE_VIEW_ABI,
+      functionName: "getSlot0",
+      args: [poolId as Address],
+    });
+    callMeta.push({ type: "v4_state", name: variant.name, poolId });
+
+    const zeroForOne = isTokenCurrency0; // sell: TOKEN -> ETH
+    const quoteParams = {
+      poolKey: {
+        currency0: poolKey.currency0,
+        currency1: poolKey.currency1,
+        fee: poolKey.fee,
+        tickSpacing: poolKey.tickSpacing,
+        hooks: poolKey.hooks,
+      },
+      zeroForOne,
+      exactAmount: amountTokenIn,
+      hookData: "0x" as `0x${string}`,
+    } as const;
+    calls.push({
+      address: V4_QUOTER_ADDRESS as Address,
+      abi: V4_QUOTER_ABI,
+      functionName: "quoteExactInputSingle",
+      args: [quoteParams],
+    });
+    callMeta.push({
+      type: "v4_quote",
+      name: variant.name,
+      poolId,
+      isTokenCurrency0,
+      poolKey,
+    });
+  }
+
+  // Zora multi-hop TOKEN -> ZORA -> USDC -> ETH
+  const fee1 = 10000; // TOKEN → ZORA
+  const fee2 = 3000; // ZORA → USDC
+  const fee3 = 500; // USDC → ETH
+  const zoraPath = `0x${[
+    tokenAddress.slice(2),
+    fee1.toString(16).padStart(6, "0"),
+    (contracts.ZORA_TOKEN_ADDRESS as Address).slice(2),
+    fee2.toString(16).padStart(6, "0"),
+    (contracts.USDC_TOKEN_ADDRESS as Address).slice(2),
+    fee3.toString(16).padStart(6, "0"),
+    (contracts.ETH as Address).slice(2),
+  ].join("")}`;
+  calls.push({
+    address: contracts.UNISWAP_V3_QUOTER_ADDRESS as Address,
+    abi: uniswapV3QuoterAbi,
+    functionName: "quoteExactInput",
+    args: [zoraPath as unknown as Address, amountTokenIn],
+  });
+  callMeta.push({ type: "zora", path: zoraPath });
+
+  // Execute multicall
+  const MULTICALL3_BASE =
+    "0xcA11bde05977b3631167028862bE2a173976CA11" as Address;
+  const multiResults: any[] = (await publicClient.multicall({
+    contracts: calls,
+    allowFailure: true,
+    multicallAddress: MULTICALL3_BASE,
+  })) as any[];
+
+  const parsedQuotes: DexQuoteResultSell[] = [];
+  let bestV3Out = 0n;
+  let bestV3Tier = 0;
+  const v4Parsed: DexQuoteResultSell[] = [];
+
+  for (let i = 0; i < multiResults.length; i++) {
+    const meta = callMeta[i] as any;
+    const res = multiResults[i];
+    if (!res || res.status === "failure") continue;
+    const value = res.result as any;
+
+    if (meta.type === "v2") {
+      const amounts = value as bigint[];
+      const out = amounts[amounts.length - 1];
+      parsedQuotes.push({
+        dexName: "UniswapV2",
+        amountOut: out.toString(),
+        formattedOut: formatUnits(out, decimalsOut),
+        feeTier: 3000,
+      });
+    } else if (meta.type === "v3") {
+      const tuple = value as [bigint, bigint, number, bigint];
+      const amountOut = tuple[0];
+      if (amountOut > bestV3Out) {
+        bestV3Out = amountOut;
+        bestV3Tier = meta.fee as number;
+      }
+    } else if (meta.type === "aero") {
+      const amounts = value as bigint[];
+      const out = amounts[amounts.length - 1];
+      parsedQuotes.push({
+        dexName: meta.stable ? "AerodromeStable" : "AerodromeVolatile",
+        amountOut: out.toString(),
+        formattedOut: formatUnits(out, decimalsOut),
+        feeTier: meta.stable ? 500 : 3000,
+      });
+    } else if (meta.type === "ape") {
+      const out = value as bigint;
+      parsedQuotes.push({
+        dexName: "ApeStore",
+        amountOut: out.toString(),
+        formattedOut: formatUnits(out, decimalsOut),
+        feeTier: 0,
+      });
+    } else if (meta.type === "virtual") {
+      const amounts = value as bigint[];
+      const out = amounts[amounts.length - 1];
+      parsedQuotes.push({
+        dexName: "VirtualToken",
+        amountOut: out.toString(),
+        formattedOut: formatUnits(out, decimalsOut),
+        feeTier: 3000,
+        path: [tokenAddress, VIRTUAL_TOKEN, contracts.ETH].join(" → "),
+      });
+    } else if (meta.type === "zora") {
+      const tuple = value as [bigint, bigint[], number[], bigint];
+      const amountOut = tuple[0];
+      parsedQuotes.push({
+        dexName: "ZoraMultiHop",
+        amountOut: amountOut.toString(),
+        formattedOut: formatUnits(amountOut, decimalsOut),
+        feeTier: fee1,
+        path: meta.path,
+        fees: [fee1, fee2, fee3],
+      });
+    } else if (meta.type === "v4_state") {
+      // optional existence check
+    } else if (meta.type === "v4_quote") {
+      const [amountOut] = value as [bigint, bigint];
+      v4Parsed.push({
+        dexName: "UniswapV4",
+        amountOut: amountOut.toString(),
+        formattedOut: formatUnits(amountOut, decimalsOut),
+        feeTier: meta.poolKey.fee,
+        poolKey: meta.poolKey,
+        poolId: meta.poolId,
+      });
+    }
+  }
+
+  // Add best V3 if found
+  if (bestV3Out > 0n) {
+    parsedQuotes.push({
+      dexName: "UniswapV3",
+      amountOut: bestV3Out.toString(),
+      formattedOut: formatUnits(bestV3Out, decimalsOut),
+      feeTier: bestV3Tier,
+    });
+  }
+
+  const quotes = [...parsedQuotes, ...v4Parsed] as DexQuoteResultSell[];
+  let v4Quote: DexQuoteResultSell | undefined = undefined;
+  for (const q of v4Parsed) {
+    if (!v4Quote || BigInt(q.amountOut) > BigInt(v4Quote.amountOut)) {
+      v4Quote = q;
+    }
+  }
 
   if (quotes.length === 0) {
     logger.error(`No liquidity found on any DEX for token ${tokenIn}`);
@@ -537,20 +704,36 @@ export async function getBestDexForSellTokenToEth({
   } else {
     logger.info(`🏆 BEST: ${best.dexName} - ${best.formattedOut} ETH`);
   }
+  const findByName = (name: string) =>
+    quotes.find((q) => q.dexName === name) as DexQuoteResultSell | undefined;
   logger.info(`📊 All Quotes:`);
-  logger.info(`  • UniswapV2: ${v2Quote?.formattedOut || "N/A"}`);
   logger.info(
-    `  • UniswapV3: ${v3Quote?.formattedOut || "N/A"} ${
-      v3Quote ? `(fee: ${v3Quote.feeTier})` : ""
+    `  • UniswapV2: ${findByName("UniswapV2")?.formattedOut || "N/A"}`
+  );
+  const v3Best = findByName("UniswapV3");
+  logger.info(
+    `  • UniswapV3: ${v3Best?.formattedOut || "N/A"} ${
+      v3Best ? `(fee: ${v3Best.feeTier})` : ""
     }`
   );
-  logger.info(`  • AerodromeVolatile: ${aeroVolatile?.formattedOut || "N/A"}`);
-  logger.info(`  • AerodromeStable: ${aeroStable?.formattedOut || "N/A"}`);
-  logger.info(`  • ApeStore: ${apeStoreQuote?.formattedOut || "N/A"}`);
-  logger.info(`  • VirtualToken: ${virtualTokenQuote?.formattedOut || "N/A"}`);
   logger.info(
-    `  • ZoraMultiHop: ${zoraMultiHop?.formattedOut || "N/A"} ${
-      zoraMultiHop ? `(fees: ${zoraMultiHop.fees?.join(",")})` : ""
+    `  • AerodromeVolatile: ${
+      findByName("AerodromeVolatile")?.formattedOut || "N/A"
+    }`
+  );
+  logger.info(
+    `  • AerodromeStable: ${
+      findByName("AerodromeStable")?.formattedOut || "N/A"
+    }`
+  );
+  logger.info(`  • ApeStore: ${findByName("ApeStore")?.formattedOut || "N/A"}`);
+  logger.info(
+    `  • VirtualToken: ${findByName("VirtualToken")?.formattedOut || "N/A"}`
+  );
+  const zora = findByName("ZoraMultiHop");
+  logger.info(
+    `  • ZoraMultiHop: ${zora?.formattedOut || "N/A"} ${
+      zora && zora.fees ? `(fees: ${zora.fees.join(",")})` : ""
     }`
   );
   logger.info(
@@ -562,13 +745,13 @@ export async function getBestDexForSellTokenToEth({
 
   return {
     best,
-    v2: v2Quote,
-    v3: v3Quote,
-    aeroVolatile,
-    aeroStable,
-    apeStore: apeStoreQuote,
-    virtualToken: virtualTokenQuote,
-    zoraMultiHop,
+    v2: findByName("UniswapV2"),
+    v3: findByName("UniswapV3"),
+    aeroVolatile: findByName("AerodromeVolatile"),
+    aeroStable: findByName("AerodromeStable"),
+    apeStore: findByName("ApeStore"),
+    virtualToken: findByName("VirtualToken"),
+    zoraMultiHop: findByName("ZoraMultiHop"),
     v4: v4Quote,
   };
 }
