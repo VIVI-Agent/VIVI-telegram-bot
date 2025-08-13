@@ -57,7 +57,9 @@ export const TRADE_TEXTS = {
         maximumFractionDigits: 4,
       });
       let dexName = ""; // This should come from bestDex
+
       const feeTier = bestDex?.feeTier ? `| ${bestDex.feeTier / 10000}%` : "";
+
       // Pool info
       if (bestDex.dexName === "ZoraMultiHop") {
         dexName += `🦄 ZoraToken | 1%\n`;
@@ -68,7 +70,7 @@ export const TRADE_TEXTS = {
       } else {
         const emoji = bestDex.dexName.includes("Uniswap") ? "🦄" : "✈️";
         dexName += `${emoji} ${bestDex.dexName} ${
-          feeTier === "838.8608%" ? "ClankerV4" : feeTier
+          feeTier === "| 838.8608%" ? "" : feeTier
         }\n`;
       }
       // Format wallet balances in chunks of 3 wallets per line
