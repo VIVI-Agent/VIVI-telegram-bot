@@ -54,13 +54,7 @@ function createTextHandlerTransactionSuccessCallback(
         `[sellTextHandler] Executing transaction success callback for user ${userId}`
       );
 
-      try {
-        await handleRefreshFull(ctx);
-      } catch (error) {
-        logger.error(`[buyTextHandler] Error refreshing full:`, error);
-      }
-
-      // Step 2: Update ETH balance for the selected wallet
+      // Update ETH balance for the selected wallet (single read)
       const newEthBalanceBN = await getWalletBalance(wallet.address as Address);
       await ctx.services.walletService.updateWalletBalance(
         wallet.id,
@@ -70,61 +64,23 @@ function createTextHandlerTransactionSuccessCallback(
         `[sellTextHandler] Updated ETH balance for wallet ${wallet.id}: ${newEthBalanceBN}`
       );
 
-      // Step 3: Update token balance with retry until blockchain balance is > 0
-      const maxRetries = 15;
-      const retryDelay = 100; // 100ms between retries
-      let tokenBalanceBN = 0n;
-      let retryCount = 0;
+      // Update token balance once (can be 0 after a full sell)
+      const tokenBalanceBN = await getTokenBalance(
+        tokenData.address as Address,
+        wallet.address as Address
+      );
 
-      while (retryCount < maxRetries && tokenBalanceBN === 0n) {
-        tokenBalanceBN = await getTokenBalance(
-          tokenData.address as Address,
-          wallet.address as Address
-        );
+      await ctx.services.holdingService.updateHoldingFromChain({
+        userId: userId,
+        tokenId: tokenData.id,
+        walletId: wallet.id,
+        newBalance: tokenBalanceBN,
+      });
+      logger.info(
+        `[sellTextHandler] Updated token balance for wallet ${wallet.id}, token ${tokenData.symbol}: ${tokenBalanceBN}`
+      );
 
-        logger.info(
-          `[sellTextHandler] Attempt ${
-            retryCount + 1
-          }: Blockchain balance for wallet ${wallet.id}, token ${
-            tokenData.symbol
-          }: ${tokenBalanceBN}`
-        );
-
-        if (tokenBalanceBN > 0n) {
-          logger.info(
-            `[sellTextHandler] Found balance > 0 for wallet ${wallet.id}: ${tokenBalanceBN}`
-          );
-          break;
-        } else {
-          logger.warn(
-            `[sellTextHandler] Balance still 0 for wallet ${wallet.id}, retrying...`
-          );
-          retryCount++;
-          if (retryCount < maxRetries) {
-            logger.info(`[sellTextHandler] Retrying in ${retryDelay}ms...`);
-            await new Promise((resolve) => setTimeout(resolve, retryDelay));
-          }
-        }
-      }
-
-      // Only create/update holding if balance > 0
-      if (tokenBalanceBN > 0n) {
-        await ctx.services.holdingService.updateHoldingFromChain({
-          userId: userId,
-          tokenId: tokenData.id,
-          walletId: wallet.id,
-          newBalance: tokenBalanceBN,
-        });
-        logger.info(
-          `[sellTextHandler] Updated token balance for wallet ${wallet.id}, token ${tokenData.symbol}: ${tokenBalanceBN}`
-        );
-      } else {
-        logger.debug(
-          `[sellTextHandler] Skipping holding update for wallet ${wallet.id}, token ${tokenData.symbol}: balance is 0`
-        );
-      }
-
-      // Step 4: Clear PnL cache for the user
+      // Clear PnL cache for the user
       await ctx.services.pnlCacheService.clearUserPnlCache(userId);
       logger.info(`[sellTextHandler] Cleared PnL cache for user ${userId}`);
 
@@ -913,72 +869,3 @@ export const sellTextHandler: TextHandler = async (
     return true; // We handled it (even if with error)
   }
 };
-
-async function handleRefreshFull(ctx: GlobalSceneContext): Promise<void> {
-  try {
-    // Load fresh user data
-    const tgUserId = ctx.from?.id;
-    if (!tgUserId) return;
-
-    const user = await ctx.services.userService.getUserByTgId(
-      tgUserId.toString()
-    );
-    if (!user) return;
-
-    const wallets = await ctx.services.walletService.getUserWalletsWithHoldings(
-      user.id
-    );
-
-    if (!wallets) {
-      await ctx.answerCbQuery("❌ Failed to refresh. Please try again.");
-      return;
-    }
-
-    // Process all wallets in parallel
-    await Promise.all(
-      wallets.map(async (wallet: WalletWithHoldings) => {
-        try {
-          // Update ETH balance
-          const ethBalance = await getWalletBalance(wallet.address as Address);
-
-          await ctx.services.walletService.updateWalletBalance(
-            wallet.id,
-            ethBalance
-          );
-
-          const holdings = wallet.holdings;
-
-          // Update token balances in parallel
-          await Promise.all(
-            holdings.map(async (holding) => {
-              try {
-                const token = holding.token;
-                const chainBalance = await getTokenBalance(
-                  token.address as Address,
-                  wallet.address as Address
-                );
-
-                if (chainBalance !== BigInt(holding.balance)) {
-                  await ctx.services.holdingService.updateHoldingFromChain({
-                    userId: ctx.user.id,
-                    tokenId: token.id,
-                    walletId: wallet.id,
-                    newBalance: chainBalance,
-                  });
-                }
-              } catch (err) {
-                // Continue with other tokens even if one fails
-              }
-            })
-          );
-        } catch (err) {
-          // Continue with other wallets even if one fails
-        }
-      })
-    );
-
-    return;
-  } catch (error) {
-    return;
-  }
-}
