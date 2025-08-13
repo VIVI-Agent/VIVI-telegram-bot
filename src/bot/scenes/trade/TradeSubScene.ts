@@ -1329,7 +1329,11 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
       const tokenAddress = sceneData.token.address as Address;
       const pools = await getDexscreenerTokenPools(chainId, tokenAddress);
 
-      const chosenPool = selectBestPool(pools, sceneData.bestDex.dexName, tokenAddress);
+      const chosenPool = selectBestPool(
+        pools,
+        sceneData.bestDex.dexName,
+        tokenAddress
+      );
 
       if (chosenPool) {
         sceneData.dexscreenerLiquidityUsd = chosenPool.liquidity?.usd || 0;
@@ -1344,7 +1348,9 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
         this.log(
           "info",
           ctx,
-          `Dexscreener chosen pool not found. Pools count: ${Array.isArray(pools) ? pools.length : 0}`
+          `Dexscreener chosen pool not found. Pools count: ${
+            Array.isArray(pools) ? pools.length : 0
+          }`
         );
       }
     } catch (error) {
@@ -1410,9 +1416,16 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
         return;
       }
 
-      // Step 1: Update balances with retry until blockchain balances are updated
+      // Step 1: Update balances. Use retry logic for buys, single-shot for sells
       this.log("info", ctx, "Updating wallet balances after transaction");
-      await this.updateWalletBalancesAfterTransactionWithRetry(ctx, sceneData);
+      if (transactionType === "buy") {
+        await this.updateWalletBalancesAfterTransactionWithRetry(
+          ctx,
+          sceneData
+        );
+      } else {
+        await this.updateWalletBalancesAfterSellTransaction(ctx, sceneData);
+      }
 
       // Debug: Verify that holdings were created/updated
       this.log(
@@ -1614,7 +1627,6 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
           if (sceneData.token?.address) {
             let tokenBalanceBN = 0n;
             let retryCount = 0;
-            let balanceMatches = false;
 
             // Retry until blockchain balance is > 0 or max retries reached
             while (retryCount < maxRetries && tokenBalanceBN === 0n) {
@@ -1761,6 +1773,83 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
         "error",
         ctx,
         `Error in updateWalletBalancesAfterTransaction: ${error}`
+      );
+    }
+  }
+
+  /**
+   * Update wallet balances after a successful SELL transaction (single-shot, no retry)
+   * - Filters to selected wallets only
+   * - Updates ETH balance once
+   * - Updates token holding once using force update (to allow zero balance)
+   */
+  private async updateWalletBalancesAfterSellTransaction(
+    ctx: GlobalSceneContext,
+    sceneData: TradeSceneData
+  ): Promise<void> {
+    try {
+      const wallets = sceneData.userWithWallets?.wallets || [];
+
+      for (const wallet of wallets) {
+        if (!sceneData.selectedWallets?.includes(wallet.id)) continue;
+        try {
+          const { getWalletBalance, getTokenBalance } = await import(
+            "@blockchain"
+          );
+
+          // Update ETH balance once
+          const newEthBalanceBN = await getWalletBalance(
+            wallet.address as Address
+          );
+          await ctx.services.walletService.updateWalletBalance(
+            wallet.id,
+            newEthBalanceBN
+          );
+          this.log(
+            "info",
+            ctx,
+            `Updated ETH balance for wallet ${wallet.id}: ${newEthBalanceBN}`
+          );
+
+          // Update token holding once (can be zero after selling all)
+          if (sceneData.token?.address) {
+            const tokenBalanceBN = await getTokenBalance(
+              sceneData.token.address as Address,
+              wallet.address as Address
+            );
+
+            this.log(
+              "info",
+              ctx,
+              `Force updating holding for wallet ${wallet.id}, token ${sceneData.token.symbol}: ${tokenBalanceBN}`
+            );
+
+            await ctx.services.holdingService.forceUpdateHoldingFromChain({
+              userId: ctx.user.id,
+              tokenId: sceneData.token.id,
+              walletId: wallet.id,
+              newBalance: tokenBalanceBN,
+            });
+
+            this.log(
+              "info",
+              ctx,
+              `Successfully updated token balance for wallet ${wallet.id}, token ${sceneData.token.symbol}: ${tokenBalanceBN}`
+            );
+          }
+        } catch (error) {
+          this.log(
+            "error",
+            ctx,
+            `Error updating balances for wallet ${wallet.id}: ${error}`
+          );
+        }
+      }
+    } catch (error) {
+      this.log(
+        "error",
+        ctx,
+        `Error in updateWalletBalancesAfterSellTransaction: ${error}`
       );
     }
   }

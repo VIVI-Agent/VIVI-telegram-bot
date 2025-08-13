@@ -57,7 +57,9 @@ export const TRADE_TEXTS = {
         maximumFractionDigits: 4,
       });
       let dexName = ""; // This should come from bestDex
+
       const feeTier = bestDex?.feeTier ? `| ${bestDex.feeTier / 10000}%` : "";
+
       // Pool info
       if (bestDex.dexName === "ZoraMultiHop") {
         dexName += `🦄 ZoraToken | 1%\n`;
@@ -67,7 +69,9 @@ export const TRADE_TEXTS = {
         dexName += `🦄 VirtualToken ${feeTier}\n`;
       } else {
         const emoji = bestDex.dexName.includes("Uniswap") ? "🦄" : "✈️";
-        dexName += `${emoji} ${bestDex.dexName} ${feeTier}\n`;
+        dexName += `${emoji} ${bestDex.dexName} ${
+          feeTier === "| 838.8608%" ? "" : feeTier
+        }\n`;
       }
       // Format wallet balances in chunks of 3 wallets per line
       const chunkSize = 3;
@@ -149,30 +153,35 @@ ${ethBalanceLines.join("\n")}`;
         : `${outputAmount} ${tokenSymbol} \n`;
 
       // Token info section (always show liquidity info)
-      logger.info( 
+      logger.info(
         `[TradeMessages] Liquidity param received: ${dexscreenerLiquidityUsd}`
       );
       let tokenInfoSection = "";
       const hasLiquidity = typeof dexscreenerLiquidityUsd === "number";
       const isApeStore = bestDex.dexName === "ApeStore";
-      logger.info(`[TradeMessages] hasLiquidity: ${hasLiquidity}, isApeStore: ${isApeStore}`);
-      
+      logger.info(
+        `[TradeMessages] hasLiquidity: ${hasLiquidity}, isApeStore: ${isApeStore}`
+      );
+
       const marketCap = tokenInfo
-        ? formatMarketCap(tokenInfo.marketCap) 
+        ? formatMarketCap(tokenInfo.marketCap)
         : undefined;
 
       const lines: string[] = [];
-      
+
       // Always show liquidity line with appropriate message
       if (hasLiquidity) {
-        const liquidityFormatted = dexscreenerLiquidityUsd!.toLocaleString("en-US", {
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
-        });
-        
+        const liquidityFormatted = dexscreenerLiquidityUsd!.toLocaleString(
+          "en-US",
+          {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+          }
+        );
+
         // Add warning for low liquidity pools with different severity levels
         let liquidityLine = `💧 <b>Liquidity:</b> $${liquidityFormatted}`;
-        
+
         if (dexscreenerLiquidityUsd! < 1000) {
           liquidityLine += ` 🚨 <i>Low Liquidity (&lt;1K USD)</i>`;
         } else if (dexscreenerLiquidityUsd! < 5000) {
@@ -180,7 +189,7 @@ ${ethBalanceLines.join("\n")}`;
         } else if (dexscreenerLiquidityUsd! < 10000) {
           liquidityLine += ` 💡 <i>Low Liquidity (&lt;10K USD)</i>`;
         }
-        
+
         lines.push(liquidityLine);
       } else if (isApeStore) {
         // Special case for ApeStore
@@ -191,7 +200,7 @@ ${ethBalanceLines.join("\n")}`;
         const liquidityLine = `💧 <b>Liquidity:</b> 💡 <i>Not available yet - token may be recently deployed</i>`;
         lines.push(liquidityLine);
       }
-      
+
       if (marketCap) lines.push(`📊 <b>MarketCap:</b> ${marketCap}`);
 
       tokenInfoSection = `${lines.join("\n")}\n`;
@@ -255,7 +264,6 @@ export function formatMarketCap(marketCap?: string): string {
     maximumFractionDigits: 0,
   })}`;
 }
-
 
 /**
  * Format holders count
