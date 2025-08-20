@@ -165,15 +165,17 @@ model ExternalPoolInfo {
 }
 
 model Holding {
-    id        Int      @id @default(autoincrement())
-    userId    Int
-    user      User     @relation(fields: [userId], references: [id])
-    tokenId   Int
-    token     Token    @relation(fields: [tokenId], references: [id])
-    walletId  Int
-    wallet    Wallet   @relation(fields: [walletId], references: [id])
-    balance   String
-    updatedAt DateTime @updatedAt
+    id                Int      @id @default(autoincrement())
+    userId            Int
+    user              User     @relation(fields: [userId], references: [id])
+    tokenId           Int
+    token             Token    @relation(fields: [tokenId], references: [id])
+    walletId          Int
+    wallet            Wallet   @relation(fields: [walletId], references: [id])
+    balance           String
+    totalCostBasisWei Decimal  @default(0) @db.Decimal(78, 0)
+    realizedPnlWei    Decimal  @default(0) @db.Decimal(78, 0)
+    updatedAt         DateTime @updatedAt
 }
 
 model Trade {

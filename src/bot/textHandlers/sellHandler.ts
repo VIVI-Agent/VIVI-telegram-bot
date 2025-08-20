@@ -80,9 +80,7 @@ function createTextHandlerTransactionSuccessCallback(
         `[sellTextHandler] Updated token balance for wallet ${wallet.id}, token ${tokenData.symbol}: ${tokenBalanceBN}`
       );
 
-      // Clear PnL cache for the user
-      await ctx.services.pnlCacheService.clearUserPnlCache(userId);
-      logger.info(`[sellTextHandler] Cleared PnL cache for user ${userId}`);
+      // Removed PnL cache clearing
 
       logger.info(
         `[sellTextHandler] Transaction success callback completed for user ${userId}`

@@ -1,12 +1,5 @@
 // src/blockchain/services/swap/v4/wrapperService.ts
-import {
-  Address,
-  Hex,
-  createWalletClient,
-  http,
-  publicActions,
-  parseUnits,
-} from "viem";
+import { Address, Hex } from "viem";
 import { logger } from "@logger";
 import { GlobalSceneContext } from "@types";
 import { DexQuoteResultBuy } from "../../priceComparison/priceComparisonService";
@@ -17,9 +10,11 @@ import {
   estimateBuyGas,
   estimateSellGas,
 } from "../../gasEstimation/gasEstimation";
-import { publicClientDRPC } from "@client";
-import { privateKeyToAccount } from "viem/accounts";
-import { base } from "viem/chains";
+import {
+  publicClientDRPC,
+  publicClientQuickNode,
+  getUserWalletClientQuickNode,
+} from "@client";
 import {
   SwapResult,
   V4IntegratedBuyParams,
@@ -107,16 +102,15 @@ export async function buyTokenV4(params: {
     additionalFeeReceivers,
   };
   const result = await executeV4IntegratedBuy(v4Params);
-
-  const account = privateKeyToAccount(privateKey);
-  const walletClient = createWalletClient({
-    account,
-    chain: base,
-    transport: http(process.env.RPC_URL),
-  }).extend(publicActions);
+  if (!result?.hash || result.hash.length !== 66) {
+    throw new Error(`Invalid tx hash returned by V4 buy: ${result?.hash}`);
+  }
+  const walletClient = getUserWalletClientQuickNode(privateKey);
   return {
     txHash: result.hash,
-    waitReceipt: walletClient.waitForTransactionReceipt({ hash: result.hash }),
+    waitReceipt: publicClientQuickNode.waitForTransactionReceipt({
+      hash: result.hash as `0x${string}`,
+    }),
   };
 }
 
@@ -202,15 +196,14 @@ export async function sellTokenV4(params: {
     additionalFeeReceivers,
   };
   const result = await executeV4IntegratedSell(v4Params);
-
-  const account = privateKeyToAccount(privateKey);
-  const walletClient = createWalletClient({
-    account,
-    chain: base,
-    transport: http(process.env.RPC_URL),
-  }).extend(publicActions);
+  if (!result?.hash || result.hash.length !== 66) {
+    throw new Error(`Invalid tx hash returned by V4 sell: ${result?.hash}`);
+  }
+  const walletClient = getUserWalletClientQuickNode(privateKey);
   return {
     txHash: result.hash,
-    waitReceipt: walletClient.waitForTransactionReceipt({ hash: result.hash }),
+    waitReceipt: publicClientQuickNode.waitForTransactionReceipt({
+      hash: result.hash as `0x${string}`,
+    }),
   };
 }

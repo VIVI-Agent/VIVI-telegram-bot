@@ -9,7 +9,6 @@ import {
   UserService,
   WalletService,
   HoldingService,
-  PnlCacheService,
   AllowanceService,
   Permit2AllowanceService,
   FeeWhitelistService,
@@ -28,7 +27,6 @@ const buySettingsService = new BuySettingsService(prisma);
 const sellSettingsService = new SellSettingsService(prisma);
 const tokenService = new TokenService(prisma);
 const holdingService = new HoldingService(prisma);
-const pnlCacheService = new PnlCacheService(prisma);
 const allowanceService = new AllowanceService(prisma);
 const permit2AllowanceService = new Permit2AllowanceService(prisma);
 const feeWhitelistService = new FeeWhitelistService(prisma);
@@ -45,7 +43,6 @@ export const services = {
   sellSettingsService,
   tokenService,
   holdingService,
-  pnlCacheService,
   allowanceService,
   permit2AllowanceService,
   feeWhitelistService,
@@ -65,7 +62,6 @@ export interface MyServices {
   sellSettingsService: SellSettingsService;
   tokenService: TokenService;
   holdingService: HoldingService;
-  pnlCacheService: PnlCacheService;
   allowanceService: AllowanceService;
   permit2AllowanceService: Permit2AllowanceService;
   feeWhitelistService: FeeWhitelistService;

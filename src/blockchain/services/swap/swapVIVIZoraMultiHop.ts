@@ -172,190 +172,52 @@ export async function buyTokenZoraMultiHop({
     },
     maxRetries: 3,
   });
+  if (!txHash || txHash.length !== 66) {
+    throw new Error(`Invalid tx hash returned by write: ${txHash}`);
+  }
 
   const waitReceipt = (async (): Promise<TransactionReceipt> => {
-    const startTime = Date.now();
-    const MAX_WAIT_TIME = 180000; // 3 minutes in milliseconds
+    const receipt = await waitForReceiptWithFallback({
+      txHash,
+      primaryClient: publicClientQuickNode,
+      fallbackClients: [publicClientDRPC, publicClientBaseOficial],
+      firstPhaseMs: 5000,
+      maxWaitMs: 180000,
+      pollIntervalMs: 500,
+    });
 
-    // Keep trying until we get a receipt or timeout
-    while (Date.now() - startTime < MAX_WAIT_TIME) {
-      logger.info(
-        `Checking receipt for ${txHash} (elapsed: ${Math.floor(
-          (Date.now() - startTime) / 1000
-        )}s)`
-      );
-
-      // Try all RPC providers in sequence
-      // 1. Try QuickNode direct check
-      try {
-        const receipt = await publicClientQuickNode.getTransactionReceipt({
-          hash: txHash,
-        });
-        if (receipt) {
-          logger.info(`QuickNode direct check success for ${txHash}`);
-
-          if (receipt.status === "reverted") {
-            logger.warn(`[buyTokenZoraMultiHop] TX failed => ${txHash}`);
-          }
-
-          let tokensBought = 0n;
-          for (const log of receipt.logs) {
-            try {
-              // Note: We would need to define the proper event in the ABI
-              // For now, we'll use a generic approach to extract token amounts
-              if (log.address.toLowerCase() === tokenAddress.toLowerCase()) {
-                // This is a Transfer event from the target token
-                // We can decode it as a standard ERC20 Transfer
-                const transferSignature =
-                  "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
-                if (log.topics[0] === transferSignature) {
-                  // Third parameter is the amount
-                  tokensBought = BigInt(log.data);
-                }
-              }
-            } catch {}
-          }
-
-          // Ensure allowance for future operations if tokens were bought
-          if (tokensBought > 0n) {
-            setImmediate(() =>
-              ensureAllowanceLogic(ctx, {
-                walletEntity,
-                tokenAddress,
-                requiredAmount: tokensBought,
-                spender: FEE_SWAP_WRAPPER_ZORA,
-                privateKey,
-              }).catch((err) =>
-                logger.error(
-                  "Background ensureAllowance (ZoraMultiHop) failed:",
-                  err
-                )
-              )
-            );
-          }
-
-          return receipt;
-        }
-      } catch (error1: any) {
-        logger.debug(`QuickNode direct check failed: ${error1.message}`);
-      }
-
-      // 2. Try DRPC if available
-      try {
-        const receipt = await publicClientDRPC.getTransactionReceipt({
-          hash: txHash,
-        });
-        if (receipt) {
-          logger.info(`DRPC direct check success for ${txHash}`);
-
-          if (receipt.status === "reverted") {
-            logger.warn(`[buyTokenZoraMultiHop] TX failed => ${txHash}`);
-          }
-
-          let tokensBought = 0n;
-          for (const log of receipt.logs) {
-            try {
-              if (log.address.toLowerCase() === tokenAddress.toLowerCase()) {
-                const transferSignature =
-                  "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
-                if (log.topics[0] === transferSignature) {
-                  tokensBought = BigInt(log.data);
-                }
-              }
-            } catch {}
-          }
-
-          if (tokensBought > 0n) {
-            setImmediate(() =>
-              ensureAllowanceLogic(ctx, {
-                walletEntity,
-                tokenAddress,
-                requiredAmount: tokensBought,
-                spender: FEE_SWAP_WRAPPER_ZORA,
-                privateKey,
-              }).catch((err) =>
-                logger.error(
-                  "Background ensureAllowance (ZoraMultiHop) failed:",
-                  err
-                )
-              )
-            );
-          }
-
-          return receipt;
-        }
-      } catch (error2: any) {
-        logger.debug(`DRPC check failed: ${error2.message}`);
-      }
-
-      // 3. Try Base Official RPC
-      try {
-        const receipt = await publicClientBaseOficial.getTransactionReceipt({
-          hash: txHash,
-        });
-        if (receipt) {
-          logger.info(`Base Official direct check success for ${txHash}`);
-
-          if (receipt.status === "reverted") {
-            logger.warn(`[buyTokenZoraMultiHop] TX failed => ${txHash}`);
-          }
-
-          let tokensBought = 0n;
-          for (const log of receipt.logs) {
-            try {
-              if (log.address.toLowerCase() === tokenAddress.toLowerCase()) {
-                const transferSignature =
-                  "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
-                if (log.topics[0] === transferSignature) {
-                  tokensBought = BigInt(log.data);
-                }
-              }
-            } catch {}
-          }
-
-          if (tokensBought > 0n) {
-            setImmediate(() =>
-              ensureAllowanceLogic(ctx, {
-                walletEntity,
-                tokenAddress,
-                requiredAmount: tokensBought,
-                spender: FEE_SWAP_WRAPPER_ZORA,
-                privateKey,
-              }).catch((err) =>
-                logger.error(
-                  "Background ensureAllowance (ZoraMultiHop) failed:",
-                  err
-                )
-              )
-            );
-          }
-
-          return receipt;
-        }
-      } catch (error3: any) {
-        logger.debug(`Base Official check failed: ${error3.message}`);
-      }
-
-      // If we get here, none of the approaches worked this iteration
-      // Wait a bit before next attempt
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      // Log progress periodically
-      if ((Date.now() - startTime) % 5000 < 1000) {
-        const elapsed = Math.floor((Date.now() - startTime) / 1000);
-        const remaining = Math.floor(
-          (MAX_WAIT_TIME - (Date.now() - startTime)) / 1000
-        );
-        logger.info(
-          `Still searching for receipt: ${elapsed}s elapsed, ${remaining}s remaining`
-        );
-      }
+    if (receipt.status === "reverted") {
+      logger.warn(`[buyTokenZoraMultiHop] TX failed => ${txHash}`);
     }
 
-    // If we exit the loop, we've timed out
-    throw new Error(
-      `Timed out after 3 minutes waiting for receipt for ${txHash}`
-    );
+    let tokensBought = 0n;
+    for (const log of receipt.logs) {
+      try {
+        if (log.address.toLowerCase() === tokenAddress.toLowerCase()) {
+          const transferSignature =
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+          if (log.topics[0] === transferSignature) {
+            tokensBought = BigInt(log.data);
+          }
+        }
+      } catch {}
+    }
+
+    if (tokensBought > 0n) {
+      setImmediate(() =>
+        ensureAllowanceLogic(ctx, {
+          walletEntity,
+          tokenAddress,
+          requiredAmount: tokensBought,
+          spender: FEE_SWAP_WRAPPER_ZORA,
+          privateKey,
+        }).catch((err) =>
+          logger.error("Background ensureAllowance (ZoraMultiHop) failed:", err)
+        )
+      );
+    }
+
+    return receipt;
   })();
 
   return { txHash, waitReceipt };
@@ -518,91 +380,23 @@ export async function sellTokenZoraMultiHop({
     },
     maxRetries: 3,
   });
+  if (!txHash || txHash.length !== 66) {
+    throw new Error(`Invalid tx hash returned by write: ${txHash}`);
+  }
 
   const waitReceipt = (async (): Promise<TransactionReceipt> => {
-    const startTime = Date.now();
-    const MAX_WAIT_TIME = 180000; // 3 minutes in milliseconds
-
-    // Keep trying until we get a receipt or timeout
-    while (Date.now() - startTime < MAX_WAIT_TIME) {
-      logger.info(
-        `Checking receipt for ${txHash} (elapsed: ${Math.floor(
-          (Date.now() - startTime) / 1000
-        )}s)`
-      );
-
-      // Try all RPC providers in sequence
-      // 1. Try QuickNode direct check
-      try {
-        const receipt = await publicClientQuickNode.getTransactionReceipt({
-          hash: txHash,
-        });
-        if (receipt) {
-          logger.info(`QuickNode direct check success for ${txHash}`);
-
-          if (receipt.status === "reverted") {
-            logger.warn(`[sellTokenZoraMultiHop] TX failed => ${txHash}`);
-          }
-          return receipt;
-        }
-      } catch (error1: any) {
-        logger.debug(`QuickNode direct check failed: ${error1.message}`);
-      }
-
-      // 2. Try DRPC if available
-      try {
-        const receipt = await publicClientDRPC.getTransactionReceipt({
-          hash: txHash,
-        });
-        if (receipt) {
-          logger.info(`DRPC direct check success for ${txHash}`);
-
-          if (receipt.status === "reverted") {
-            logger.warn(`[sellTokenZoraMultiHop] TX failed => ${txHash}`);
-          }
-          return receipt;
-        }
-      } catch (error2: any) {
-        logger.debug(`DRPC check failed: ${error2.message}`);
-      }
-
-      // 3. Try Base Official RPC
-      try {
-        const receipt = await publicClientBaseOficial.getTransactionReceipt({
-          hash: txHash,
-        });
-        if (receipt) {
-          logger.info(`Base Official direct check success for ${txHash}`);
-
-          if (receipt.status === "reverted") {
-            logger.warn(`[sellTokenZoraMultiHop] TX failed => ${txHash}`);
-          }
-          return receipt;
-        }
-      } catch (error3: any) {
-        logger.debug(`Base Official check failed: ${error3.message}`);
-      }
-
-      // If we get here, none of the approaches worked this iteration
-      // Wait a bit before next attempt
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      // Log progress periodically
-      if ((Date.now() - startTime) % 5000 < 1000) {
-        const elapsed = Math.floor((Date.now() - startTime) / 1000);
-        const remaining = Math.floor(
-          (MAX_WAIT_TIME - (Date.now() - startTime)) / 1000
-        );
-        logger.info(
-          `Still searching for receipt: ${elapsed}s elapsed, ${remaining}s remaining`
-        );
-      }
+    const receipt = await waitForReceiptWithFallback({
+      txHash,
+      primaryClient: publicClientQuickNode,
+      fallbackClients: [publicClientDRPC, publicClientBaseOficial],
+      firstPhaseMs: 5000,
+      maxWaitMs: 180000,
+      pollIntervalMs: 500,
+    });
+    if (receipt.status === "reverted") {
+      logger.warn(`[sellTokenZoraMultiHop] TX failed => ${txHash}`);
     }
-
-    // If we exit the loop, we've timed out
-    throw new Error(
-      `Timed out after 3 minutes waiting for receipt for ${txHash}`
-    );
+    return receipt;
   })();
 
   return { txHash, waitReceipt };

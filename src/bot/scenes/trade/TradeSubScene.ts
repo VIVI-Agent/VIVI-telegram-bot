@@ -1366,27 +1366,7 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
     transactionType: "buy" | "sell"
   ): () => Promise<void> {
     return async () => {
-      try {
-        await this.service.handleRefreshFull(ctx);
-      } catch (error) {
-        // Handle "query too old" errors gracefully
-        if (
-          error instanceof Error &&
-          error.message.includes("query is too old")
-        ) {
-          this.log(
-            "info",
-            ctx,
-            `Query expired during ${transactionType} refresh - skipping UI update (non-critical)`
-          );
-        } else {
-          this.log(
-            "error",
-            ctx,
-            `Error refreshing after ${transactionType}: ${error}`
-          );
-        }
-      }
+      // Removed full PnL refresh dependency; keep balances refresh only
 
       await this.handleTransactionSuccess(ctx, transactionType);
     };
@@ -1439,10 +1419,7 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
         `User ID: ${userId}, Token Address: ${tokenAddress}`
       );
 
-      // Step 2: Clear PnL cache for the user (adapted for fix/trade-balances)
-      this.log("info", ctx, `Clearing PnL cache for user ${userId}`);
-      await ctx.services.pnlCacheService.clearUserPnlCache(userId);
-      this.log("info", ctx, `Cleared PnL cache for user ${userId}`);
+      // Removed PnL cache clearing
 
       // Step 3: Add a small delay to ensure database consistency after transaction
       this.log(

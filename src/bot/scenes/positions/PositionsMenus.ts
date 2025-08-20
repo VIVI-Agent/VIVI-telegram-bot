@@ -2,7 +2,7 @@ import { GENERIC_BUTTONS } from "@texts";
 import { BaseMenus, GlobalSceneContext, PositionsSceneData } from "../../types";
 import { CB } from "./callbacks";
 import { POSITIONS_TEXTS } from "./messages";
-import { formatPnl, generateTradeLink } from "@utils";
+import { generateTradeLink } from "@utils";
 
 export class PositionsMenus extends BaseMenus {
   constructor(instanceId: string) {
@@ -68,82 +68,36 @@ export class PositionsMenus extends BaseMenus {
     }
   }
 
-  async buildPortfolioView(ctx: GlobalSceneContext, pnlSummary: any[]) {
-    // Sort tokens by total worth (highest first)
-    pnlSummary.sort(
-      (a, b) => parseFloat(b.totalPnlEth) - parseFloat(a.totalPnlEth)
-    );
+  async buildPortfolioView(ctx: GlobalSceneContext, positions: any[]) {
+    // Sort tokens alphabetically by symbol
+    positions.sort((a, b) => a.token.symbol.localeCompare(b.token.symbol));
 
-    let totalWorthEth = 0;
-    let totalProfitLoss = 0;
-
-    // Calculate totals
-    pnlSummary.forEach((item) => {
-      // Total Value should be the current value of all tokens (balance * currentPrice)
-      const currentValue =
-        parseFloat(item.balance) * parseFloat(item.currentPrice);
-      totalWorthEth += currentValue;
-      totalProfitLoss += parseFloat(item.totalPnlEth);
-    });
-
-    // Build the text
     let text = `${POSITIONS_TEXTS.MESSAGES.PORTFOLIO_TITLE}\n\n`;
 
-    if (pnlSummary.length === 0) {
+    if (positions.length === 0) {
       text += POSITIONS_TEXTS.MESSAGES.NO_TOKENS_MESSAGE;
     } else {
-      // Add portfolio summary
-      text += `${POSITIONS_TEXTS.MESSAGES.TOTAL_VALUE} ${this.formatNumberUS(
-        totalWorthEth,
-        4
-      )} ETH\n`;
-      text += `${POSITIONS_TEXTS.MESSAGES.TOTAL_PNL} ${formatPnl(
-        this.formatNumberUS(totalProfitLoss, 4)
-      )} ETH\n\n`;
+      positions.forEach((item) => {
+        const balance = this.formatNumberUS(item.balance, 4);
+        const valueEth = item.valueEth ? `${item.valueEth} Ξ` : "-";
+        const unrealized = item.unrealizedPnlEth
+          ? `${item.unrealizedPnlEth} Ξ`
+          : "-";
+        const pct = item.pnlPct || "-";
+        const realized = item.realizedPnlEth ? `${item.realizedPnlEth} Ξ` : "-";
 
-      // Add token list with PNL
-
-      pnlSummary.forEach((item) => {
-        const pctChange = item.percentageReturn.replace("%", "");
-        const pctFormatted = formatPnl(pctChange);
-
-        // Determine emoji based on profit/loss
-        let emoji = "⚪️";
-        if (parseFloat(pctChange) > 20) emoji = "🟩";
-        else if (parseFloat(pctChange) > 0) emoji = "🟩";
-        else if (parseFloat(pctChange) < -20) emoji = "🟥";
-        else if (parseFloat(pctChange) < 0) emoji = "🟧";
-
-        // Create buy and sell links for the token
         try {
-          text += `${emoji} <b><a href="${generateTradeLink({
+          text += `• <b><a href="${generateTradeLink({
             tokenAddress: item.token.address,
             mode: "sell",
-          })}">${item.token.symbol}</a></b>: ${this.formatNumberUS(
-            item.balance,
-            4
-          )}\n`;
-        } catch (error) {
-          // Fallback to non-clickeable if link generation fails
-          this.log(
-            "warn",
-            ctx,
-            `Failed to generate trade links for ${item.token.symbol}: ${error}`
-          );
-          text += `${emoji} <b>${item.token.symbol}</b>: ${this.formatNumberUS(
-            item.balance,
-            4
-          )}\n`;
+          })}">${item.token.symbol}</a></b>: ${balance}\n`;
+        } catch {
+          text += `• <b>${item.token.symbol}</b>: ${balance}\n`;
         }
 
-        text += `${POSITIONS_TEXTS.MESSAGES.TOTAL_PNL} ${formatPnl(
-          item.totalPnlEth
-        )} Ξ (${pctFormatted}%)`;
-
-        text += ` ${POSITIONS_TEXTS.MESSAGES.TOTAL_VALUE} ${this.formatNumberUS(
-          parseFloat(item.balance) * parseFloat(item.currentPrice),
-          4
-        )} Ξ\n\n`;
+        text += `  - Value: ${valueEth}\n`;
+        text += `  - Unrealized: ${unrealized} (${pct})\n`;
+        text += `  - Realized: ${realized}\n`;
       });
     }
 

@@ -9,6 +9,5 @@ export const POSITIONS_TEXTS = {
     PORTFOLIO_TITLE: "<b>💰 Positions</b>",
     NO_TOKENS_MESSAGE: "You don't have any tokens yet.\n",
     TOTAL_VALUE: "<b>Worth:</b>",
-    TOTAL_PNL: "<b>PNL:</b>",
   },
 } as const;

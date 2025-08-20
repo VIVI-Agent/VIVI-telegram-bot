@@ -1,4 +1,4 @@
-import { Holding, PrismaClient, Token, Wallet } from "@prisma/client";
+import { Holding, Prisma, PrismaClient, Token, Wallet } from "@prisma/client";
 import { isAddress } from "viem";
 
 export type HoldingWithToken = Holding & { token: Token };
@@ -40,6 +40,127 @@ export class HoldingService {
         data: { balance: balanceStr },
       });
     }
+  }
+
+  /**
+   * Update PnL state after a BUY executed inside the bot (ignoring gas/fees).
+   * - Increases totalCostBasisWei by ethSpentWei
+   * - Does NOT change realizedPnlWei
+   */
+  async updatePnLOnBuy(params: {
+    userId: number;
+    tokenId: number;
+    walletId: number;
+    ethSpentWei: bigint;
+  }): Promise<void> {
+    const { userId, tokenId, walletId, ethSpentWei } = params;
+
+    await this.prisma.$transaction(async (tx) => {
+      // Ensure holding row exists
+      let holding = await tx.holding.findFirst({
+        where: { userId, tokenId, walletId },
+      });
+
+      if (!holding) {
+        holding = await tx.holding.create({
+          data: {
+            userId,
+            tokenId,
+            walletId,
+            balance: "0",
+          },
+        });
+        // Set initial cost basis and realized PnL (cast to any until migration is applied)
+        await tx.holding.update({
+          where: { id: holding.id },
+          data: {
+            // @ts-ignore – field available after migration
+            totalCostBasisWei: new Prisma.Decimal(ethSpentWei.toString()),
+            // @ts-ignore – field available after migration
+            realizedPnlWei: new Prisma.Decimal(0),
+          } as any,
+        });
+        return;
+      }
+
+      const currentCostBasis = new Prisma.Decimal(
+        // @ts-ignore existing deployments may not have the column until migration runs
+        (holding as any).totalCostBasisWei ?? "0"
+      );
+      const updatedCostBasis = currentCostBasis.plus(
+        new Prisma.Decimal(ethSpentWei.toString())
+      );
+
+      await tx.holding.update({
+        where: { id: holding.id },
+        data: {
+          // @ts-ignore – field available after migration
+          totalCostBasisWei: updatedCostBasis,
+        } as any,
+      });
+    });
+  }
+
+  /**
+   * Update PnL state after a SELL executed inside the bot (ignoring gas/fees).
+   * Uses weighted-average cost.
+   */
+  async updatePnLOnSell(params: {
+    userId: number;
+    tokenId: number;
+    walletId: number;
+    tokensSoldWei: bigint;
+    ethReceivedWei: bigint;
+  }): Promise<void> {
+    const { userId, tokenId, walletId, tokensSoldWei, ethReceivedWei } = params;
+
+    if (tokensSoldWei <= 0n) return;
+
+    await this.prisma.$transaction(async (tx) => {
+      const holding = await tx.holding.findFirst({
+        where: { userId, tokenId, walletId },
+      });
+      if (!holding) return;
+
+      const balanceBefore = BigInt(holding.balance || "0");
+      if (balanceBefore <= 0n) return;
+
+      const costBasisWei = new Prisma.Decimal(
+        // @ts-ignore may not exist before migration
+        (holding as any).totalCostBasisWei ?? "0"
+      );
+      const realizedAccum = new Prisma.Decimal(
+        // @ts-ignore may not exist before migration
+        (holding as any).realizedPnlWei ?? "0"
+      );
+
+      // avgCostWeiPerTokenWei = costBasisWei / balanceBefore
+      // costBasisSold = avg * tokensSoldWei
+      const avgCostPerToken = costBasisWei.div(
+        new Prisma.Decimal(balanceBefore.toString())
+      );
+      const costBasisSold = avgCostPerToken.mul(
+        new Prisma.Decimal(tokensSoldWei.toString())
+      );
+
+      const proceeds = new Prisma.Decimal(ethReceivedWei.toString());
+      const realized = proceeds.minus(costBasisSold);
+
+      // Update realized and reduce cost basis
+      let newCostBasis = costBasisWei.minus(costBasisSold);
+      if (newCostBasis.isNegative()) newCostBasis = new Prisma.Decimal(0);
+      const newRealized = realizedAccum.plus(realized);
+
+      await tx.holding.update({
+        where: { id: holding.id },
+        data: {
+          // @ts-ignore – fields available after migration
+          totalCostBasisWei: newCostBasis,
+          // @ts-ignore – fields available after migration
+          realizedPnlWei: newRealized,
+        } as any,
+      });
+    });
   }
 
   /**
@@ -103,27 +224,6 @@ export class HoldingService {
     });
   }
 
-  async getHoldingById(holdingId: number): Promise<HoldingWithToken | null> {
-    return await this.prisma.holding.findUnique({
-      where: { id: holdingId },
-      include: { token: true },
-    });
-  }
-
-  async getHoldingByTokenId(
-    userId: number,
-    tokenId: number
-  ): Promise<Holding | null> {
-    return await this.prisma.holding.findFirst({
-      where: {
-        userId,
-        tokenId,
-        balance: { not: "0" },
-        wallet: { isDeleted: false },
-      },
-    });
-  }
-
   async getHoldingWithToken(
     walletId: number,
     tokenId: number
@@ -133,22 +233,6 @@ export class HoldingService {
         walletId,
         tokenId,
         balance: { not: "0" },
-        wallet: { isDeleted: false },
-      },
-      include: { token: true },
-    });
-  }
-
-  async getHoldingWithTokenByUserWalletToken(
-    userId: number,
-    walletId: number,
-    tokenId: number
-  ): Promise<HoldingWithToken | null> {
-    return await this.prisma.holding.findFirst({
-      where: {
-        userId,
-        walletId,
-        tokenId,
         wallet: { isDeleted: false },
       },
       include: { token: true },
@@ -214,64 +298,6 @@ export class HoldingService {
         : lowerValue;
 
       return withoutDollarSymbol === withoutDollarInput;
-    });
-  }
-
-  public async updateHoldingCostBasis(
-    holdingId: number,
-    ethSpent: bigint,
-    tokensBought: bigint,
-    currentCostBasis: bigint,
-    currentTokensBought: bigint
-  ): Promise<void> {
-    await this.prisma.holding.update({
-      where: { id: holdingId },
-      data: {
-        totalCostBasis: (currentCostBasis + ethSpent).toString(),
-        totalTokensBought: (currentTokensBought + tokensBought).toString(),
-      },
-    });
-  }
-
-  public async updateHoldingCostBasisSell(
-    holdingId: number,
-    ethReceived: bigint,
-    tokensSold: bigint,
-    currentCostBasis: bigint,
-    currentTokensBought: bigint,
-    currentRealizedPnl: bigint,
-    isCompletelyLiquidated: boolean
-  ): Promise<void> {
-    // Calculate the portion of cost basis being realized
-    const costBasisPortion =
-      currentTokensBought > 0n
-        ? (currentCostBasis * tokensSold) / currentTokensBought
-        : 0n;
-
-    // Calculate profit/loss for this sale
-    const tradePnl = ethReceived - costBasisPortion;
-
-    let realizedPnlToSave: string;
-    if (isCompletelyLiquidated) {
-      // Si liquida la posición, guarda el realizedPnl acumulado + tradePnl de la venta final
-      realizedPnlToSave = (currentRealizedPnl + tradePnl).toString();
-    } else {
-      realizedPnlToSave = (currentRealizedPnl + tradePnl).toString();
-    }
-
-    await this.prisma.holding.update({
-      where: { id: holdingId },
-      data: {
-        totalCostBasis: isCompletelyLiquidated
-          ? "0"
-          : (currentCostBasis - costBasisPortion).toString(),
-        totalTokensBought: isCompletelyLiquidated
-          ? "0"
-          : (currentTokensBought - tokensSold).toString(),
-        realizedPnlWei: isCompletelyLiquidated
-          ? realizedPnlToSave // Guarda el realizedPnl final de la posición
-          : realizedPnlToSave,
-      },
     });
   }
 }
