@@ -23,6 +23,7 @@ import {
   ensureAllowanceLogic,
   writeContractWithRetries,
   SwapResult,
+  waitForReceiptWithFallback,
 } from "@blockchain";
 
 import { decryptPrivateKey } from "@services";
