@@ -2,7 +2,7 @@ import { BaseService, GlobalSceneContext } from "../../types";
 import { getTokenBalance } from "blockchain/transactions/balanceToken";
 import { Address, formatUnits, getAddress } from "viem";
 import { getBestDexForSellTokenToEth } from "@blockchain";
-import { publicClientQuickNode } from "@client";
+import { publicClientDRPC } from "@client";
 
 export class PositionsService extends BaseService {
   private isActive: boolean = true;
@@ -92,60 +92,57 @@ export class PositionsService extends BaseService {
         (v) => v.totalBalanceWei > 0n
       );
 
-      const data = [] as Array<{
-        token: any;
-        balance: string; // human
-        valueEth: string; // human
-        unrealizedPnlEth: string; // human
-        pnlPct: string; // e.g., 12.34%
-        realizedPnlEth: string; // human
-      }>;
+      const data = await Promise.all(
+        entries.map(async (v) => {
+          try {
+            const { best } = await getBestDexForSellTokenToEth({
+              publicClient: publicClientDRPC,
+              tokenIn: getAddress(v.token.address) as Address,
+              feeTiers: [100, 500, 3000, 10000],
+              amountTokenIn: v.totalBalanceWei,
+              decimalsIn: v.token.decimals,
+            });
 
-      for (const v of entries) {
-        try {
-          const { best } = await getBestDexForSellTokenToEth({
-            publicClient: publicClientQuickNode,
-            tokenIn: getAddress(v.token.address) as Address,
-            feeTiers: [100, 500, 3000, 10000],
-            amountTokenIn: v.totalBalanceWei,
-            decimalsIn: v.token.decimals,
-          });
+            if (!best) {
+              throw new Error("No best quote returned");
+            }
 
-          const quoteOutWei = BigInt(best.amountOut);
-          const valueEth = parseFloat(formatUnits(quoteOutWei, 18));
-          const costEth = parseFloat(formatUnits(v.totalCostBasisWei, 18));
-          const unrealizedWei = quoteOutWei - v.totalCostBasisWei;
-          const unrealizedEth = parseFloat(formatUnits(unrealizedWei, 18));
-          const realizedEth = parseFloat(formatUnits(v.realizedPnlWei, 18));
-          const pct = costEth > 0 ? (unrealizedEth / costEth) * 100 : 0;
+            const quoteOutWei = BigInt(best.amountOut);
+            const valueEth = parseFloat(formatUnits(quoteOutWei, 18));
+            const costEth = parseFloat(formatUnits(v.totalCostBasisWei, 18));
+            const unrealizedWei = quoteOutWei - v.totalCostBasisWei;
+            const unrealizedEth = parseFloat(formatUnits(unrealizedWei, 18));
+            const realizedEth = parseFloat(formatUnits(v.realizedPnlWei, 18));
+            const pct = costEth > 0 ? (unrealizedEth / costEth) * 100 : 0;
 
-          data.push({
-            token: v.token,
-            balance: formatUnits(v.totalBalanceWei, v.token.decimals),
-            valueEth: valueEth.toFixed(4),
-            unrealizedPnlEth: unrealizedEth.toFixed(4),
-            pnlPct: `${pct.toFixed(2)}%`,
-            realizedPnlEth: realizedEth.toFixed(4),
-          });
-        } catch (error) {
-          this.log(
-            "warn",
-            ctx,
-            `Quote failed for ${v.token.symbol} (${v.token.address}): ${error}`
-          );
-          // Fallback: show balance without value
-          data.push({
-            token: v.token,
-            balance: formatUnits(v.totalBalanceWei, v.token.decimals),
-            valueEth: "-",
-            unrealizedPnlEth: "-",
-            pnlPct: "-",
-            realizedPnlEth: parseFloat(
-              formatUnits(v.realizedPnlWei, 18)
-            ).toFixed(4),
-          });
-        }
-      }
+            return {
+              token: v.token,
+              balance: formatUnits(v.totalBalanceWei, v.token.decimals),
+              valueEth: valueEth.toFixed(4),
+              unrealizedPnlEth: unrealizedEth.toFixed(4),
+              pnlPct: `${pct.toFixed(2)}%`,
+              realizedPnlEth: realizedEth.toFixed(4),
+            };
+          } catch (error) {
+            this.log(
+              "warn",
+              ctx,
+              `Quote failed for ${v.token.symbol} (${v.token.address}): ${error}`
+            );
+            // Fallback: show balance without value
+            return {
+              token: v.token,
+              balance: formatUnits(v.totalBalanceWei, v.token.decimals),
+              valueEth: "-",
+              unrealizedPnlEth: "-",
+              pnlPct: "-",
+              realizedPnlEth: parseFloat(
+                formatUnits(v.realizedPnlWei, 18)
+              ).toFixed(4),
+            };
+          }
+        })
+      );
 
       this.log("info", ctx, `Positions loaded: ${data.length} tokens`);
 
