@@ -1,5 +1,5 @@
 import { BaseService, GlobalSceneContext } from "../../types";
-import { getTokenBalance } from "blockchain/transactions/balanceToken";
+import { ERC20_ABI } from "abis/erc20/erc20";
 import { Address, formatUnits, getAddress } from "viem";
 import { getBestDexForSellTokenToEth } from "@blockchain";
 import { publicClientDRPC } from "@client";
@@ -172,30 +172,58 @@ export class PositionsService extends BaseService {
         ctx.user.id
       );
 
-      // Group holdings by wallet and token for efficient updates
-      const holdingsByWalletToken = new Map<string, any>();
-
-      for (const holding of allHoldings) {
-        const key = `${holding.walletId}-${holding.tokenId}`;
-        holdingsByWalletToken.set(key, holding);
-      }
-
-      // Update balances for each wallet-token combination
+      // Update balances for each wallet using multicall to reduce RPC overhead
       const updatePromises = wallets.map(async (wallet: any) => {
         const walletHoldings = allHoldings.filter(
           (h) => h.walletId === wallet.id
         );
 
-        return Promise.all(
-          walletHoldings.map(async (holding) => {
-            try {
-              // Get current balance from blockchain
-              const currentBalance = await getTokenBalance(
-                holding.token.address as Address,
-                wallet.address as Address
-              );
+        if (walletHoldings.length === 0) {
+          return;
+        }
 
-              // Update holding in database
+        // Build multicall contracts: balanceOf(token, wallet)
+        const contracts = walletHoldings.map((holding) => ({
+          address: (holding.token.address as string).toLowerCase() as Address,
+          abi: ERC20_ABI,
+          functionName: "balanceOf" as const,
+          args: [wallet.address as Address],
+        }));
+
+        let results;
+        try {
+          results = await publicClientDRPC.multicall({
+            allowFailure: true,
+            contracts,
+          });
+        } catch (error) {
+          this.log(
+            "error",
+            ctx,
+            `Multicall failed for wallet ${wallet.address}: ${error}`
+          );
+          return;
+        }
+
+        for (let i = 0; i < walletHoldings.length; i++) {
+          const holding = walletHoldings[i];
+          const res = results[i];
+
+          if (!res || res.status !== "success") {
+            this.log(
+              "warn",
+              ctx,
+              `Multicall balance failed for ${holding.token.symbol} (${holding.token.address}) on wallet ${wallet.address}`
+            );
+            continue;
+          }
+
+          const currentBalance = res.result as bigint;
+          const previousBalance = BigInt(holding.balance ?? "0");
+
+          // Only write if balance actually changed
+          if (currentBalance !== previousBalance) {
+            try {
               await ctx.services.holdingService.updateHoldingFromChain({
                 userId: ctx.user.id,
                 tokenId: holding.tokenId,
@@ -206,17 +234,17 @@ export class PositionsService extends BaseService {
               this.log(
                 "debug",
                 ctx,
-                `Updated ${holding.token.symbol} balance for wallet ${wallet.address}: ${currentBalance}`
+                `Updated ${holding.token.symbol} balance for wallet ${wallet.address}: ${previousBalance} -> ${currentBalance}`
               );
             } catch (error) {
               this.log(
                 "error",
                 ctx,
-                `Failed to update ${holding.token.symbol} balance for wallet ${wallet.address}: ${error}`
+                `Failed to persist balance for ${holding.token.symbol} wallet ${wallet.address}: ${error}`
               );
             }
-          })
-        );
+          }
+        }
       });
 
       await Promise.all(updatePromises);
