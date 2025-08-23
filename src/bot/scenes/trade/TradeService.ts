@@ -24,12 +24,11 @@ import { BaseService, GlobalSceneContext, TradeSceneData } from "../../types";
 import { Address, parseEther, TransactionReceipt } from "viem";
 import { AddressValidator, calculateFinalFee } from "@utils";
 import { TRADE_TEXTS } from "./messages";
-import { publicClientDRPC, publicClientQuickNode } from "@client";
+import { publicClientQuickNode } from "@client";
 import { FEE_TIERS } from "blockchain/services/const";
 import { BuyHandlers } from "./BuyHandlers";
 import { SellHandlers } from "./SellHandlers";
 import { WalletWithHoldings } from "@domain";
-import { ERC20_ABI } from "abis/erc20/erc20";
 
 export class TradeService extends BaseService {
   constructor(instanceId: string) {
@@ -69,52 +68,31 @@ export class TradeService extends BaseService {
 
             const holdings = wallet.holdings;
 
-            if (holdings && holdings.length > 0) {
-              // Build multicall for all token balances in this wallet
-              const contracts = holdings.map((holding) => ({
-                address: (
-                  holding.token.address as string
-                ).toLowerCase() as Address,
-                abi: ERC20_ABI,
-                functionName: "balanceOf" as const,
-                args: [wallet.address as Address],
-              }));
+            // Update token balances in parallel
+            await Promise.all(
+              holdings.map(async (holding) => {
+                try {
+                  const token = holding.token;
+                  const chainBalance = await getTokenBalance(
+                    token.address as Address,
+                    wallet.address as Address
+                  );
 
-              try {
-                const results = await publicClientDRPC.multicall({
-                  allowFailure: true,
-                  contracts,
-                });
-
-                for (let i = 0; i < holdings.length; i++) {
-                  const res = results[i] as any;
-                  const holding = holdings[i];
-                  if (!res || res.status !== "success") {
-                    continue;
+                  if (chainBalance !== BigInt(holding.balance)) {
+                    this.log("info", ctx, "Updating holding");
+                    await ctx.services.holdingService.updateHoldingFromChain({
+                      userId: ctx.user.id,
+                      tokenId: token.id,
+                      walletId: wallet.id,
+                      newBalance: chainBalance,
+                    });
                   }
-                  const currentBalance = res.result as bigint;
-                  const previousBalance = BigInt(holding.balance ?? "0");
-                  if (currentBalance !== previousBalance) {
-                    try {
-                      await ctx.services.holdingService.updateHoldingFromChain({
-                        userId: ctx.user.id,
-                        tokenId: holding.token.id,
-                        walletId: wallet.id,
-                        newBalance: currentBalance,
-                      });
-                    } catch (err) {
-                      this.logError(
-                        ctx,
-                        "handleRefresh:updateHoldingFromChain",
-                        err
-                      );
-                    }
-                  }
+                } catch (err) {
+                  this.logError(ctx, "handleRefresh", err);
+                  // Continue with other tokens even if one fails
                 }
-              } catch (err) {
-                this.logError(ctx, "handleRefresh:multicall", err);
-              }
-            }
+              })
+            );
           } catch (err) {
             this.logError(ctx, "handleRefresh", err);
             // Continue with other wallets even if one fails
@@ -180,13 +158,16 @@ export class TradeService extends BaseService {
         const selectedWalletIds = sceneData.selectedWallets || [];
         const numberOfWallets = selectedWalletIds.length;
 
-        // Calculate total amount in wei precisely: parse per-wallet to wei and multiply by number of wallets (>=1)
-        const perWalletWei = parseEther(ethAmount.toString());
-        const walletsCount = numberOfWallets > 0 ? numberOfWallets : 1;
-        const totalAmountBN = perWalletWei * BigInt(walletsCount);
+        // If no wallets selected, use default amount for 1 wallet
+        const effectiveAmount =
+          numberOfWallets > 0 ? ethAmount * numberOfWallets : ethAmount;
+
+        // Convertir ETH a Wei (multiplicar por 10^18)
+        const totalAmountBN = BigInt(Math.floor(effectiveAmount * 10 ** 18));
 
         this.log("info", ctx, `Buy amount per wallet in ETH: ${ethAmount}`);
         this.log("info", ctx, `Number of selected wallets: ${numberOfWallets}`);
+        this.log("info", ctx, `Total buy amount in ETH: ${effectiveAmount}`);
         this.log(
           "info",
           ctx,
