@@ -89,21 +89,30 @@ export class PositionsMenus extends BaseMenus {
 
         // PNL (unrealized)
         let pnlDisplay = "-";
+        let pnlNum: number | null = null;
         if (item.unrealizedPnlEth && item.unrealizedPnlEth !== "-") {
-          const pnlNum = parseFloat(item.unrealizedPnlEth);
-          if (!Number.isNaN(pnlNum)) {
+          const parsed = parseFloat(item.unrealizedPnlEth);
+          if (!Number.isNaN(parsed)) {
+            pnlNum = parsed;
             const sign = pnlNum >= 0 ? "+" : "";
             pnlDisplay = `${sign}${this.formatNumberUS(pnlNum, 4)} Ξ`;
           }
         }
 
+        // Emoji indicator by PnL: 🟢 > 0, ⚪️ = 0 or unknown, 🟠 < 0
+        let indicator = "⚪️";
+        if (pnlNum !== null) {
+          if (pnlNum > 0) indicator = "🟢";
+          else if (pnlNum < 0) indicator = "🟠";
+        }
+
         try {
-          text += `• <b><a href="${generateTradeLink({
+          text += `• ${indicator} <b><a href="${generateTradeLink({
             tokenAddress: item.token.address,
             mode: "sell",
           })}">${item.token.symbol}</a></b>: ${balance}\n`;
         } catch {
-          text += `• <b>${item.token.symbol}</b>: ${balance}\n`;
+          text += `• ${indicator} <b>${item.token.symbol}</b>: ${balance}\n`;
         }
 
         text += `  - PNL: ${pnlDisplay} (${pct})  Worth: ${worthDisplay}\n`;
