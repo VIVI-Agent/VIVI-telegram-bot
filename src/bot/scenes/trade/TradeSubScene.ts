@@ -20,6 +20,7 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
   private service: TradeService;
   private tokenInfoService: TokenInfoServiceWithCache;
   private tokenInfoListener?: (event: TokenInfoUpdateEvent) => void;
+  private isRefreshingQuote: boolean = false;
 
   constructor(instanceId: string) {
     super(instanceId, "Trade");
@@ -1267,6 +1268,15 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
    * Helper function to refresh the bestDex quote and token info, then update the menu
    */
   private async refreshQuoteAndMenu(ctx: GlobalSceneContext): Promise<void> {
+    if (this.isRefreshingQuote) {
+      this.log(
+        "debug",
+        ctx,
+        "refreshQuoteAndMenu: already in progress, skipping"
+      );
+      return;
+    }
+    this.isRefreshingQuote = true;
     try {
       await this.service.handleRefreshFull(ctx);
 
@@ -1316,6 +1326,8 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
     } catch (error) {
       this.log("error", ctx, `Error refreshing quote: ${error}`);
       // Could show an error message to user if needed
+    } finally {
+      this.isRefreshingQuote = false;
     }
   }
 
@@ -1790,6 +1802,7 @@ export class TradeSubScene extends BaseSubScene<TradeSceneData> {
 
           // Update token holding once (can be zero after selling all)
           if (sceneData.token?.address) {
+            // Single read is fine for one token, but structure ready for multicall if needed later
             const tokenBalanceBN = await getTokenBalance(
               sceneData.token.address as Address,
               wallet.address as Address
