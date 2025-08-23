@@ -107,15 +107,15 @@ export class PositionsMenus extends BaseMenus {
         }
 
         try {
-          text += `• ${indicator} <b><a href="${generateTradeLink({
+          text += `${indicator} <b><a href="${generateTradeLink({
             tokenAddress: item.token.address,
             mode: "sell",
           })}">${item.token.symbol}</a></b>: ${balance}\n`;
         } catch {
-          text += `• ${indicator} <b>${item.token.symbol}</b>: ${balance}\n`;
+          text += `${indicator} <b>${item.token.symbol}</b>: ${balance}\n`;
         }
 
-        text += `  - PNL: ${pnlDisplay} (${pct})  Worth: ${worthDisplay}\n`;
+        text += `<b>PNL:</b> ${pnlDisplay} (${pct})  <b>Worth:</b> ${worthDisplay}\n`;
 
         // Accumulate total worth when valueEth is numeric
         if (item.valueEth && item.valueEth !== "-") {
