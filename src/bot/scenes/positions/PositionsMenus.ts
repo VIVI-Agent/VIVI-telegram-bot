@@ -77,14 +77,25 @@ export class PositionsMenus extends BaseMenus {
     if (positions.length === 0) {
       text += POSITIONS_TEXTS.MESSAGES.NO_TOKENS_MESSAGE;
     } else {
+      // Compute total worth in ETH (sum of per-token valueEth when available)
+      let totalWorthEth = 0;
       positions.forEach((item) => {
         const balance = this.formatNumberUS(item.balance, 4);
-        const valueEth = item.valueEth ? `${item.valueEth} Ξ` : "-";
-        const unrealized = item.unrealizedPnlEth
-          ? `${item.unrealizedPnlEth} Ξ`
-          : "-";
         const pct = item.pnlPct || "-";
-        const realized = item.realizedPnlEth ? `${item.realizedPnlEth} Ξ` : "-";
+
+        // Worth (current sell value)
+        const worthDisplay =
+          item.valueEth && item.valueEth !== "-" ? `${item.valueEth} Ξ` : "-";
+
+        // PNL (unrealized)
+        let pnlDisplay = "-";
+        if (item.unrealizedPnlEth && item.unrealizedPnlEth !== "-") {
+          const pnlNum = parseFloat(item.unrealizedPnlEth);
+          if (!Number.isNaN(pnlNum)) {
+            const sign = pnlNum >= 0 ? "+" : "";
+            pnlDisplay = `${sign}${this.formatNumberUS(pnlNum, 4)} Ξ`;
+          }
+        }
 
         try {
           text += `• <b><a href="${generateTradeLink({
@@ -95,10 +106,20 @@ export class PositionsMenus extends BaseMenus {
           text += `• <b>${item.token.symbol}</b>: ${balance}\n`;
         }
 
-        text += `  - Value: ${valueEth}\n`;
-        text += `  - Unrealized: ${unrealized} (${pct})\n`;
-        text += `  - Realized: ${realized}\n`;
+        text += `  - PNL: ${pnlDisplay} (${pct})  Worth: ${worthDisplay}\n`;
+
+        // Accumulate total worth when valueEth is numeric
+        if (item.valueEth && item.valueEth !== "-") {
+          const parsed = parseFloat(item.valueEth);
+          if (!Number.isNaN(parsed)) {
+            totalWorthEth += parsed;
+          }
+        }
       });
+
+      // Append total worth line
+      const totalFormatted = this.formatNumberUS(totalWorthEth, 4);
+      text += `\n${POSITIONS_TEXTS.MESSAGES.TOTAL_VALUE} ${totalFormatted} Ξ\n`;
     }
 
     return { text };
