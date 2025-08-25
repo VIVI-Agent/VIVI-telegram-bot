@@ -138,13 +138,20 @@ export class SellHandlers {
             ethReceived: ethReceivedBN,
           });
 
-          // 🎯 Clear PnL cache for the user (adapted for fix/trade-balances)
+          // Update PnL (realized and reduce cost basis) for this holding
           try {
-            await ctx.services.pnlCacheService.clearUserPnlCache(userId);
-            logger.debug(`[SellHandlers] Cleared PnL cache for user ${userId}`);
-          } catch (error) {
-            logger.error(`[SellHandlers] Error clearing PnL cache:`, error);
+            await ctx.services.holdingService.updatePnLOnSell({
+              userId,
+              tokenId: tokenData.id,
+              walletId: wallet.id,
+              tokensSoldWei: tokensSoldBN,
+              ethReceivedWei: ethReceivedBN,
+            });
+          } catch (err) {
+            logger.error("updatePnLOnSell failed:", err);
           }
+
+          // Removed PnL cache clearing
 
           logger.info(`User ${userId} sell transaction processed.`);
         } catch (err) {

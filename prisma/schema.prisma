@@ -23,23 +23,6 @@ model GlobalConfig {
     id                   Int     @id @default(1)
     referralBonusPercent Float   @default(50)
     enableGroupBot       Boolean @default(false)
-    enabledPresale       Boolean @default(false)
-}
-
-model Subscriber {
-    id               Int      @id @default(autoincrement())
-    email            String   @unique
-    tgUserId         BigInt   @unique
-    tgUsername       String   @unique
-    subscriptionDate DateTime @default(now())
-    waitlistPosition Int
-    hasAccess        Boolean  @default(false)
-}
-
-model AdminUser {
-    id       Int    @id @default(autoincrement())
-    username String @unique
-    password String
 }
 
 model User {
@@ -56,7 +39,6 @@ model User {
     trades       Trade[]
     Withdrawal   Withdrawal[]
     UserFeedback UserFeedback[]
-    pnlCache     PnlCache[]
 
     points         Decimal @default(0.0) @db.Decimal(28, 18)
     referralPoints Decimal @default(0.0) @db.Decimal(28, 18)
@@ -183,19 +165,17 @@ model ExternalPoolInfo {
 }
 
 model Holding {
-    id                Int       @id @default(autoincrement())
+    id                Int      @id @default(autoincrement())
     userId            Int
-    user              User      @relation(fields: [userId], references: [id])
+    user              User     @relation(fields: [userId], references: [id])
     tokenId           Int
-    token             Token     @relation(fields: [tokenId], references: [id])
+    token             Token    @relation(fields: [tokenId], references: [id])
     walletId          Int
-    wallet            Wallet    @relation(fields: [walletId], references: [id])
+    wallet            Wallet   @relation(fields: [walletId], references: [id])
     balance           String
-    totalCostBasis    String    @default("0") // Total ETH spent (in wei)
-    totalTokensBought String    @default("0") // Total tokens acquired
-    realizedPnlWei    String    @default("0") // Realized profit/loss in wei
-    pnlCache          PnlCache?
-    updatedAt         DateTime  @updatedAt
+    totalCostBasisWei Decimal  @default(0) @db.Decimal(78, 0)
+    realizedPnlWei    Decimal  @default(0) @db.Decimal(78, 0)
+    updatedAt         DateTime @updatedAt
 }
 
 model Trade {
@@ -368,35 +348,6 @@ model BuyEventResult {
     totalVolumeWei      Decimal  @db.Decimal(78, 0) // En Wei
 
     createdAt DateTime @default(now())
-}
-
-model PnlCache {
-    id        Int      @id @default(autoincrement())
-    userId    Int
-    user      User     @relation(fields: [userId], references: [id])
-    holdingId Int?     @unique // null = user summary, not null = specific holding
-    holding   Holding? @relation(fields: [holdingId], references: [id])
-
-    // Cached PnL data
-    currentValueWei  String // Current value in wei
-    currentPriceWei  String // Current price per token in wei
-    costBasisWei     String // Cost basis in wei
-    unrealizedPnlWei String // Unrealized PnL in wei
-    realizedPnlWei   String // Realized PnL in wei
-    totalPnlWei      String // Total PnL in wei
-    percentageReturn String // Percentage return as string (e.g., "15.88")
-
-    // Metadata
-    isStale             Boolean  @default(false) // true if needs refresh
-    lastCalculatedAt    DateTime @default(now())
-    lastBlockchainCheck DateTime @default(now())
-
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-
-    @@index([userId])
-    @@index([userId, holdingId])
-    @@index([isStale])
 }
 
 model BankrCache {

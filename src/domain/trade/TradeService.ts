@@ -69,4 +69,18 @@ export class TradeService {
       where: { id: tradeId },
     });
   }
+
+  /**
+   * Returns all trades for a given user and token, ordered chronologically.
+   */
+  public async getTradesForUserToken(params: {
+    userId: number;
+    tokenId: number;
+  }): Promise<Trade[]> {
+    const { userId, tokenId } = params;
+    return this.prisma.trade.findMany({
+      where: { userId, tokenId },
+      orderBy: [{ timestamp: "asc" }, { id: "asc" }],
+    });
+  }
 }

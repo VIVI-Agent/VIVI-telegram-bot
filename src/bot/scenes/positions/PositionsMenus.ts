@@ -2,7 +2,7 @@ import { GENERIC_BUTTONS } from "@texts";
 import { BaseMenus, GlobalSceneContext, PositionsSceneData } from "../../types";
 import { CB } from "./callbacks";
 import { POSITIONS_TEXTS } from "./messages";
-import { formatPnl, generateTradeLink } from "@utils";
+import { generateTradeLink } from "@utils";
 
 export class PositionsMenus extends BaseMenus {
   constructor(instanceId: string) {
@@ -68,83 +68,67 @@ export class PositionsMenus extends BaseMenus {
     }
   }
 
-  async buildPortfolioView(ctx: GlobalSceneContext, pnlSummary: any[]) {
-    // Sort tokens by total worth (highest first)
-    pnlSummary.sort(
-      (a, b) => parseFloat(b.totalPnlEth) - parseFloat(a.totalPnlEth)
-    );
+  async buildPortfolioView(ctx: GlobalSceneContext, positions: any[]) {
+    // Sort tokens alphabetically by symbol
+    positions.sort((a, b) => a.token.symbol.localeCompare(b.token.symbol));
 
-    let totalWorthEth = 0;
-    let totalProfitLoss = 0;
-
-    // Calculate totals
-    pnlSummary.forEach((item) => {
-      // Total Value should be the current value of all tokens (balance * currentPrice)
-      const currentValue =
-        parseFloat(item.balance) * parseFloat(item.currentPrice);
-      totalWorthEth += currentValue;
-      totalProfitLoss += parseFloat(item.totalPnlEth);
-    });
-
-    // Build the text
     let text = `${POSITIONS_TEXTS.MESSAGES.PORTFOLIO_TITLE}\n\n`;
 
-    if (pnlSummary.length === 0) {
+    if (positions.length === 0) {
       text += POSITIONS_TEXTS.MESSAGES.NO_TOKENS_MESSAGE;
     } else {
-      // Add portfolio summary
-      text += `${POSITIONS_TEXTS.MESSAGES.TOTAL_VALUE} ${this.formatNumberUS(
-        totalWorthEth,
-        4
-      )} ETH\n`;
-      text += `${POSITIONS_TEXTS.MESSAGES.TOTAL_PNL} ${formatPnl(
-        this.formatNumberUS(totalProfitLoss, 4)
-      )} ETH\n\n`;
+      // Compute total worth in ETH (sum of per-token valueEth when available)
+      let totalWorthEth = 0;
+      positions.forEach((item) => {
+        const balance = this.formatNumberUS(item.balance, 4);
+        const pct = item.pnlPct || "-";
 
-      // Add token list with PNL
+        // Worth (current sell value)
+        const worthDisplay =
+          item.valueEth && item.valueEth !== "-" ? `${item.valueEth} Ξ` : "-";
 
-      pnlSummary.forEach((item) => {
-        const pctChange = item.percentageReturn.replace("%", "");
-        const pctFormatted = formatPnl(pctChange);
-
-        // Determine emoji based on profit/loss
-        let emoji = "⚪️";
-        if (parseFloat(pctChange) > 20) emoji = "🟩";
-        else if (parseFloat(pctChange) > 0) emoji = "🟩";
-        else if (parseFloat(pctChange) < -20) emoji = "🟥";
-        else if (parseFloat(pctChange) < 0) emoji = "🟧";
-
-        // Create buy and sell links for the token
-        try {
-          text += `${emoji} <b><a href="${generateTradeLink({
-            tokenAddress: item.token.address,
-            mode: "sell",
-          })}">${item.token.symbol}</a></b>: ${this.formatNumberUS(
-            item.balance,
-            4
-          )}\n`;
-        } catch (error) {
-          // Fallback to non-clickeable if link generation fails
-          this.log(
-            "warn",
-            ctx,
-            `Failed to generate trade links for ${item.token.symbol}: ${error}`
-          );
-          text += `${emoji} <b>${item.token.symbol}</b>: ${this.formatNumberUS(
-            item.balance,
-            4
-          )}\n`;
+        // PNL (unrealized)
+        let pnlDisplay = "-";
+        let pnlNum: number | null = null;
+        if (item.unrealizedPnlEth && item.unrealizedPnlEth !== "-") {
+          const parsed = parseFloat(item.unrealizedPnlEth);
+          if (!Number.isNaN(parsed)) {
+            pnlNum = parsed;
+            const sign = pnlNum >= 0 ? "+" : "";
+            pnlDisplay = `${sign}${this.formatNumberUS(pnlNum, 4)} Ξ`;
+          }
         }
 
-        text += `${POSITIONS_TEXTS.MESSAGES.TOTAL_PNL} ${formatPnl(
-          item.totalPnlEth
-        )} Ξ (${pctFormatted}%)`;
+        // Emoji indicator by PnL: 🟢 > 0, ⚪️ = 0 or unknown, 🟠 < 0
+        let indicator = "⚪️";
+        if (pnlNum !== null) {
+          if (pnlNum > 0) indicator = "🟢";
+          else if (pnlNum < 0) indicator = "🟠";
+        }
 
-        text += ` ${POSITIONS_TEXTS.MESSAGES.TOTAL_VALUE} ${this.formatNumberUS(
-          parseFloat(item.balance) * parseFloat(item.currentPrice),
-          4
-        )} Ξ\n\n`;
+        try {
+          text += `${indicator} <b><a href="${generateTradeLink({
+            tokenAddress: item.token.address,
+            mode: "sell",
+          })}">${item.token.symbol}</a></b>: ${balance}\n`;
+        } catch {
+          text += `${indicator} <b>${item.token.symbol}</b>: ${balance}\n`;
+        }
+
+        text += `<b>PNL:</b> ${pnlDisplay} (${pct})  <b>Worth:</b> ${worthDisplay}\n`;
+
+        // Accumulate total worth when valueEth is numeric
+        if (item.valueEth && item.valueEth !== "-") {
+          const parsed = parseFloat(item.valueEth);
+          if (!Number.isNaN(parsed)) {
+            totalWorthEth += parsed;
+          }
+        }
       });
+
+      // Append total worth line
+      const totalFormatted = this.formatNumberUS(totalWorthEth, 4);
+      text += `\n${POSITIONS_TEXTS.MESSAGES.TOTAL_VALUE} ${totalFormatted} Ξ\n`;
     }
 
     return { text };

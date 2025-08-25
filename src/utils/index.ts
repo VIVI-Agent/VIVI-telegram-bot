@@ -4,7 +4,6 @@ export * from "./inputValidators";
 export * from "./messages";
 export * from "./normalizeAmount";
 export * from "./parseBNS";
-export * from "./pnlFormat";
 export * from "./shareMessage";
 export * from "./sleep";
 export * from "./telegramLinkGenerator";

@@ -220,7 +220,15 @@ ${liquidityLine} ${warningEmoji} <i>${warningText}</i>
 💸 <b>Buy:</b> ${amountEth} Ξ
 💰 <b>Out:</b> ${outputAmount} ${tokenInfo.symbol}
 
-${bestDexName === "ApeStore" ? "" : `<i>⚠️ ${liquidityInfo.hasLiquidityData ? "This pool has low liquidity which may result in high slippage or failed transactions." : "Liquidity information is not available. This token may be recently deployed or have limited trading activity."} Do you want to proceed?</i>`}
+${
+  bestDexName === "ApeStore"
+    ? ""
+    : `<i>⚠️ ${
+        liquidityInfo.hasLiquidityData
+          ? "This pool has low liquidity which may result in high slippage or failed transactions."
+          : "Liquidity information is not available. This token may be recently deployed or have limited trading activity."
+      } Do you want to proceed?</i>`
+}
 
 ${socialLinks}`;
 
@@ -374,9 +382,7 @@ function createTextHandlerTransactionSuccessCallback(
         );
       }
 
-      // Step 4: Clear PnL cache for the user
-      await ctx.services.pnlCacheService.clearUserPnlCache(userId);
-      logger.info(`[buyTextHandler] Cleared PnL cache for user ${userId}`);
+      // Removed PnL cache clearing
 
       logger.info(
         `[buyTextHandler] 🎉 Transaction success callback COMPLETED for user ${userId}`

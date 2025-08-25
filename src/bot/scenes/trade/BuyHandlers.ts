@@ -178,13 +178,19 @@ export class BuyHandlers {
             tokensReceived: tokensReceivedBN,
           });
 
-          // 🎯 Clear PnL cache for the user (adapted for fix/trade-balances)
+          // Update PnL (cost basis) for this holding
           try {
-            await ctx.services.pnlCacheService.clearUserPnlCache(userId);
-            logger.debug(`[BuyHandlers] Cleared PnL cache for user ${userId}`);
-          } catch (error) {
-            logger.error(`[BuyHandlers] Error clearing PnL cache:`, error);
+            await ctx.services.holdingService.updatePnLOnBuy({
+              userId,
+              tokenId: tokenData.id,
+              walletId: wallet.id,
+              ethSpentWei: ethInBN,
+            });
+          } catch (err) {
+            logger.error("updatePnLOnBuy failed:", err);
           }
+
+          // Removed PnL cache clearing
 
           logger.info(`User ${userId} buy transaction processed.`);
         } catch (err) {
@@ -228,18 +234,22 @@ export class BuyHandlers {
         }
       } else {
         logger.warn(`No ETH spent in transaction for user ${userId}`);
-        
+
         // Execute callback anyway for text handlers (trade instructions)
         // since the transaction was successful even if log parsing failed
         if (onTransactionSuccess) {
           try {
-            logger.info(`Executing fallback callback for user ${userId} due to log parsing failure`);
+            logger.info(
+              `Executing fallback callback for user ${userId} due to log parsing failure`
+            );
             await onTransactionSuccess();
             logger.info(
               `Fallback transaction success callback executed for user ${userId}`
             );
           } catch (error) {
-            logger.error(`Error in fallback transaction success callback: ${error}`);
+            logger.error(
+              `Error in fallback transaction success callback: ${error}`
+            );
           }
         }
       }
